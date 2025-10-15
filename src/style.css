@@ -1,0 +1,116 @@
+/* This is the CSS file. It controls the visual appearance of our game,
+  from the background color to the font styles and the layout of UI elements.
+  We are using modern CSS features like variables (--variable-name) for easy color theming.
+*/
+
+:root {
+  --font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --background-color: #111827; /* Dark blue-gray */
+  --text-color: #f9fafb; /* Off-white */
+  --primary-color: #4f46e5; /* Indigo */
+  --primary-color-light: #818cf8; /* Lighter Indigo */
+  --modal-bg: #1f2937; /* Dark gray for modal */
+  --shadow-color: rgba(255, 255, 255, 0.5);
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.game-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  width: 100%;
+}
+
+.ui-container {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.game-title {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 0 0 10px var(--shadow-color);
+}
+
+.game-subtitle {
+  color: #9ca3af; /* Gray-400 */
+  margin-top: 0.25rem;
+}
+
+.score-display {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  text-shadow: 0 0 10px var(--shadow-color);
+}
+
+canvas {
+  background-color: #0c0a09;
+  display: block;
+  border-radius: 0.5rem;
+  cursor: crosshair;
+  max-width: 100%;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+/* Styles for the Game Over pop-up */
+.modal-hidden {
+  display: none;
+}
+
+.modal-visible {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background-color: var(--modal-bg);
+  padding: 2rem;
+  border-radius: 0.5rem;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.modal-title {
+  font-size: 2.5rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.modal-text {
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.restart-button {
+  background-color: var(--primary-color);
+  color: white;
+  font-weight: bold;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.restart-button:hover {
+  background-color: #6366f1; /* A lighter Indigo for hover */
+}
