@@ -14,16 +14,19 @@
       
       <!-- In-Game UI -->
       <div class="ui-container">
-        <div>
-          <span>Score: </span>
-          <span id="score">0</span>
+        <!-- MODIFIED: Grouped score and fragments on the left -->
+        <div class="left-ui">
+          <div class="score-display">
+            <span>Score: </span>
+            <span id="score">0</span>
+          </div>
+          <div id="runFragmentsContainer">
+            <span class="star-icon">★</span>
+            <span id="runFragmentsDisplay">0</span>
+          </div>
         </div>
-        <!-- NEW: Pause Button -->
+        
         <button id="pauseButton" class="pause-btn">||</button>
-        <div id="runFragmentsContainer">
-          <span class="star-icon">★</span>
-          <span id="runFragmentsDisplay">0</span>
-        </div>
       </div>
       <div id="powerUpStatus" class="powerup-hidden"></div>
 
@@ -67,7 +70,7 @@
         </div>
       </div>
       
-      <!-- NEW: Pause Menu Modal -->
+      <!-- Pause Menu Modal -->
       <div id="pauseMenu" class="modal modal-hidden">
         <div class="modal-content">
           <h2>Paused</h2>
@@ -77,7 +80,6 @@
       </div>
 
     </div>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

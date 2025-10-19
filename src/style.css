@@ -1,272 +1,218 @@
-/* General body styling */
-body {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+/* General Setup */
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+  color-scheme: light dark;
   color: rgba(255, 255, 255, 0.87);
-  /* FIXED: Darker base background */
-  background-color: #000000;
+  background-color: #1a1a1a;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  overflow: hidden;
-  /* NEW: Add a subtle starfield background */
-  background-image:
-    radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
-    radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
-    radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px),
-    radial-gradient(rgba(255,255,255,.4), rgba(255,255,255,.1) 2px, transparent 30px);
-  background-size: 550px 550px, 350px 350px, 250px 250px, 150px 150px;
-  background-position: 0 0, 40px 60px, 130px 270px, 70px 100px;
-  animation: bg-move 120s linear infinite;
-}
-
-/* NEW: Keyframe animation for the background */
-@keyframes bg-move {
-    from { background-position: 0 0, 40px 60px, 130px 270px, 70px 100px; }
-    to { background-position: 550px 550px, 390px 410px, 380px 520px, 220px 250px; }
-}
-
-
-/* Main application container */
-#app {
+  padding: 0;
   width: 100vw;
   height: 100vh;
-  margin: 0 auto;
-  padding: 0;
-  text-align: center;
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
   position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
-/* Game Canvas Styling */
-#gameCanvas {
-  background-color: #0c0a09;
-  border-radius: 0.5rem;
-  position: absolute;
-  box-shadow: 0 0 30px rgba(79, 70, 229, 0.5);
-  border: 1px solid rgba(79, 70, 229, 0.3);
+/* Starfield Background */
+@keyframes move-twink-back {
+  from { background-position: 0 0; }
+  to { background-position: -10000px 5000px; }
 }
 
-/* Shared UI container styling */
-.ui-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  box-sizing: border-box;
-  padding: 1rem;
+.stars, .twinkling {
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.stars {
+  background: #000 url(https://www.script-tutorials.com/demos/360/images/stars.png) repeat top center;
+  z-index: 0;
+}
+
+.twinkling {
+  background: transparent url(https://www.script-tutorials.com/demos/360/images/twinkling.png) repeat top center;
+  z-index: 1;
+  animation: move-twink-back 200s linear infinite;
+}
+
+/* Canvas & UI Overlay */
+#gameCanvas {
+  position: absolute;
   z-index: 10;
-  pointer-events: none; 
+  border-radius: 12px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.5);
 }
 
-h1 {
-  font-size: 2.5em;
-  line-height: 1.1;
-  margin-bottom: 0.5rem;
+.ui-container {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  width: 100%;
+  padding: 0 40px;
+  box-sizing: border-box;
+  z-index: 30;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-shadow: 0 0 5px black;
+  display: none; /* Hidden by default, shown by JS */
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
 }
 
-p {
-  color: rgba(255, 255, 255, 0.6);
-  margin-top: 0;
+.left-ui {
+  display: flex;
+  align-items: center;
+  gap: 24px;
 }
 
-/* Score display */
-#score {
-  font-size: 2rem;
-  font-weight: bold;
+.score-display, #runFragmentsContainer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
-/* Power-up status display */
-.powerup-status {
+#runFragmentsContainer {
+    font-size: 1.5rem;
+    color: #facc15;
+    transition: opacity 0.3s;
+}
+
+.star-icon {
+    text-shadow: 0 0 10px #fde047;
+}
+
+.run-fragments-hidden {
+    opacity: 0;
+}
+
+
+/* Power-up Status */
+.powerup-active {
     position: absolute;
-    bottom: 2rem;
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
-    font-weight: 600;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.powerup-active {
+    background-color: rgba(0,0,0,0.5);
+    padding: 8px 16px;
+    border-radius: 8px;
+    z-index: 30;
+    color: white;
+    font-weight: bold;
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+    transition: opacity 0.3s ease-in-out;
 }
-
 .powerup-hidden {
     opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-    pointer-events: none;
 }
 
 
-/* Modal styles (for Game Over and Main Menu) */
+/* Modals (Menu, Game Over, Pause) */
 .modal {
+  position: absolute;
+  z-index: 40;
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 1rem;
-  background-color: rgba(17, 24, 39, 0.8);
-  backdrop-filter: blur(4px);
-  padding: 2rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  width: 90%;
-  max-width: 400px;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-  position: absolute;
-  /* FIXED: No need for z-index, as it is a direct child of the flex container */
-}
-
-.modal-visible {
-  opacity: 1;
-  transform: scale(1);
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.3s ease-in-out;
 }
 
 .modal-hidden {
   opacity: 0;
-  transform: scale(0.95);
   pointer-events: none;
 }
 
-.modal h2 {
-  margin: 0;
-  font-size: 2rem;
-  font-weight: 800;
+.modal-visible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
-.modal p {
-  margin: 0;
-  font-size: 1.1rem;
+.modal-content {
+  background-color: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 2rem 3rem;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  min-width: 300px;
 }
 
-.modal button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
+h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+h2 { font-size: 2rem; margin-bottom: 0.5rem; }
+p { color: #cbd5e1; margin-bottom: 1.5rem; }
+
+.stats-display {
+  display: flex;
+  justify-content: space-around;
+  gap: 2rem;
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.stats-display div {
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-display span:first-child {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.stats-display span:last-child {
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: white;
+}
+
+.btn {
   background-color: #4f46e5;
   color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.25s, background-color 0.25s;
-  pointer-events: all;
+  transition: background-color 0.2s;
+  width: 100%;
 }
 
-.modal button:hover {
-  background-color: #6366f1;
+.btn:hover {
+  background-color: #4338ca;
 }
 
-.modal button:focus,
-.modal button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.stats-container {
-    display: flex;
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-
-.stat {
-    display: flex;
-    flex-direction: column;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-
-.modal button:focus,
-.modal button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.stats-container {
-    display: flex;
-    gap: 1.5rem;
-    margin-top: 1rem;
-}
-
-.stat {
-    display: flex;
-    flex-direction: column;
-}
-
-.stat-label {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-/* NEW: Styles for the in-run fragment counter */
-#runFragmentsContainer {
-    position: absolute;
-    top: 1rem;
-    right: 1.5rem;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #facc15; /* Star yellow */
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background-color: rgba(0,0,0,0.3);
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.run-fragments-hidden {
-    opacity: 0;
-    transform: translateY(-10px);
-}
-
-.star-icon {
-    line-height: 1;
-}
-
-.powerup-hidden {
-    opacity: 0;
-    transform: translateY(20px);
-}
-
-
-.run-fragments-hidden {
-    opacity: 0;
-}
-
-/* NEW: Pause Button and Menu Styles */
 .pause-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
+    position: relative; /* No longer needs absolute positioning */
     background-color: rgba(255, 255, 255, 0.1);
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.3);
@@ -293,15 +239,14 @@ p {
     background-color: #2d3748;
 }
 
-/* NEW: Screen Shake Animation */
-@keyframes screen-shake {
-  0% { transform: translate(0, 0); }
-  10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 2px) rotate(-0.5deg); }
-  20%, 40%, 60%, 80% { transform: translate(2px, -2px) rotate(0.5deg); }
-  100% { transform: translate(0, 0); }
+/* Screen Shake Animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
 .screen-shake {
-  animation: screen-shake 0.3s ease-in-out;
+  animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
