@@ -8,7 +8,6 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const gameOverModal = document.getElementById('gameOverModal');
-// FIXED: The ID now correctly matches the HTML ('finalScoreElement').
 const finalScoreElement = document.getElementById('finalScoreElement');
 const restartButton = document.getElementById('restartButton');
 const powerUpStatusElement = document.getElementById('powerUpStatus');
@@ -51,8 +50,9 @@ let cameraX = 0;
 let nextObstacleSpawnX = 0;
 let nextPowerUpSpawnX = 0;
 let nextFragmentSpawnX = 0;
-let currentZone = 1;
 let activePowerUp = { type: null, timer: 0 };
+let lastZoneIndex = -1;
+
 const PLAYER_COMET_RADIUS = 15;
 const GRAVITY_INFLUENCE = 0.2; 
 const INERTIAL_DAMPING = 0.98;
@@ -60,17 +60,19 @@ const SCORE_DIVISOR = 7;
 const WAVE_AMPLITUDE = 0.5;
 const WAVE_FREQUENCY = 0.03;
 
-const zoneConfig = {
-  1: { name: "The Tranquil Void", scoreThreshold: 0, cometSpeed: 2.5, maxSpeed: 3.5, backgroundColor: '#0c0a09', obstacleColor: '#4f46e5' },
-  2: { name: "The Asteroid Drift", scoreThreshold: 1500, cometSpeed: 3.5, maxSpeed: 4.0, backgroundColor: '#26241e', obstacleColor: '#a16207' },
-  3: { name: "Singularity's Edge", scoreThreshold: 3000, cometSpeed: 4.0, maxSpeed: 7.0, backgroundColor: '#1e1b4b', obstacleColor: '#be185d' }
-};
+const ZONE_SCORE_INCREMENT = 1500;
+const INITIAL_SPEED = 2.5;
+const SPEED_INCREMENT_PER_ZONE = 0.25;
+const START_HUE = 240; // Blue
+const HUE_INCREMENT_PER_ZONE = 50;
+
 
 const audioManager = {
     isInitialized: false,
     synth: null,
     noiseSynth: null,
     musicLoop: null,
+    baseBPM: 100,
 
     init() {
         if (this.isInitialized) return;
@@ -100,6 +102,9 @@ const audioManager = {
     },
     startMusic() {
         if (!this.isInitialized || this.musicLoop) return;
+        
+        Tone.Transport.bpm.value = this.baseBPM;
+
         const notes = ["C2", "G2", "Eb3", "G2"];
         let noteIndex = 0;
         
@@ -109,6 +114,10 @@ const audioManager = {
         }, "4n").start(0);
 
         Tone.Transport.start();
+    },
+    updateTempo(newBPM) {
+        if (!this.isInitialized) return;
+        Tone.Transport.bpm.rampTo(newBPM, 0.5);
     },
     stopMusic() {
         if (this.musicLoop) {
@@ -163,7 +172,10 @@ class PlayerComet {
         this.x += this.vx; this.y += this.vy;
 
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 12) this.trail.shift();
+        // OPTIMIZED: Shorter trail to improve performance
+        if (this.trail.length > 8) {
+            this.trail.shift();
+        }
     }
     draw() {
         const screenX = this.x - cameraX;
@@ -220,9 +232,8 @@ class Obstacle {
             }
         }
     }
-    draw() {
-        const zone = zoneConfig[currentZone];
-        let color = zone.obstacleColor;
+    draw(obstacleColor, strokeColor) {
+        let color = obstacleColor;
         let shouldDraw = true;
         if (this.type === 'phasing') {
             if (!this.isActive) {
@@ -239,7 +250,7 @@ class Obstacle {
             ctx.fillStyle = color;
             ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
             if (this.type !== 'phasing' || this.isActive) {
-                ctx.strokeStyle = zone.obstacleColor.replace('e5', 'f8'); 
+                ctx.strokeStyle = strokeColor; 
                 ctx.lineWidth = 2;
                 ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height);
             }
@@ -377,15 +388,12 @@ function setGameState(newState) {
     } else if (gameState === 'playing') {
         inGameUi.style.display = 'flex';
         runFragmentsContainer.className = '';
-        if (oldState !== 'playing') {
-            if (oldState === 'paused') {
-                audioManager.startMusic();
-                // We need to kick off the game loop again when resuming
-                if (animationFrameId) cancelAnimationFrame(animationFrameId);
-                gameLoop();
-            } else {
-                setTimeout(startGame, 350);
-            }
+        if (oldState === 'paused') {
+            audioManager.startMusic();
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            gameLoop();
+        } else {
+            setTimeout(startGame, 350);
         }
     } else if (gameState === 'paused') {
         audioManager.stopMusic();
@@ -393,7 +401,7 @@ function setGameState(newState) {
         pauseMenu.className = 'modal modal-visible';
     } else if (gameState === 'game-over') {
         if (playerComet) {
-            createExplosion(playerComet.x, playerComet.y, 25, 'white');
+            createExplosion(playerComet.x, playerComet.y, 15, 'white');
         }
         audioManager.stopMusic();
         audioManager.playGameOverSound();
@@ -417,7 +425,7 @@ function initNewRun() {
   fragmentsThisRun = 0;
   runFragmentsDisplay.textContent = '0';
   maxDistanceReached = 0;
-  currentZone = 1;
+  lastZoneIndex = -1;
   playerComet = null;
   gravityWell = null;
   cameraX = 0;
@@ -431,7 +439,8 @@ function initNewRun() {
   activePowerUp = { type: null, timer: 0 };
   scoreElement.textContent = '0';
   powerUpStatusElement.className = 'powerup-hidden';
-  canvas.style.backgroundColor = zoneConfig[currentZone].backgroundColor;
+  
+  checkZoneTransition();
   
   playerComet = new PlayerComet(50, canvas.height / 2);
 }
@@ -447,7 +456,6 @@ function startGame() {
 function gameLoop() {
   if (gameState !== 'playing' || isGameOver) {
       if(gameState === 'paused'){
-          // Keep loop alive but do nothing
           animationFrameId = requestAnimationFrame(gameLoop);
       }
       return;
@@ -465,9 +473,15 @@ function gameLoop() {
   managePowerUps();
   manageStarFragments();
   manageParticles();
+  updateMusicTempo();
+
+  const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+  const hue = (START_HUE + (zoneIndex * HUE_INCREMENT_PER_ZONE)) % 360;
+  const obstacleColor = `hsl(${hue + 20}, 80%, 60%)`;
+  const strokeColor = `hsl(${hue + 20}, 80%, 70%)`;
 
   obstacles.forEach(o => o.update());
-  obstacles.forEach(o => o.draw());
+  obstacles.forEach(o => o.draw(obstacleColor, strokeColor));
   powerUps.forEach(p => p.draw());
   starFragments.forEach(sf => sf.draw());
   particles.forEach(p => p.draw());
@@ -484,7 +498,7 @@ function gameLoop() {
         fragmentsThisRun++;
         runFragmentsDisplay.textContent = fragmentsThisRun;
         audioManager.playFragmentSound();
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 10, '#facc15');
+        createExplosion(collisionResult.item.x, collisionResult.item.y, 5, '#facc15');
     }
     if (collisionResult.powerUp) {
         activePowerUp.type = collisionResult.powerUp;
@@ -492,12 +506,20 @@ function gameLoop() {
         activePowerUp.timer = durations[activePowerUp.type];
         audioManager.playPowerUpSound();
         const color = new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main;
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 15, color);
+        createExplosion(collisionResult.item.x, collisionResult.item.y, 8, color);
     }
     handleActivePowerUp();
+    
+    // FIXED: Correct scoring logic that prevents score from reverting.
+    const oldMaxDistance = maxDistanceReached;
     maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
-    const scoreMultiplier = activePowerUp.type === 'boost' ? 2 : 1;
-    score = (maxDistanceReached / SCORE_DIVISOR) * scoreMultiplier;
+    const distanceGained = maxDistanceReached - oldMaxDistance;
+
+    if (distanceGained > 0) {
+        const scoreMultiplier = activePowerUp.type === 'boost' ? 2 : 1;
+        score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
+    }
+    
     scoreElement.textContent = Math.floor(score);
     checkZoneTransition();
   }
@@ -528,13 +550,19 @@ function resizeCanvas() {
 }
 
 
-function getObstacleTypeForZone(zoneId) {
+function getObstacleTypeForZone() {
+    const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
     const rand = Math.random();
-    const zoneProbabilities = { 1: { static: 1.0 }, 2: { static: 0.6, vertical: 0.4 }, 3: { static: 0.4, vertical: 0.4, phasing: 0.2 } };
-    const probs = zoneProbabilities[zoneId] || zoneProbabilities[3];
-    let cumulativeProbability = 0;
-    for (const type in probs) { cumulativeProbability += probs[type]; if (rand < cumulativeProbability) return type; }
-    return 'static';
+    
+    if (zoneIndex < 1) { 
+        return 'static';
+    }
+    if (zoneIndex < 3) {
+        return rand < 0.6 ? 'static' : 'vertical';
+    }
+    if (rand < 0.4) return 'static';
+    if (rand < 0.8) return 'vertical';
+    return 'phasing';
 }
 
 function manageObstacles() {
@@ -542,7 +570,7 @@ function manageObstacles() {
     obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > cameraX);
     const spawnAheadPoint = cameraX + canvas.width;
     if (nextObstacleSpawnX < spawnAheadPoint) {
-        const obstacleType = getObstacleTypeForZone(currentZone);
+        const obstacleType = getObstacleTypeForZone();
         const width = Math.random() * 50 + 25; const height = Math.random() * 180 + 50;
         const x = spawnAheadPoint + Math.random() * 100; const y = Math.random() * (canvas.height - height);
         obstacles.push(new Obstacle(x, y, width, height, obstacleType));
@@ -695,28 +723,35 @@ function checkCollisions() {
     
     return { obstacle: false, powerUp: null, fragment: false, item: null };
 }
+
 function calculateCurrentSpeed() {
-    const zone = zoneConfig[currentZone];
-    const nextZone = zoneConfig[currentZone + 1];
-    const startSpeed = zone.cometSpeed; const endSpeed = zone.maxSpeed;
-    const startScore = zone.scoreThreshold; const endScore = nextZone ? nextZone.scoreThreshold : startScore + 3000;
-    if (score <= startScore) return startSpeed;
-    if (score >= endScore) {
-        if (!nextZone) {
-            const extraScore = score - endScore;
-            return endSpeed + (extraScore * 0.0005);
-        }
-        return endSpeed;
-    }
-    const progress = (score - startScore) / (endScore - startScore);
-    return startSpeed + (endSpeed - startSpeed) * progress;
+    if(!playerComet) return INITIAL_SPEED;
+    const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+    return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
 }
+
+function updateMusicTempo() {
+    if (!playerComet) return;
+    const minSpeed = INITIAL_SPEED;
+    const maxSpeedForTempo = 10;
+    const speedRange = maxSpeedForTempo - minSpeed;
+    const currentSpeedAboveMin = playerComet.baseSpeed - minSpeed;
+    const speedRatio = Math.max(0, Math.min(1, currentSpeedAboveMin / speedRange));
+    const minBPM = audioManager.baseBPM;
+    const maxBPM = 180;
+    const bpmRange = maxBPM - minBPM;
+    const newBPM = minBPM + (speedRatio * bpmRange);
+    audioManager.updateTempo(newBPM);
+}
+
+
 function checkZoneTransition() {
-    const nextZoneId = currentZone + 1;
-    if (zoneConfig[nextZoneId] && score >= zoneConfig[nextZoneId].scoreThreshold) {
-        currentZone = nextZoneId;
-        canvas.style.transition = 'background-color 1s ease';
-        canvas.style.backgroundColor = zoneConfig[currentZone].backgroundColor;
+    const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+    if (zoneIndex !== lastZoneIndex) {
+        console.log(`Entering procedural zone ${zoneIndex + 1}`);
+        const hue = (START_HUE + (zoneIndex * HUE_INCREMENT_PER_ZONE)) % 360;
+        canvas.style.backgroundColor = `hsla(${hue}, 60%, 15%, 0.8)`;
+        lastZoneIndex = zoneIndex;
     }
 }
 
@@ -782,7 +817,6 @@ function setupEventListeners() {
     playButton.addEventListener('click', handlePlayClick);
     restartButton.addEventListener('click', handlePlayClick);
     
-    // NEW: Added pause menu event listeners
     pauseButton.addEventListener('click', () => {
         if (gameState === 'playing') {
             setGameState('paused');
@@ -791,7 +825,7 @@ function setupEventListeners() {
 
     resumeButton.addEventListener('click', () => {
         if (gameState === 'paused') {
-            handlePlayClick(); // Re-use the play click logic to handle audio resume
+            handlePlayClick();
         }
     });
 
