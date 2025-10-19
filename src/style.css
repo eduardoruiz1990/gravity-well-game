@@ -1,144 +1,254 @@
-/* This is the CSS file. It controls the visual appearance of our game,
-  from the background color to the font styles and the layout of UI elements.
-  We are using modern CSS features like variables (--variable-name) for easy color theming.
-*/
-
-:root {
-  --font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  --background-color: #111827; /* Dark blue-gray */
-  --text-color: #f9fafb; /* Off-white */
-  --primary-color: #4f46e5; /* Indigo */
-  --primary-color-light: #818cf8; /* Lighter Indigo */
-  --modal-bg: #1f2937; /* Dark gray for modal */
-  --shadow-color: rgba(255, 255, 255, 0.5);
-}
-
+/* General body styling */
 body {
-  font-family: var(--font-family);
-  background-color: var(--background-color);
-  color: var(--text-color);
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.87);
+  /* FIXED: Darker base background */
+  background-color: #000000;
   margin: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  place-items: center;
+  min-width: 320px;
   min-height: 100vh;
   overflow: hidden;
+  /* NEW: Add a subtle starfield background */
+  background-image:
+    radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+    radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+    radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px),
+    radial-gradient(rgba(255,255,255,.4), rgba(255,255,255,.1) 2px, transparent 30px);
+  background-size: 550px 550px, 350px 350px, 250px 250px, 150px 150px;
+  background-position: 0 0, 40px 60px, 130px 270px, 70px 100px;
+  animation: bg-move 120s linear infinite;
 }
 
-.game-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1rem;
-  width: 100%;
+/* NEW: Keyframe animation for the background */
+@keyframes bg-move {
+    from { background-position: 0 0, 40px 60px, 130px 270px, 70px 100px; }
+    to { background-position: 550px 550px, 390px 410px, 380px 520px, 220px 250px; }
 }
 
-.ui-container {
+
+/* Main application container */
+#app {
+  width: 100vw;
+  height: 100vh;
+  margin: 0 auto;
+  padding: 0;
   text-align: center;
-  margin-bottom: 1rem;
-}
-
-.game-title {
-  font-size: 2.25rem;
-  font-weight: 700;
-  margin: 0;
-  text-shadow: 0 0 10px var(--shadow-color);
-}
-
-.game-subtitle {
-  color: #9ca3af; /* Gray-400 */
-  margin-top: 0.25rem;
-}
-
-.score-display {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-top: 0.5rem;
-  text-shadow: 0 0 10px var(--shadow-color);
-}
-
-canvas {
-  background-color: #0c0a09;
-  display: block;
-  border-radius: 0.5rem;
-  cursor: crosshair;
-  max-width: 100%;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
-
-/* Styles for the Game Over pop-up */
-.modal-hidden {
-  display: none;
-}
-
-.modal-visible {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.7);
+  position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
-.modal-content {
-  background-color: var(--modal-bg);
-  padding: 2rem;
+/* Game Canvas Styling */
+#gameCanvas {
+  background-color: #0c0a09;
   border-radius: 0.5rem;
-  text-align: center;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  position: absolute;
+  box-shadow: 0 0 30px rgba(79, 70, 229, 0.5);
+  border: 1px solid rgba(79, 70, 229, 0.3);
 }
 
-.modal-title {
-  font-size: 2.5rem;
-  font-weight: bold;
+/* Shared UI container styling */
+.ui-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 1rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none; 
+}
+
+h1 {
+  font-size: 2.5em;
+  line-height: 1.1;
   margin-bottom: 0.5rem;
 }
 
-.modal-text {
-  font-size: 1.25rem;
-  margin-bottom: 1rem;
+p {
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 0;
 }
 
-.restart-button {
-  background-color: var(--primary-color);
-  color: white;
+/* Score display */
+#score {
+  font-size: 2rem;
   font-weight: bold;
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 0.5rem;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
 }
 
-.restart-button:hover {
-  background-color: #6366f1; /* A lighter Indigo for hover */
+/* Power-up status display */
+.powerup-status {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .powerup-active {
-  margin-top: 8px;
-  padding: 4px 12px;
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 9999px;
-  font-size: 0.9em;
-  font-weight: 600;
-  color: #fde047; /* A gold color for visibility */
-  border: 1px solid rgba(253, 224, 71, 0.5);
-  transition: all 0.3s ease-in-out;
-  text-shadow: 0 0 5px #facc15;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
 
 .powerup-hidden {
-  display: none;
-}
-.menu-stats {
-    margin: 24px 0;
-    text-align: center;
-    font-size: 1.1rem;
-    color: #d1d5db; /* A light gray color */
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    pointer-events: none;
 }
 
-.menu-stats p {
-    margin: 8px 0;
+
+/* Modal styles (for Game Over and Main Menu) */
+.modal {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  background-color: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(4px);
+  padding: 2rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  position: absolute;
+  /* FIXED: No need for z-index, as it is a direct child of the flex container */
+}
+
+.modal-visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.modal-hidden {
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
+}
+
+.modal h2 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.modal p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.modal button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #4f46e5;
+  color: white;
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.25s;
+  pointer-events: all;
+}
+
+.modal button:hover {
+  background-color: #6366f1;
+}
+
+.modal button:focus,
+.modal button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.stats-container {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+
+.modal button:focus,
+.modal button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.stats-container {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+
+/* NEW: Styles for the in-run fragment counter */
+#runFragmentsContainer {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #facc15; /* Star yellow */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background-color: rgba(0,0,0,0.3);
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.run-fragments-hidden {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.star-icon {
+    line-height: 1;
 }
 

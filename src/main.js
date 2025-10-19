@@ -1,5 +1,6 @@
 // This is the main JavaScript file, the "engine" of our game.
 import './style.css'
+import * as Tone from 'tone';
 
 // --- Step 1: DOM Element Setup ---
 const canvas = document.getElementById('gameCanvas');
@@ -9,48 +10,49 @@ const gameOverModal = document.getElementById('gameOverModal');
 const finalScoreElement = document.getElementById('finalScore');
 const restartButton = document.getElementById('restartButton');
 const powerUpStatusElement = document.getElementById('powerUpStatus');
+const inGameUi = document.querySelector('.ui-container');
 
-// NEW: UI elements for the Main Menu
 const mainMenu = document.getElementById('mainMenu');
 const playButton = document.getElementById('playButton');
 const highScoreDisplay = document.getElementById('highScoreDisplay');
 const starFragmentsDisplay = document.getElementById('starFragmentsDisplay');
 
+const runFragmentsContainer = document.getElementById('runFragmentsContainer');
+const runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
+const fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
+
 
 // --- Step 2: Game State and Configuration ---
-
-// NEW: The Game State Manager
-// This variable will control what part of the game is currently active.
-// Possible states: 'menu', 'playing', 'game-over'
 let gameState = 'menu';
-
-// NEW: Player Data Object
-// This will hold all the data we want to save.
 let playerData = {
     highScore: 0,
     starFragments: 0
 };
 
-// --- All other state and config variables remain the same ---
 let playerComet = null;
 let obstacles = [];
-let powerUps = []; 
+let powerUps = [];
+let starFragments = [];
+// NEW: Array for particle effects
+let particles = [];
 let gravityWell = null;
 let score = 0;
-let isGameOver = false; // We still use this for the loop, but gameState is the main controller
+let fragmentsThisRun = 0;
+let isGameOver = false;
 let animationFrameId;
 let maxDistanceReached = 0; 
 let cameraX = 0;
 let nextObstacleSpawnX = 0;
-let nextPowerUpSpawnX = 0; 
+let nextPowerUpSpawnX = 0;
+let nextFragmentSpawnX = 0;
 let currentZone = 1;
 let activePowerUp = { type: null, timer: 0 };
 const PLAYER_COMET_RADIUS = 15;
-const GRAVITY_INFLUENCE = 0.15;
-const INERTIAL_DAMPING = 0.99; 
+const GRAVITY_INFLUENCE = 0.2; 
+const INERTIAL_DAMPING = 0.98;
 const SCORE_DIVISOR = 7;
-const WAVE_AMPLITUDE = 0.7;
-const WAVE_FREQUENCY = 0.04;
+const WAVE_AMPLITUDE = 0.5;
+const WAVE_FREQUENCY = 0.03;
 
 const zoneConfig = {
   1: { name: "The Tranquil Void", scoreThreshold: 0, cometSpeed: 2.5, maxSpeed: 3.5, backgroundColor: '#0c0a09', obstacleColor: '#4f46e5' },
@@ -58,8 +60,61 @@ const zoneConfig = {
   3: { name: "Singularity's Edge", scoreThreshold: 3000, cometSpeed: 4.0, maxSpeed: 7.0, backgroundColor: '#1e1b4b', obstacleColor: '#be185d' }
 };
 
-// --- All Classes (PlayerComet, Obstacle, etc.) remain the same ---
-// ... (No changes to the class definitions)
+const audioManager = {
+    isInitialized: false,
+    synth: null,
+    noiseSynth: null,
+    musicLoop: null,
+
+    init() {
+        if (this.isInitialized) return;
+        this.synth = new Tone.Synth().toDestination();
+        this.noiseSynth = new Tone.NoiseSynth({
+            noise: { type: 'white' },
+            envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
+        }).toDestination();
+        this.isInitialized = true;
+    },
+
+    playFragmentSound() {
+        if (!this.isInitialized) return;
+        this.synth.triggerAttackRelease("C5", "8n");
+    },
+    playPowerUpSound() {
+        if (!this.isInitialized) return;
+        this.synth.triggerAttackRelease("G5", "8n");
+    },
+    playGameOverSound() {
+        if (!this.isInitialized) return;
+        this.noiseSynth.triggerAttack();
+    },
+    playClickSound() {
+        if (!this.isInitialized) return;
+        this.synth.triggerAttackRelease("C4", "16n");
+    },
+    startMusic() {
+        if (!this.isInitialized || this.musicLoop) return;
+        const notes = ["C2", "G2", "Eb3", "G2"];
+        let noteIndex = 0;
+        
+        this.musicLoop = new Tone.Loop(time => {
+            this.synth.triggerAttackRelease(notes[noteIndex % notes.length], "8n", time);
+            noteIndex++;
+        }, "4n").start(0);
+
+        Tone.Transport.start();
+    },
+    stopMusic() {
+        if (this.musicLoop) {
+            this.musicLoop.stop(0);
+            this.musicLoop.dispose();
+            this.musicLoop = null;
+            Tone.Transport.stop();
+        }
+    }
+};
+
+// --- Step 3: Game Classes (The Blueprints) ---
 class PlayerComet {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -72,10 +127,11 @@ class PlayerComet {
         this.baseSpeed = calculateCurrentSpeed();
         this.waveAngle += WAVE_FREQUENCY;
         this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
-        let sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
+        const sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
 
-        // FIXED: The sway/inertia logic is now correctly placed in an else block,
-        // so it doesn't interfere with the gravity well's control.
+        const inertiaFactor = 1 - INERTIAL_DAMPING;
+        this.vy += (sway - this.vy) * inertiaFactor;
+
         if (gravityWell) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
@@ -87,14 +143,19 @@ class PlayerComet {
                 this.vx += pullX * GRAVITY_INFLUENCE;
                 this.vy += pullY * GRAVITY_INFLUENCE;
             }
-        } else {
-             this.vy = (this.vy * (1 - INERTIAL_DAMPING)) + (sway * INERTIAL_DAMPING);
         }
 
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-        this.vx = (this.vx / currentSpeed) * this.baseSpeed;
-        this.vy = (this.vy / currentSpeed) * this.baseSpeed;
+        if (currentSpeed > 0) {
+            this.vx = (this.vx / currentSpeed) * this.baseSpeed;
+            this.vy = (this.vy / currentSpeed) * this.baseSpeed;
+        } else {
+            this.vx = this.baseSpeed;
+            this.vy = 0;
+        }
+        
         this.x += this.vx; this.y += this.vy;
+
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 12) this.trail.shift();
     }
@@ -205,16 +266,80 @@ class PowerUp {
     }
 }
 
+class StarFragment {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 8;
+        this.animation = Math.random() * Math.PI * 2;
+    }
+
+    draw() {
+        this.animation += 0.07;
+        const scale = 1 + Math.sin(this.animation) * 0.1;
+        const screenX = this.x - cameraX;
+
+        ctx.save();
+        ctx.translate(screenX, this.y);
+        ctx.rotate(this.animation * 0.5);
+        ctx.scale(scale, scale);
+
+        ctx.fillStyle = '#facc15';
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+            let angle = (i / 5) * 2 * Math.PI;
+            let outerRadius = this.radius;
+            let innerRadius = this.radius / 2;
+            ctx.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
+            angle += (1 / 5) * Math.PI;
+            ctx.lineTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.restore();
+    }
+}
+
+// NEW: Class for a single particle effect
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.radius = Math.random() * 3 + 1;
+        this.lifespan = 60; // 1 second
+        this.vx = (Math.random() - 0.5) * 4;
+        this.vy = (Math.random() - 0.5) * 4;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.lifespan--;
+    }
+
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x - cameraX, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.globalAlpha = this.lifespan / 60;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+}
+
 
 // --- Step 4: Core Game Logic Functions ---
 
-// NEW: Persistence Functions using localStorage
 function savePlayerData() {
     try {
         localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData));
-    } catch (e) {
-        console.error("Could not save player data to localStorage.", e);
-    }
+    } catch (e) { console.error("Could not save player data.", e); }
 }
 
 function loadPlayerData() {
@@ -224,44 +349,55 @@ function loadPlayerData() {
             playerData = JSON.parse(savedData);
         }
     } catch (e) {
-        console.error("Could not load player data from localStorage.", e);
-        // If data is corrupted, reset to default
+        console.error("Could not load player data.", e);
         playerData = { highScore: 0, starFragments: 0 };
     }
 }
 
-// NEW: The State Management Hub
 function setGameState(newState) {
+    const oldState = gameState;
     gameState = newState;
-    // Hide all modals by default
-    mainMenu.className = 'modal-hidden';
-    gameOverModal.className = 'modal-hidden';
+    
+    mainMenu.className = 'modal modal-hidden';
+    gameOverModal.className = 'modal modal-hidden';
+    inGameUi.style.display = 'none';
 
     if (gameState === 'menu') {
-        mainMenu.className = 'modal-visible';
-        // Update the displays on the main menu
+        audioManager.stopMusic();
+        mainMenu.className = 'modal modal-visible';
         highScoreDisplay.textContent = playerData.highScore;
         starFragmentsDisplay.textContent = playerData.starFragments;
     } else if (gameState === 'playing') {
-        startGame();
+        inGameUi.style.display = 'flex';
+        runFragmentsContainer.className = '';
+        if (oldState !== 'playing') {
+            setTimeout(startGame, 350); 
+        }
     } else if (gameState === 'game-over') {
-        // Update high score if needed
+        // NEW: Create explosion on game over
+        if (playerComet) {
+            createExplosion(playerComet.x, playerComet.y, 25, 'white');
+        }
+        audioManager.stopMusic();
+        audioManager.playGameOverSound();
+        inGameUi.style.display = 'flex';
+        runFragmentsContainer.className = 'run-fragments-hidden';
         if (score > playerData.highScore) {
             playerData.highScore = Math.floor(score);
         }
-        // In the future, we would add fragments collected this run to playerData.starFragments
-        savePlayerData(); // Save progress
-        
+        playerData.starFragments += fragmentsThisRun;
+        savePlayerData();
         finalScoreElement.textContent = Math.floor(score);
-        gameOverModal.className = 'modal-visible';
+        fragmentsEarnedDisplay.textContent = fragmentsThisRun;
+        gameOverModal.className = 'modal modal-visible';
     }
 }
 
-
-// MODIFIED: This function is now just for resetting variables for a new run.
 function initNewRun() {
   isGameOver = false;
   score = 0;
+  fragmentsThisRun = 0;
+  runFragmentsDisplay.textContent = '0';
   maxDistanceReached = 0;
   currentZone = 1;
   playerComet = null;
@@ -269,57 +405,75 @@ function initNewRun() {
   cameraX = 0;
   obstacles = [];
   powerUps = [];
+  starFragments = [];
+  // NEW: Clear particles
+  particles = [];
   nextObstacleSpawnX = 0;
   nextPowerUpSpawnX = 500;
+  nextFragmentSpawnX = 300;
   activePowerUp = { type: null, timer: 0 };
-
   scoreElement.textContent = '0';
   powerUpStatusElement.className = 'powerup-hidden';
   canvas.style.backgroundColor = zoneConfig[currentZone].backgroundColor;
-
-  resizeCanvas();
+  
   playerComet = new PlayerComet(50, canvas.height / 2);
 }
 
-// MODIFIED: This is now the main game starting point.
 function startGame() {
-    initNewRun(); // Reset everything
-    // Start the game loop
+    resizeCanvas();
+    initNewRun();
+    audioManager.startMusic();
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     gameLoop();
 }
 
-// MODIFIED: The game loop now checks the state
 function gameLoop() {
-  // This is the most important change: the loop only runs the game logic
-  // if we are in the 'playing' state.
-  if (gameState !== 'playing') return;
+  if (gameState !== 'playing' || isGameOver) return;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // ... (rest of the game loop logic is identical to before)
   if (playerComet) {
     playerComet.update();
+    playerComet.draw(); // Draw comet before camera update for correct particle positioning
     cameraX = playerComet.x - (canvas.width / 3);
-    playerComet.draw();
   }
+  
   manageObstacles();
   managePowerUps();
+  manageStarFragments();
+  // NEW: Manage particles
+  manageParticles();
+
   obstacles.forEach(o => o.update());
   obstacles.forEach(o => o.draw());
   powerUps.forEach(p => p.draw());
+  starFragments.forEach(sf => sf.draw());
+  // NEW: Draw particles
+  particles.forEach(p => p.draw());
+
   if (gravityWell) {
     gravityWell.draw();
   }
   const collisionResult = checkCollisions();
   if (collisionResult.obstacle) {
-    isGameOver = true; // Set flag to stop the loop
-    setGameState('game-over'); // Change state to show the modal
+    isGameOver = true;
+    setGameState('game-over');
   } else {
+    if (collisionResult.fragment) {
+        fragmentsThisRun++;
+        runFragmentsDisplay.textContent = fragmentsThisRun;
+        audioManager.playFragmentSound();
+        // NEW: Create particle burst on collection
+        createExplosion(collisionResult.item.x, collisionResult.item.y, 10, '#facc15');
+    }
     if (collisionResult.powerUp) {
         activePowerUp.type = collisionResult.powerUp;
         const durations = { shield: 300, shrink: 480, boost: 600 };
         activePowerUp.timer = durations[activePowerUp.type];
+        audioManager.playPowerUpSound();
+        // NEW: Create particle burst on collection
+        const color = powerUps.find(p => p.type === collisionResult.powerUp)?.colors[collisionResult.powerUp].main || '#ffffff';
+        createExplosion(collisionResult.item.x, collisionResult.item.y, 15, color);
     }
     handleActivePowerUp();
     maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
@@ -329,20 +483,32 @@ function gameLoop() {
     checkZoneTransition();
   }
 
-  // Only request the next frame if the game isn't over.
   if (!isGameOver) {
     animationFrameId = requestAnimationFrame(gameLoop);
   }
 }
 
-// --- All other helper functions (resizeCanvas, manageObstacles, etc.) are unchanged ---
 function resizeCanvas() {
-    const maxWidth = 1024; const aspectRatio = 16 / 9; const container = document.getElementById('app');
-    const containerWidth = container.clientWidth; const availableHeight = window.innerHeight - document.querySelector('.ui-container').offsetHeight - 48;
-    let width = Math.min(maxWidth, containerWidth); let height = width / aspectRatio;
-    if (height > availableHeight) { height = availableHeight; width = height * aspectRatio; }
-    canvas.width = width; canvas.height = height;
+    const container = document.getElementById('app');
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const aspectRatio = 16 / 9;
+
+    let width, height;
+
+    if (containerWidth / containerHeight > aspectRatio) {
+        height = containerHeight * 0.9;
+        width = height * aspectRatio;
+    } else {
+        width = containerWidth * 0.9;
+        height = width / aspectRatio;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
 }
+
+
 function getObstacleTypeForZone(zoneId) {
     const rand = Math.random();
     const zoneProbabilities = { 1: { static: 1.0 }, 2: { static: 0.6, vertical: 0.4 }, 3: { static: 0.4, vertical: 0.4, phasing: 0.2 } };
@@ -351,7 +517,9 @@ function getObstacleTypeForZone(zoneId) {
     for (const type in probs) { cumulativeProbability += probs[type]; if (rand < cumulativeProbability) return type; }
     return 'static';
 }
+
 function manageObstacles() {
+    if (!playerComet) return;
     obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > cameraX);
     const spawnAheadPoint = cameraX + canvas.width;
     if (nextObstacleSpawnX < spawnAheadPoint) {
@@ -363,6 +531,7 @@ function manageObstacles() {
     }
 }
 function managePowerUps() {
+    if (!playerComet) return;
     powerUps = powerUps.filter(p => p.x + p.radius > cameraX);
     const spawnAheadPoint = cameraX + canvas.width;
     if (nextPowerUpSpawnX < spawnAheadPoint) {
@@ -392,6 +561,70 @@ function managePowerUps() {
         }
     }
 }
+
+function manageStarFragments() {
+    if (!playerComet) return;
+    starFragments = starFragments.filter(sf => sf.x + sf.radius > cameraX);
+    const spawnAheadPoint = cameraX + canvas.width;
+
+    if (nextFragmentSpawnX < spawnAheadPoint) {
+        const clusterSize = Math.floor(Math.random() * 4) + 3;
+        const startX = spawnAheadPoint + 100;
+        const startY = Math.random() * canvas.height * 0.6 + canvas.height * 0.2;
+        const angle = (Math.random() - 0.5) * Math.PI / 4;
+
+        const potentialFragments = [];
+        for (let i = 0; i < clusterSize; i++) {
+            const x = startX + i * 40;
+            const y = startY + Math.sin(i * 0.5 + angle) * 50;
+            potentialFragments.push({ x, y });
+        }
+        
+        let isClusterSafe = true;
+        const fragmentRadius = 8;
+        for (const fragPos of potentialFragments) {
+            for (const obs of obstacles) {
+                if (fragPos.x - fragmentRadius < obs.x + obs.width &&
+                    fragPos.x + fragmentRadius > obs.x &&
+                    fragPos.y - fragmentRadius < obs.y + obs.height &&
+                    fragPos.y + fragmentRadius > obs.y) {
+                    isClusterSafe = false;
+                    break;
+                }
+            }
+            if (!isClusterSafe) {
+                break;
+            }
+        }
+        
+        if (isClusterSafe) {
+            for (const fragPos of potentialFragments) {
+                starFragments.push(new StarFragment(fragPos.x, fragPos.y));
+            }
+        }
+        
+        nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
+    }
+}
+
+// NEW: Functions to manage particle effects
+function createExplosion(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+function manageParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        if (p.lifespan <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+
 function handleActivePowerUp() {
     if (activePowerUp.type && activePowerUp.timer > 0) {
         activePowerUp.timer--;
@@ -404,30 +637,46 @@ function handleActivePowerUp() {
         }
     }
 }
+
+// MODIFIED: This function now returns the collected item for particle effects
 function checkCollisions() {
-    if (!playerComet) return { obstacle: false, powerUp: null };
-    if (activePowerUp.type !== 'shield') {
-        for (const obstacle of obstacles) {
-            if (obstacle.type === 'phasing' && !obstacle.isActive) continue;
-            if (playerComet.x + playerComet.radius > obstacle.x && playerComet.x - playerComet.radius < obstacle.x + obstacle.width && playerComet.y + playerComet.radius > obstacle.y && playerComet.y - playerComet.radius < obstacle.y + obstacle.height) {
-                return { obstacle: true, powerUp: null };
-            }
-        }
-        if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > canvas.height || playerComet.x - playerComet.radius < cameraX) {
-            return { obstacle: true, powerUp: null };
+    if (!playerComet) return { obstacle: false, powerUp: null, fragment: false, item: null };
+    
+    for (let i = starFragments.length - 1; i >= 0; i--) {
+        const sf = starFragments[i];
+        const dx = sf.x - playerComet.x;
+        const dy = sf.y - playerComet.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < playerComet.radius + sf.radius) {
+            const collectedFragment = starFragments.splice(i, 1)[0];
+            return { obstacle: false, powerUp: null, fragment: true, item: collectedFragment };
         }
     }
+
     for (let i = powerUps.length - 1; i >= 0; i--) {
         const p = powerUps[i];
         const dx = p.x - playerComet.x;
         const dy = p.y - playerComet.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < playerComet.radius + p.radius) {
-            powerUps.splice(i, 1);
-            return { obstacle: false, powerUp: p.type };
+            const collectedPowerUp = powerUps.splice(i, 1)[0];
+            return { obstacle: false, powerUp: p.type, fragment: false, item: collectedPowerUp };
         }
     }
-    return { obstacle: false, powerUp: null };
+
+    if (activePowerUp.type !== 'shield') {
+        for (const obstacle of obstacles) {
+            if (obstacle.type === 'phasing' && !obstacle.isActive) continue;
+            if (playerComet.x + playerComet.radius > obstacle.x && playerComet.x - playerComet.radius < obstacle.x + obstacle.width && playerComet.y + playerComet.radius > obstacle.y && playerComet.y - playerComet.radius < obstacle.y + obstacle.height) {
+                return { obstacle: true, powerUp: null, fragment: false, item: null };
+            }
+        }
+        if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > canvas.height || playerComet.x - playerComet.radius < cameraX) {
+            return { obstacle: true, powerUp: null, fragment: false, item: null };
+        }
+    }
+    
+    return { obstacle: false, powerUp: null, fragment: false, item: null };
 }
 function calculateCurrentSpeed() {
     const zone = zoneConfig[currentZone];
@@ -461,8 +710,8 @@ function setupEventListeners() {
         const clientX = e.clientX || e.touches[0].clientX;
         const clientY = e.clientY || e.touches[0].clientY;
         return {
-            x: (clientX - rect.left) * (canvas.width / rect.width),
-            y: (clientY - rect.top) * (canvas.height / rect.height)
+            x: clientX - rect.left,
+            y: clientY - rect.top
         };
     };
     const startWell = (e) => {
@@ -490,12 +739,31 @@ function setupEventListeners() {
     canvas.addEventListener('touchstart', startWell, { passive: false });
     canvas.addEventListener('touchmove', moveWell, { passive: false });
     document.addEventListener('touchend', endWell);
-    // FIXED: The resize listener now works in any game state.
     window.addEventListener('resize', resizeCanvas); 
     
-    // MODIFIED: Our buttons now change the game state
-    playButton.addEventListener('click', () => setGameState('playing'));
-    restartButton.addEventListener('click', () => setGameState('playing'));
+    const handlePlayClick = async () => {
+        try {
+            if (typeof Tone !== 'undefined') {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                    console.log("Audio Context started by user gesture.");
+                }
+                if (!audioManager.isInitialized) {
+                    audioManager.init();
+                }
+                audioManager.playClickSound();
+            } else {
+                 console.error("Tone.js is not defined. Game will run without sound.");
+            }
+        } catch (error) {
+            console.error("Audio could not be initialized. The game will run without sound.", error);
+        } finally {
+            setGameState('playing');
+        }
+    };
+
+    playButton.addEventListener('click', handlePlayClick);
+    restartButton.addEventListener('click', handlePlayClick);
 }
 
 
@@ -503,9 +771,8 @@ function setupEventListeners() {
 function init() {
     setupEventListeners();
     loadPlayerData();
-    // FIXED: Call resizeCanvas once at the start to set the initial size correctly.
     resizeCanvas(); 
-    setGameState('menu'); // Start the game at the main menu
+    setGameState('menu');
 }
 
 // --- And finally, we start the whole process! ---
