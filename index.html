@@ -1,60 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-    <!-- The Tone.js script has been removed from here -->
   </head>
   <body>
     <div id="app">
-      <div class="background-stars"></div>
+      <!-- Animated Background -->
+      <div class="stars"></div>
+      <div class="twinkling"></div>
+      
+      <!-- In-Game UI -->
+      <div class="ui-container">
+        <div>
+          <span>Score: </span>
+          <span id="score">0</span>
+        </div>
+        <!-- NEW: Pause Button -->
+        <button id="pauseButton" class="pause-btn">||</button>
+        <div id="runFragmentsContainer">
+          <span class="star-icon">★</span>
+          <span id="runFragmentsDisplay">0</span>
+        </div>
+      </div>
+      <div id="powerUpStatus" class="powerup-hidden"></div>
+
+      <!-- Game Canvas -->
       <canvas id="gameCanvas"></canvas>
 
-      <div class="ui-overlay">
-        <div class="ui-container">
-            <h2 class="score-label">Score: <span id="score">0</span></h2>
-            <div id="runFragmentsContainer">
-                <span class="fragment-icon">✦</span>
-                <span id="runFragmentsDisplay">0</span>
-            </div>
-        </div>
-        <div id="powerUpStatus" class="powerup-hidden"></div>
-
-        <div id="mainMenu" class="modal modal-hidden">
+      <!-- Main Menu Modal -->
+      <div id="mainMenu" class="modal modal-hidden">
+        <div class="modal-content">
           <h1>Gravity Well</h1>
           <p>Click and hold to guide the comet. Survive as long as you can.</p>
           <div class="stats-display">
-              <div>
-                  <h3>HIGH SCORE</h3>
-                  <p id="highScoreDisplay">0</p>
-              </div>
-              <div>
-                  <h3>STAR FRAGMENTS</h3>
-                  <p id="starFragmentsDisplay">0</p>
-              </div>
-          </div>
-          <button id="playButton" class="button-primary">Play</button>
-        </div>
-
-        <div id="gameOverModal" class="modal modal-hidden">
-            <h2>Game Over</h2>
-            <div class="stats-display">
-                <div>
-                    <h3>FINAL SCORE</h3>
-                    <p id="finalScore">0</p>
-                </div>
-                <div>
-                    <h3>FRAGMENTS EARNED</h3>
-                    <p><span class="fragment-icon">✦</span> <span id="fragmentsEarnedDisplay">0</span></p>
-                </div>
+            <div>
+              <span>HIGH SCORE</span>
+              <span id="highScoreDisplay">0</span>
             </div>
-            <button id="restartButton" class="button-primary">Play Again</button>
+            <div>
+              <span>★ FRAGMENTS</span>
+              <span id="starFragmentsDisplay">0</span>
+            </div>
+          </div>
+          <button id="playButton" class="btn">Play</button>
+        </div>
+      </div>
+
+      <!-- Game Over Modal -->
+      <div id="gameOverModal" class="modal modal-hidden">
+        <div class="modal-content">
+          <h2>Game Over</h2>
+          <div class="stats-display">
+            <div>
+              <span>FINAL SCORE</span>
+              <span id="finalScoreElement">0</span>
+            </div>
+            <div>
+              <span>★ EARNED</span>
+              <span id="fragmentsEarnedDisplay">0</span>
+            </div>
+          </div>
+          <button id="restartButton" class="btn">Play Again</button>
+        </div>
+      </div>
+      
+      <!-- NEW: Pause Menu Modal -->
+      <div id="pauseMenu" class="modal modal-hidden">
+        <div class="modal-content">
+          <h2>Paused</h2>
+          <button id="resumeButton" class="btn">Resume</button>
+          <button id="quitButton" class="btn btn-secondary">Quit to Menu</button>
         </div>
       </div>
 
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

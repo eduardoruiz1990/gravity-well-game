@@ -3,12 +3,13 @@ import './style.css'
 import * as Tone from 'tone';
 
 // --- Step 1: DOM Element Setup ---
-const appContainer = document.getElementById('app'); // Get the main app container
+const appContainer = document.getElementById('app');
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
 const gameOverModal = document.getElementById('gameOverModal');
-const finalScoreElement = document.getElementById('finalScore');
+// FIXED: The ID now correctly matches the HTML ('finalScoreElement').
+const finalScoreElement = document.getElementById('finalScoreElement');
 const restartButton = document.getElementById('restartButton');
 const powerUpStatusElement = document.getElementById('powerUpStatus');
 const inGameUi = document.querySelector('.ui-container');
@@ -22,9 +23,14 @@ const runFragmentsContainer = document.getElementById('runFragmentsContainer');
 const runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
 const fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
 
+const pauseButton = document.getElementById('pauseButton');
+const pauseMenu = document.getElementById('pauseMenu');
+const resumeButton = document.getElementById('resumeButton');
+const quitButton = document.getElementById('quitButton');
+
 
 // --- Step 2: Game State and Configuration ---
-let gameState = 'menu';
+let gameState = 'menu'; // 'menu', 'playing', 'paused', 'game-over'
 let playerData = {
     highScore: 0,
     starFragments: 0
@@ -34,7 +40,6 @@ let playerComet = null;
 let obstacles = [];
 let powerUps = [];
 let starFragments = [];
-// NEW: Array for particle effects
 let particles = [];
 let gravityWell = null;
 let score = 0;
@@ -306,7 +311,6 @@ class StarFragment {
     }
 }
 
-// NEW: Class for a single particle effect
 class Particle {
     constructor(x, y, color) {
         this.x = x;
@@ -359,11 +363,10 @@ function setGameState(newState) {
     const oldState = gameState;
     gameState = newState;
     
-    // Always remove shake class when state changes
     appContainer.classList.remove('screen-shake');
-
     mainMenu.className = 'modal modal-hidden';
     gameOverModal.className = 'modal modal-hidden';
+    pauseMenu.className = 'modal modal-hidden';
     inGameUi.style.display = 'none';
 
     if (gameState === 'menu') {
@@ -375,10 +378,20 @@ function setGameState(newState) {
         inGameUi.style.display = 'flex';
         runFragmentsContainer.className = '';
         if (oldState !== 'playing') {
-            setTimeout(startGame, 350); 
+            if (oldState === 'paused') {
+                audioManager.startMusic();
+                // We need to kick off the game loop again when resuming
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                gameLoop();
+            } else {
+                setTimeout(startGame, 350);
+            }
         }
+    } else if (gameState === 'paused') {
+        audioManager.stopMusic();
+        inGameUi.style.display = 'flex';
+        pauseMenu.className = 'modal modal-visible';
     } else if (gameState === 'game-over') {
-        // NEW: Create explosion on game over
         if (playerComet) {
             createExplosion(playerComet.x, playerComet.y, 25, 'white');
         }
@@ -386,10 +399,7 @@ function setGameState(newState) {
         audioManager.playGameOverSound();
         inGameUi.style.display = 'flex';
         runFragmentsContainer.className = 'run-fragments-hidden';
-        
-        // NEW: Apply screen shake on game over
         appContainer.classList.add('screen-shake');
-
         if (score > playerData.highScore) {
             playerData.highScore = Math.floor(score);
         }
@@ -414,7 +424,6 @@ function initNewRun() {
   obstacles = [];
   powerUps = [];
   starFragments = [];
-  // NEW: Clear particles
   particles = [];
   nextObstacleSpawnX = 0;
   nextPowerUpSpawnX = 500;
@@ -436,27 +445,31 @@ function startGame() {
 }
 
 function gameLoop() {
-  if (gameState !== 'playing' || isGameOver) return;
+  if (gameState !== 'playing' || isGameOver) {
+      if(gameState === 'paused'){
+          // Keep loop alive but do nothing
+          animationFrameId = requestAnimationFrame(gameLoop);
+      }
+      return;
+  }
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   if (playerComet) {
     playerComet.update();
-    playerComet.draw(); // Draw comet before camera update for correct particle positioning
+    playerComet.draw(); 
     cameraX = playerComet.x - (canvas.width / 3);
   }
   
   manageObstacles();
   managePowerUps();
   manageStarFragments();
-  // NEW: Manage particles
   manageParticles();
 
   obstacles.forEach(o => o.update());
   obstacles.forEach(o => o.draw());
   powerUps.forEach(p => p.draw());
   starFragments.forEach(sf => sf.draw());
-  // NEW: Draw particles
   particles.forEach(p => p.draw());
 
   if (gravityWell) {
@@ -471,7 +484,6 @@ function gameLoop() {
         fragmentsThisRun++;
         runFragmentsDisplay.textContent = fragmentsThisRun;
         audioManager.playFragmentSound();
-        // NEW: Create particle burst on collection
         createExplosion(collisionResult.item.x, collisionResult.item.y, 10, '#facc15');
     }
     if (collisionResult.powerUp) {
@@ -479,8 +491,7 @@ function gameLoop() {
         const durations = { shield: 300, shrink: 480, boost: 600 };
         activePowerUp.timer = durations[activePowerUp.type];
         audioManager.playPowerUpSound();
-        // NEW: Create particle burst on collection
-        const color = powerUps.find(p => p.type === collisionResult.powerUp)?.colors[collisionResult.powerUp].main || '#ffffff';
+        const color = new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main;
         createExplosion(collisionResult.item.x, collisionResult.item.y, 15, color);
     }
     handleActivePowerUp();
@@ -615,7 +626,6 @@ function manageStarFragments() {
     }
 }
 
-// NEW: Functions to manage particle effects
 function createExplosion(x, y, count, color) {
     for (let i = 0; i < count; i++) {
         particles.push(new Particle(x, y, color));
@@ -646,7 +656,6 @@ function handleActivePowerUp() {
     }
 }
 
-// MODIFIED: This function now returns the collected item for particle effects
 function checkCollisions() {
     if (!playerComet) return { obstacle: false, powerUp: null, fragment: false, item: null };
     
@@ -772,6 +781,26 @@ function setupEventListeners() {
 
     playButton.addEventListener('click', handlePlayClick);
     restartButton.addEventListener('click', handlePlayClick);
+    
+    // NEW: Added pause menu event listeners
+    pauseButton.addEventListener('click', () => {
+        if (gameState === 'playing') {
+            setGameState('paused');
+        }
+    });
+
+    resumeButton.addEventListener('click', () => {
+        if (gameState === 'paused') {
+            handlePlayClick(); // Re-use the play click logic to handle audio resume
+        }
+    });
+
+    quitButton.addEventListener('click', () => {
+        if (gameState === 'paused') {
+            audioManager.playClickSound();
+            setGameState('menu');
+        }
+    });
 }
 
 
@@ -785,5 +814,4 @@ function init() {
 
 // --- And finally, we start the whole process! ---
 init();
-
 
