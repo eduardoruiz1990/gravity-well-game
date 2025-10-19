@@ -1,35 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-  </head>
-  <body>
-    <div id="app" class="game-container">
-      <div class="ui-container">
-        <h1 class="game-title">Gravity Well</h1>
-        <p class="game-subtitle">Click and hold to guide the comet. Survive as long as you can.</p>
-        <div id="score-container" class="score-display">Score: <span id="score">0</span></div>
-        <!-- NEW: Element to show the active power-up -->
-        <div id="powerUpStatus" class="powerup-hidden"></div>
-      </div>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div id="app">
+        <h1>Gravity Well</h1>
+        <p class="subtitle">Click and hold to guide the comet. Survive as long as you can.</p>
 
-      <canvas id="gameCanvas"></canvas>
-
-      <!-- Game Over Modal -->
-      <div id="gameOverModal" class="modal-hidden">
-        <div class="modal-content">
-          <h2 class="modal-title">Game Over</h2>
-          <p class="modal-text">Final Score: <span id="finalScore">0</span></p>
-          <button id="restartButton" class="restart-button">
-            Play Again
-          </button>
+        <div class="ui-container">
+            <div class="score-display">Score: <span id="score">0</span></div>
+            <div id="powerUpStatus" class="powerup-hidden"></div>
         </div>
-      </div>
+        
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- NEW: Main Menu Screen -->
+        <div id="mainMenu" class="modal-hidden">
+            <div class="modal-dialog">
+                <h2>Gravity Well</h2>
+                <div class="menu-stats">
+                    <p>High Score: <span id="highScoreDisplay">0</span></p>
+                    <!-- We'll implement the star fragments later, but the UI is ready -->
+                    <p>Star Fragments: <span id="starFragmentsDisplay">0</span></p> 
+                </div>
+                <button id="playButton">Play</button>
+            </div>
+        </div>
+
+        <!-- Game Over screen remains the same -->
+        <div id="gameOverModal" class="modal-hidden">
+            <div class="modal-dialog">
+                <h2>Game Over</h2>
+                <p>Final Score: <span id="finalScore">0</span></p>
+                <button id="restartButton">Play Again</button>
+            </div>
+        </div>
     </div>
     <script type="module" src="/src/main.js"></script>
-  </body>
+</body>
 </html>
 

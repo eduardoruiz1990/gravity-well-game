@@ -131,3 +131,14 @@ canvas {
 .powerup-hidden {
   display: none;
 }
+.menu-stats {
+    margin: 24px 0;
+    text-align: center;
+    font-size: 1.1rem;
+    color: #d1d5db; /* A light gray color */
+}
+
+.menu-stats p {
+    margin: 8px 0;
+}
+
