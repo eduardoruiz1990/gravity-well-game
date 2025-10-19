@@ -3,6 +3,7 @@ import './style.css'
 import * as Tone from 'tone';
 
 // --- Step 1: DOM Element Setup ---
+const appContainer = document.getElementById('app'); // Get the main app container
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const scoreElement = document.getElementById('score');
@@ -358,6 +359,9 @@ function setGameState(newState) {
     const oldState = gameState;
     gameState = newState;
     
+    // Always remove shake class when state changes
+    appContainer.classList.remove('screen-shake');
+
     mainMenu.className = 'modal modal-hidden';
     gameOverModal.className = 'modal modal-hidden';
     inGameUi.style.display = 'none';
@@ -382,6 +386,10 @@ function setGameState(newState) {
         audioManager.playGameOverSound();
         inGameUi.style.display = 'flex';
         runFragmentsContainer.className = 'run-fragments-hidden';
+        
+        // NEW: Apply screen shake on game over
+        appContainer.classList.add('screen-shake');
+
         if (score > playerData.highScore) {
             playerData.highScore = Math.floor(score);
         }
@@ -777,4 +785,5 @@ function init() {
 
 // --- And finally, we start the whole process! ---
 init();
+
 
