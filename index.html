@@ -5,11 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-    <!-- The Tone.js library is loaded from the local 'node_modules' folder by the main.js script -->
+    <!-- Tone.js is loaded locally via the main.js module, so no script tag is needed here. -->
   </head>
   <body>
     <div id="app">
-      <!-- ARCHITECTURAL FIX: The starfield background is now a separate div -->
+      <!-- These divs will be used by the CSS to create the animated starfield -->
       <div class="stars-bg">
         <div class="stars-1"></div>
         <div class="stars-2"></div>
@@ -29,7 +29,16 @@
               <span id="runFragmentsDisplay">0</span>
           </div>
         </div>
-        <button id="pauseButton" class="pause-btn">||</button>
+        
+        <div class="right-ui">
+            <!-- Container for active upgrade icons -->
+            <div id="activeUpgradesContainer">
+                <span id="magnetIndicator" class="upgrade-icon" title="Fragment Magnet Active">🧲</span>
+                <span id="scoreIndicator" class="upgrade-icon" title="Score Bonus Active">✨</span>
+                <span id="reviveIndicator" class="upgrade-icon" title="Second Chance Ready">❤️</span>
+            </div>
+            <button id="pauseButton" class="pause-btn">||</button>
+        </div>
       </div>
       
       <div id="powerUpStatus" class="powerup-hidden"></div>
@@ -69,7 +78,6 @@
             </div>
           </div>
           <button id="restartButton" class="btn">Play Again</button>
-          <!-- NEW: Buttons for navigating after a run -->
           <button id="gameOverObservatoryButton" class="btn btn-secondary">Observatory</button>
           <button id="gameOverMenuButton" class="btn btn-secondary">Main Menu</button>
         </div>

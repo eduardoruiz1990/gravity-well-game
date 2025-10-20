@@ -1,7 +1,6 @@
 /**
- * ARCHITECTURAL FIX: Removed the CSS animated starfield entirely.
- * All background rendering is now handled in JavaScript for performance
- * and to eliminate layering bugs.
+ * ARCHITECTURAL FIX: Replaced external background images with a pure CSS animated starfield.
+ * This is more performant, self-contained, and eliminates the Cross-Origin (CORB) errors.
  */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -31,16 +30,72 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  background: transparent; /* App container is transparent */
 }
+
+/* --- Pure CSS Starfield --- */
+@keyframes move-stars {
+  from { transform: translateY(0px); }
+  to { transform: translateY(-2000px); }
+}
+
+.stars-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 200%; /* Taller to allow for animation without gaps */
+  display: block;
+  z-index: 0; /* This is the bottom layer */
+  animation: move-stars 150s linear infinite;
+}
+
+.stars-bg div {
+  position: absolute;
+  border-radius: 50%;
+  background: white;
+}
+.stars-1 {
+  width: 1px;
+  height: 1px;
+  box-shadow: 
+    /* This creates a large, randomly distributed star pattern */
+    183vw 153vh 0px, 15vw 17vh 0px, 13vw 56vh 1px, 19vw 9vh 1px, 
+    16vw 89vh 1px, 5vw 155vh 1px, 137vw 18vh 0px, 175vw 174vh 0px, 
+    186vw 196vh 1px, 107vw 114vh 1px, 34vw 196vh 0px, 142vw 142vh 0px,
+    /* Added more stars for density */
+    90vw 50vh 1px, 120vw 180vh 0px, 75vw 95vh 1px, 30vw 10vh 0px;
+}
+.stars-2 {
+  width: 2px;
+  height: 2px;
+  animation-duration: 100s;
+  box-shadow: 
+    182vw 88vh 0px, 9vw 192vh 0px, 192vw 36vh 0px, 12vw 189vh 0px, 
+    173vw 124vh 0px, 195vw 160vh 0px, 83vw 7vh 1px, 152vw 49vh 1px,
+    45vw 110vh 0px, 160vw 20vh 1px;
+}
+.stars-3 {
+  width: 3px;
+  height: 3px;
+  animation-duration: 75s;
+  box-shadow: 
+    10vw 10vh 0px, 13vw 135vh 1px, 196vw 51vh 0px, 13vw 3vh 1px,
+    180vw 90vh 1px;
+}
+
 
 /* Canvas & UI Overlay */
 #gameCanvas {
   position: absolute;
-  z-index: 10;
+  z-index: 10; /* The canvas sits on top of the starfield */
   border-radius: 12px;
   box-shadow: 0 0 25px rgba(0, 0, 0, 0.5);
-  /* The canvas element itself is now fully controlled by JS */
+  /* The canvas element itself is transparent, the color tint is applied via JS */
   background-color: transparent; 
+  transition: background-color 1s ease;
 }
 
 .ui-container {
@@ -65,6 +120,11 @@ body {
   display: flex;
   align-items: center;
   gap: 24px;
+}
+.right-ui {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .score-display, #runFragmentsContainer {
@@ -229,10 +289,10 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 }
 
 
-/* --- NEW: Observatory / Shop Styles --- */
+/* Observatory Styles */
 .shop-modal {
-    max-width: 600px;
-    width: 90%;
+    min-width: 500px;
+    max-width: 90vw;
 }
 
 .shop-header {
@@ -244,15 +304,11 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.shop-header h2 {
-    margin: 0;
-}
-
 .shop-currency {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 1.8rem;
+    gap: 8px;
+    font-size: 1.5rem;
     font-weight: bold;
     color: #facc15;
 }
@@ -263,12 +319,11 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 
 .shop-section h3 {
     text-align: left;
-    margin-top: 0;
-    margin-bottom: 1rem;
     color: #94a3b8;
     text-transform: uppercase;
+    letter-spacing: 0.1em;
     font-size: 0.9rem;
-    letter-spacing: 0.05em;
+    margin-bottom: 1rem;
 }
 
 .upgrade-item {
@@ -287,38 +342,45 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 
 .upgrade-info strong {
     font-size: 1.1rem;
-    color: white;
 }
-
 .upgrade-info p {
     font-size: 0.9rem;
     color: #94a3b8;
-    margin: 0.25rem 0 0 0;
+    margin: 0;
 }
 
 .upgrade-action {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
-    min-width: 100px;
+    gap: 1rem;
 }
 
 .upgrade-level {
-    font-size: 0.8rem;
-    color: #94a3b8;
-    font-weight: 600;
+    font-size: 0.9rem;
+    color: #cbd5e1;
+    white-space: nowrap;
 }
 
-.btn-buy {
-    padding: 8px 16px;
-    font-size: 1rem;
+.buy-btn {
+    width: auto;
+    min-width: 120px;
 }
 
-/* Style for when a player can't afford an upgrade */
-.btn-buy:disabled {
+.buy-btn:disabled {
     background-color: #374151;
     cursor: not-allowed;
-    opacity: 0.5;
+}
+
+/* Active Upgrade Indicators */
+#activeUpgradesContainer {
+    display: none; /* Hidden by default */
+    align-items: center;
+    gap: 12px;
+}
+
+.upgrade-icon {
+    font-size: 1.5rem;
+    text-shadow: 0 0 8px black;
+    display: none; /* Icons hidden by default */
 }
 

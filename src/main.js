@@ -1,7 +1,7 @@
 /**
  * Gravity Well - Main Game Engine
- * This version implements the gameplay logic for the "Fragment Magnet" upgrade
- * and a cinematic "Head Start" utility.
+ * This version implements the gameplay logic for the "Score Bonus" and "Second Chance"
+ * upgrades, and adds UI indicators for active upgrades.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -38,6 +38,12 @@ const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
 
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
 const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
+
+// NEW: Upgrade Indicator UI Elements
+const activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
+const magnetIndicator = document.getElementById('magnetIndicator');
+const scoreIndicator = document.getElementById('scoreIndicator');
+const reviveIndicator = document.getElementById('reviveIndicator');
 
 
 // --- Step 2: Game State and Configuration ---
@@ -84,10 +90,11 @@ let nextFragmentSpawnX = 0;
 let activePowerUp = { type: null, timer: 0 };
 let lastZoneIndex = -1;
 let currentZoneColors = {};
-// NEW: State for the Head Start utility
 let isHeadstarting = false;
 let headstartTimer = 0;
-const HEADSTART_DURATION = 500; // Approx 8.3 seconds at 60fps
+const HEADSTART_DURATION = 500;
+// NEW: State for Second Chance utility
+let hasRevive = false;
 
 const PLAYER_COMET_RADIUS = 15;
 const GRAVITY_INFLUENCE = 0.2; 
@@ -170,6 +177,7 @@ const audioManager = {
 };
 
 // --- Step 3: Game Classes (The Blueprints) ---
+// ... (All other classes are unchanged)
 class Star {
     constructor() {
         this.x = Math.random() * VIRTUAL_WIDTH;
@@ -201,20 +209,17 @@ class PlayerComet {
         this.orbiters = [];
     }
     update() {
-        // If we are in the headstart sequence, override the normal speed calculation
         if (isHeadstarting) {
-            this.baseSpeed = 30; // A very fast speed for the visual effect
+            this.baseSpeed = 30;
         } else {
             this.baseSpeed = calculateCurrentSpeed();
         }
-
         this.waveAngle += WAVE_FREQUENCY;
         this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
         const sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
         const inertiaFactor = 1 - INERTIAL_DAMPING;
         this.vy += (sway - this.vy) * inertiaFactor;
         
-        // Disable player control during headstart
         if (gravityWell && !isHeadstarting) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
@@ -242,7 +247,6 @@ class PlayerComet {
         if (!isHeadstarting) {
             this.x += this.vx; this.y += this.vy;
         }
-
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 15) {
             this.trail.shift();
@@ -388,11 +392,9 @@ class StarFragment {
         this.y = y;
         this.radius = 8;
         this.animation = Math.random() * Math.PI * 2;
-        // NEW: Velocity for the magnet effect
         this.vx = 0;
         this.vy = 0;
     }
-    // NEW: Update method for the magnet effect
     update() {
         const magnetLevel = playerData.upgrades.magnet || 0;
         if (magnetLevel > 0 && playerComet) {
@@ -409,7 +411,6 @@ class StarFragment {
             }
         }
         
-        // Apply friction
         this.vx *= 0.95;
         this.vy *= 0.95;
 
@@ -469,17 +470,6 @@ class Particle {
 
 
 // --- Step 4: Core Game Logic Functions ---
-
-// NEW: "Cheat code" function to add fragments for testing
-window.addFragments = function(amount) {
-    playerData.starFragments += amount;
-    savePlayerData();
-    console.log(`Added ${amount} fragments. Total: ${playerData.starFragments}`);
-    // If in the shop, update the UI instantly
-    if (gameState === 'observatory') {
-        updateObservatoryUI();
-    }
-}
 
 function savePlayerData() {
     try {
@@ -614,7 +604,6 @@ function initNewRun() {
   nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
   activePowerUp = { type: null, timer: 0 };
   scoreElement.textContent = '0';
-  powerUpStatusElement.className = 'powerup-hidden';
   
   if (playerData.upgrades.headstart) {
     isHeadstarting = true;
@@ -625,6 +614,18 @@ function initNewRun() {
     isHeadstarting = false;
   }
   
+  // NEW: Handle revive state
+  if (playerData.upgrades.revive) {
+      hasRevive = true;
+      playerData.upgrades.revive = false; // It's consumed at the start of the run
+      savePlayerData();
+  } else {
+      hasRevive = false;
+  }
+  
+  // Update UI indicators at the start of the run
+  updateUpgradeIndicators();
+
   checkZoneTransition();
   
   playerComet = new PlayerComet(50, VIRTUAL_HEIGHT / 2);
@@ -660,7 +661,6 @@ function updateGame() {
     if (isHeadstarting) {
         headstartTimer++;
         const progress = headstartTimer / HEADSTART_DURATION;
-        // Use an ease-out function for a smooth cinematic slowdown
         const easedProgress = 1 - Math.pow(1 - progress, 3);
 
         maxDistanceReached = easedProgress * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
@@ -691,11 +691,17 @@ function updateGame() {
 
     starFragments.forEach(sf => sf.update());
     
-    const collisionResult = isHeadstarting ? { obstacle: false } : checkCollisions();
+    const collisionResult = (isHeadstarting || activePowerUp.type === 'shield') ? { obstacle: false } : checkCollisions();
+    
+    // MODIFIED: Handle revive logic before setting game over
     if (collisionResult.obstacle) {
-        isGameOver = true;
-        setGameState('game-over');
-        return;
+        if (hasRevive) {
+            revivePlayer();
+        } else {
+            isGameOver = true;
+            setGameState('game-over');
+            return;
+        }
     }
 
     if (collisionResult.fragment) {
@@ -972,6 +978,28 @@ function checkCollisions() {
     return { obstacle: false, powerUp: null, fragment: false, item: null };
 }
 
+// NEW: Function to handle the player's revival
+function revivePlayer() {
+    console.log("Second Chance Used!");
+    hasRevive = false; // Consume the revive
+    updateUpgradeIndicators(); // Hide the revive icon
+    
+    // Create a visual effect for the revival
+    createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9');
+    
+    // Give the player a temporary shield
+    activePowerUp.type = 'shield';
+    activePowerUp.timer = 180; // 3 seconds of invincibility
+    
+    // Clear nearby obstacles to give the player a chance
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        const obs = obstacles[i];
+        if (obs.x > cameraX && obs.x < cameraX + VIRTUAL_WIDTH) {
+            obstacles.splice(i, 1);
+        }
+    }
+}
+
 function calculateCurrentSpeed() {
     if(!playerComet) return INITIAL_SPEED;
     const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
@@ -1015,6 +1043,16 @@ function checkZoneTransition() {
         lastZoneIndex = zoneIndex;
     }
 }
+
+// NEW: Function to show/hide the upgrade indicators
+function updateUpgradeIndicators() {
+    powerUpStatusElement.className = 'powerup-hidden'; // Hide temp power-up
+    activeUpgradesContainer.style.display = 'flex';
+    magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none';
+    scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none';
+    reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none';
+}
+
 
 // --- Step 5: Event Listeners ---
 function setupEventListeners() {
