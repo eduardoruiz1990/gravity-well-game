@@ -5,10 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <!-- The Tone.js library is loaded from the local 'node_modules' folder by the main.js script -->
   </head>
   <body>
     <div id="app">
+      <!-- ARCHITECTURAL FIX: The starfield background is now a separate div -->
       <div class="stars-bg">
         <div class="stars-1"></div>
         <div class="stars-2"></div>
@@ -68,6 +69,9 @@
             </div>
           </div>
           <button id="restartButton" class="btn">Play Again</button>
+          <!-- NEW: Buttons for navigating after a run -->
+          <button id="gameOverObservatoryButton" class="btn btn-secondary">Observatory</button>
+          <button id="gameOverMenuButton" class="btn btn-secondary">Main Menu</button>
         </div>
       </div>
 
@@ -100,7 +104,6 @@
                     </div>
                     <div class="upgrade-action">
                         <span class="upgrade-level">Level 0/5</span>
-                        <!-- FIX: Added the 'buy-btn' class the JS selector is looking for -->
                         <button class="btn buy-btn" data-upgrade="shield">Buy (100)</button>
                     </div>
                 </div>
@@ -111,7 +114,6 @@
                     </div>
                     <div class="upgrade-action">
                         <span class="upgrade-level">Level 0/3</span>
-                        <!-- FIX: Added the 'buy-btn' class the JS selector is looking for -->
                         <button class="btn buy-btn" data-upgrade="magnet">Buy (300)</button>
                     </div>
                 </div>
@@ -122,7 +124,6 @@
                     </div>
                     <div class="upgrade-action">
                         <span class="upgrade-level">Level 0/5</span>
-                        <!-- FIX: Added the 'buy-btn' class the JS selector is looking for -->
                         <button class="btn buy-btn" data-upgrade="score">Buy (200)</button>
                     </div>
                 </div>
@@ -136,7 +137,6 @@
                         <p>Start the next run at Zone 2 (Score 1500).</p>
                     </div>
                     <div class="upgrade-action">
-                        <!-- FIX: Added the 'buy-btn' class the JS selector is looking for -->
                         <button class="btn buy-btn" data-upgrade="headstart">Buy (150)</button>
                     </div>
                 </div>
@@ -146,7 +146,6 @@
                         <p>Revive once after crashing.</p>
                     </div>
                     <div class="upgrade-action">
-                        <!-- FIX: Added the 'buy-btn' class the JS selector is looking for -->
                         <button class="btn buy-btn" data-upgrade="revive">Buy (250)</button>
                     </div>
                 </div>

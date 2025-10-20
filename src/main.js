@@ -1,8 +1,7 @@
 /**
  * Gravity Well - Main Game Engine
- * This version re-integrates the full implementation of "The Observatory" shop,
- * with complete purchasing logic and data persistence for upgrades. All other
- * game systems are considered stable and have not been altered.
+ * This version implements the gameplay logic for the "Head Start" utility and
+ * adds new navigation buttons to the Game Over screen.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -32,11 +31,14 @@ const pauseMenu = document.getElementById('pauseMenu');
 const resumeButton = document.getElementById('resumeButton');
 const quitButton = document.getElementById('quitButton');
 
-// RE-INTEGRATED: Observatory UI Elements
 const observatoryButton = document.getElementById('observatoryButton');
 const closeObservatoryButton = document.getElementById('closeObservatoryButton');
 const observatory = document.getElementById('observatory');
 const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
+
+// NEW: Game Over navigation buttons
+const gameOverMenuButton = document.getElementById('gameOverMenuButton');
+const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
 
 
 // --- Step 2: Game State and Configuration ---
@@ -44,7 +46,6 @@ let gameState = 'menu'; // 'menu', 'playing', 'paused', 'game-over', 'observator
 let playerData = {
     highScore: 0,
     starFragments: 0,
-    // RE-INTEGRATED: Object to store player's permanent upgrade levels and single-use items
     upgrades: {
         shield: 0,
         magnet: 0,
@@ -54,7 +55,6 @@ let playerData = {
     }
 };
 
-// RE-INTEGRATED: Configuration for all upgrade costs
 const upgradeCosts = {
     shield: [100, 250, 500, 1000, 2000],
     magnet: [300, 750, 1500],
@@ -85,6 +85,8 @@ let nextFragmentSpawnX = 0;
 let activePowerUp = { type: null, timer: 0 };
 let lastZoneIndex = -1;
 let currentZoneColors = {};
+// NEW: State for the Head Start utility
+let isHeadstarting = false;
 
 const PLAYER_COMET_RADIUS = 15;
 const GRAVITY_INFLUENCE = 0.2; 
@@ -198,13 +200,21 @@ class PlayerComet {
         this.orbiters = [];
     }
     update() {
-        this.baseSpeed = calculateCurrentSpeed();
+        // If we are in the headstart sequence, override the normal speed calculation
+        if (isHeadstarting) {
+            this.baseSpeed = 30; // A very fast speed for the visual effect
+        } else {
+            this.baseSpeed = calculateCurrentSpeed();
+        }
+
         this.waveAngle += WAVE_FREQUENCY;
         this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
         const sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
         const inertiaFactor = 1 - INERTIAL_DAMPING;
         this.vy += (sway - this.vy) * inertiaFactor;
-        if (gravityWell) {
+        
+        // Disable player control during headstart
+        if (gravityWell && !isHeadstarting) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
             const distSq = dx * dx + dy * dy;
@@ -218,6 +228,7 @@ class PlayerComet {
                 }
             }
         }
+        
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > 0) {
             this.vx = (this.vx / currentSpeed) * this.baseSpeed;
@@ -226,6 +237,7 @@ class PlayerComet {
             this.vx = this.baseSpeed;
             this.vy = 0;
         }
+        
         this.x += this.vx; this.y += this.vy;
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 15) {
@@ -247,7 +259,7 @@ class PlayerComet {
         ctx.beginPath();
         ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
         ctx.fill();
-        if (activePowerUp.type === 'shield') {
+        if (activePowerUp.type === 'shield' || isHeadstarting) {
             ctx.beginPath();
             ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2);
             ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
@@ -449,13 +461,11 @@ function loadPlayerData() {
     }
 }
 
-// RE-INTEGRATED: This function updates the shop UI based on player data.
 function updateObservatoryUI() {
     shopFragmentsDisplay.textContent = playerData.starFragments;
 
-    // Update permanent upgrades
     Object.keys(upgradeCosts).forEach(id => {
-        if (Array.isArray(upgradeCosts[id])) { // This is a permanent upgrade
+        if (Array.isArray(upgradeCosts[id])) {
             const level = playerData.upgrades[id] || 0;
             const item = document.getElementById(`upgrade-${id}`);
             if (!item) return;
@@ -475,7 +485,6 @@ function updateObservatoryUI() {
         }
     });
 
-    // Update single-use utilities
     ['headstart', 'revive'].forEach(id => {
         const item = document.getElementById(`utility-${id}`);
         if (!item) return;
@@ -565,6 +574,15 @@ function initNewRun() {
   scoreElement.textContent = '0';
   powerUpStatusElement.className = 'powerup-hidden';
   
+  // NEW: Check for Head Start utility
+  if (playerData.upgrades.headstart) {
+    isHeadstarting = true;
+    playerData.upgrades.headstart = false; // Consume the item
+    savePlayerData();
+  } else {
+    isHeadstarting = false;
+  }
+  
   checkZoneTransition();
   
   playerComet = new PlayerComet(50, VIRTUAL_HEIGHT / 2);
@@ -597,6 +615,17 @@ function gameLoop() {
 function updateGame() {
     if (!playerComet) return;
     
+    // NEW: Handle the headstart logic
+    if (isHeadstarting) {
+        if (score >= ZONE_SCORE_INCREMENT) {
+            isHeadstarting = false; // End the headstart
+        } else {
+            // Force progress
+            maxDistanceReached += 30 * SCORE_DIVISOR;
+            playerComet.x = maxDistanceReached;
+        }
+    }
+    
     cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
 
     playerComet.update();
@@ -615,7 +644,8 @@ function updateGame() {
         }
     }
     
-    const collisionResult = checkCollisions();
+    // During headstart, collisions are ignored
+    const collisionResult = isHeadstarting ? { obstacle: false } : checkCollisions();
     if (collisionResult.obstacle) {
         isGameOver = true;
         setGameState('game-over');
@@ -631,8 +661,7 @@ function updateGame() {
     if (collisionResult.powerUp) {
         activePowerUp.type = collisionResult.powerUp;
         
-        // IMPLEMENTED: Shield duration is now calculated based on the upgrade level.
-        let shieldDuration = 300; // Base duration: 5 seconds
+        let shieldDuration = 300;
         if (playerData.upgrades.shield > 0) {
             shieldDuration *= (1 + playerData.upgrades.shield * 0.1);
         }
@@ -646,13 +675,17 @@ function updateGame() {
     
     handleActivePowerUp();
     
-    const oldMaxDistance = maxDistanceReached;
-    maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
-    const distanceGained = maxDistanceReached - oldMaxDistance;
-
-    if (distanceGained > 0) {
-        const scoreMultiplier = activePowerUp.type === 'boost' ? 2 : 1;
-        score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
+    // Score calculation is handled by headstart or normal progress
+    if (!isHeadstarting) {
+        const oldMaxDistance = maxDistanceReached;
+        maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
+        const distanceGained = maxDistanceReached - oldMaxDistance;
+        if (distanceGained > 0) {
+            const scoreMultiplier = activePowerUp.type === 'boost' ? 2 : 1;
+            score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
+        }
+    } else {
+        score = (maxDistanceReached / SCORE_DIVISOR);
     }
     
     scoreElement.textContent = Math.floor(score);
@@ -684,7 +717,7 @@ function drawGame() {
     for (let i = 0; i < starFragments.length; i++) starFragments[i].draw();
     for (let i = 0; i < particles.length; i++) particles[i].draw();
 
-    if (gravityWell) {
+    if (gravityWell && !isHeadstarting) {
         gravityWell.draw();
     }
     
@@ -879,7 +912,7 @@ function checkCollisions() {
         }
     }
 
-    if (activePowerUp.type !== 'shield') {
+    if (activePowerUp.type !== 'shield' && !isHeadstarting) {
         for (const obstacle of obstacles) {
             if (obstacle.type === 'phasing' && !obstacle.isActive) continue;
             if (playerComet.x + playerComet.radius > obstacle.x && playerComet.x - playerComet.radius < obstacle.x + obstacle.width && playerComet.y + playerComet.radius > obstacle.y && playerComet.y - playerComet.radius < obstacle.y + obstacle.height) {
@@ -950,13 +983,13 @@ function setupEventListeners() {
         };
     };
     const startWell = (e) => {
-        if (gameState !== 'playing') return;
+        if (gameState !== 'playing' || isHeadstarting) return;
         e.preventDefault();
         const pos = getPos(e);
         gravityWell = new GravityWell(pos.x + cameraX, pos.y);
     };
     const moveWell = (e) => {
-        if (gravityWell && gameState === 'playing') {
+        if (gravityWell && gameState === 'playing' && !isHeadstarting) {
             e.preventDefault();
             const pos = getPos(e);
             gravityWell.x = pos.x + cameraX;
@@ -1019,7 +1052,6 @@ function setupEventListeners() {
         }
     });
 
-    // RE-INTEGRATED: Event listeners for the Observatory
     observatoryButton.addEventListener('click', () => {
         audioManager.playClickSound();
         setGameState('observatory');
@@ -1030,7 +1062,6 @@ function setupEventListeners() {
         setGameState('menu');
     });
 
-    // RE-INTEGRATED: Event listeners for all purchase buttons
     const buyButtons = document.querySelectorAll('.buy-btn');
     buyButtons.forEach(button => {
         button.addEventListener('click', (e) => {
@@ -1038,9 +1069,18 @@ function setupEventListeners() {
             buyUpgrade(upgradeId);
         });
     });
+
+    // NEW: Add event listeners for the new Game Over buttons
+    gameOverMenuButton.addEventListener('click', () => {
+        audioManager.playClickSound();
+        setGameState('menu');
+    });
+    gameOverObservatoryButton.addEventListener('click', () => {
+        audioManager.playClickSound();
+        setGameState('observatory');
+    });
 }
 
-// RE-INTEGRATED: Logic to handle purchasing an upgrade
 function buyUpgrade(upgradeId) {
     let cost = 0;
     let canAfford = false;
@@ -1073,13 +1113,11 @@ function buyUpgrade(upgradeId) {
         updateObservatoryUI();
     } else {
         console.log(`Cannot afford ${upgradeId}`);
-        // Optional: play a "cannot afford" sound
     }
 }
 
 
 // --- Step 6: Game Initialization ---
-// ARCHITECTURAL FIX: initStars was missing. It is now defined and called correctly.
 function initStars() {
     for (let i = 0; i < 200; i++) {
         stars.push(new Star());
