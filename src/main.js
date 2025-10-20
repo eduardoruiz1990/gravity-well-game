@@ -1,8 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
  * * Final Performance Refactor by Senior Performance Optimization Engineer.
- * This version corrects a critical division-by-zero physics bug and a Tone.js
- * scheduling overload that caused game freezes. The architecture is now stable,
+ * This version corrects all rendering and performance issues by consolidating
+ * the background into the JavaScript Canvas API. The architecture is now stable,
  * performant, and built to run smoothly on low-end devices.
  */
 import './style.css'
@@ -47,6 +47,8 @@ let obstacles = [];
 let powerUps = [];
 let starFragments = [];
 let particles = [];
+// ARCHITECTURAL FIX: New arrays for the JavaScript-based starfield
+let stars = [];
 
 // Game State Variables
 let gravityWell = null;
@@ -147,6 +149,36 @@ const audioManager = {
 };
 
 // --- Step 3: Game Classes (The Blueprints) ---
+
+// NEW: A class for a single star in our procedural background
+class Star {
+    constructor() {
+        this.x = Math.random() * VIRTUAL_WIDTH;
+        this.y = Math.random() * VIRTUAL_HEIGHT;
+        this.z = Math.random() * VIRTUAL_WIDTH; // z-depth for parallax
+        this.radius = 0.5 + Math.random() * 1.5;
+    }
+
+    update(speed) {
+        // Move the star based on its depth, creating parallax
+        this.x -= speed * (this.z / VIRTUAL_WIDTH);
+
+        // If star goes off-screen, wrap it around to the right
+        if (this.x < 0) {
+            this.x = VIRTUAL_WIDTH;
+            this.y = Math.random() * VIRTUAL_HEIGHT;
+        }
+    }
+
+    draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fill();
+    }
+}
+
+
 class PlayerComet {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -239,7 +271,16 @@ class Orbiter {
         const x = cometX + Math.cos(this.angle) * this.distance;
         const y = cometY + Math.sin(this.angle) * this.distance;
         
-        ctx.fillStyle = this.color;
+        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
+        gradient.addColorStop(0, this.color);
+        gradient.addColorStop(0.5, this.color);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = 'white';
         ctx.beginPath();
         ctx.arc(x, y, 4, 0, Math.PI * 2);
         ctx.fill();
@@ -479,9 +520,9 @@ function initNewRun() {
   powerUps = [];
   starFragments = [];
   particles = [];
-  nextObstacleSpawnX = 0;
-  nextPowerUpSpawnX = 500;
-  nextFragmentSpawnX = 300;
+  nextObstacleSpawnX = VIRTUAL_WIDTH; 
+  nextPowerUpSpawnX = VIRTUAL_WIDTH / 2;
+  nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
   activePowerUp = { type: null, timer: 0 };
   scoreElement.textContent = '0';
   powerUpStatusElement.className = 'powerup-hidden';
@@ -526,14 +567,16 @@ function updateGame() {
     managePowerUps();
     manageStarFragments();
     manageParticles();
+    // NEW: Update stars
+    for (let i = 0; i < stars.length; i++) {
+        stars[i].update(playerComet.vx);
+    }
     
     for (let i = 0; i < obstacles.length; i++) {
         if (obstacles[i].x < cameraX + VIRTUAL_WIDTH && obstacles[i].x + obstacles[i].width > cameraX) {
             obstacles[i].update();
         }
     }
-    
-    updateMusicTempo();
     
     const collisionResult = checkCollisions();
     if (collisionResult.obstacle) {
@@ -579,9 +622,15 @@ function drawGame() {
     ctx.save();
     ctx.scale(scale, scale);
 
+    // ARCHITECTURAL FIX: Draw the background color first.
     if (currentZoneColors.background) {
         ctx.fillStyle = currentZoneColors.background;
         ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    }
+
+    // NEW: Draw the starfield on top of the solid color
+    for (let i = 0; i < stars.length; i++) {
+        stars[i].draw();
     }
 
     if (playerComet) {
@@ -641,7 +690,7 @@ function manageObstacles() {
     if (nextObstacleSpawnX < spawnAheadPoint) {
         const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
         const minDistance = Math.max(80, 200 - zoneIndex * 15);
-        const randomDistance = 150 - zoneIndex * 10;
+        const randomDistance = Math.max(50, 150 - zoneIndex * 10);
         
         const obstacleType = getObstacleTypeForZone();
         const width = Math.random() * 50 + 25; const height = Math.random() * 180 + 50;
@@ -836,13 +885,11 @@ function checkZoneTransition() {
             stroke: `hsl(${hue + 20}, 80%, 70%)`
         };
 
-        // NEW: Add a new orbiter for the comet
         if (playerComet) {
             const orbiterDistance = playerComet.radius + 10 + (playerComet.orbiters.length * 5);
             playerComet.orbiters.push(new Orbiter(orbiterDistance, currentZoneColors.obstacle));
         }
 
-        // Only update the tempo once per zone change for stability.
         updateMusicTempo();
 
         lastZoneIndex = zoneIndex;
@@ -931,9 +978,17 @@ function setupEventListeners() {
     });
 }
 
+// NEW: This function creates our procedural starfield one time.
+function initStars() {
+    for (let i = 0; i < 200; i++) {
+        stars.push(new Star());
+    }
+}
+
 
 // --- Step 6: Game Initialization ---
 function init() {
+    initStars(); // Create the stars
     setupEventListeners();
     loadPlayerData();
     resizeCanvas(); 
