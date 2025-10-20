@@ -84,6 +84,7 @@ let nextFragmentSpawnX = 0;
 let activePowerUp = { type: null, timer: 0 };
 let lastZoneIndex = -1;
 let currentZoneColors = {};
+// NEW: State for the Head Start utility
 let isHeadstarting = false;
 let headstartTimer = 0;
 const HEADSTART_DURATION = 500; // Approx 8.3 seconds at 60fps
@@ -200,8 +201,9 @@ class PlayerComet {
         this.orbiters = [];
     }
     update() {
+        // If we are in the headstart sequence, override the normal speed calculation
         if (isHeadstarting) {
-            this.baseSpeed = 30;
+            this.baseSpeed = 30; // A very fast speed for the visual effect
         } else {
             this.baseSpeed = calculateCurrentSpeed();
         }
@@ -212,6 +214,7 @@ class PlayerComet {
         const inertiaFactor = 1 - INERTIAL_DAMPING;
         this.vy += (sway - this.vy) * inertiaFactor;
         
+        // Disable player control during headstart
         if (gravityWell && !isHeadstarting) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
@@ -466,6 +469,17 @@ class Particle {
 
 
 // --- Step 4: Core Game Logic Functions ---
+
+// NEW: "Cheat code" function to add fragments for testing
+window.addFragments = function(amount) {
+    playerData.starFragments += amount;
+    savePlayerData();
+    console.log(`Added ${amount} fragments. Total: ${playerData.starFragments}`);
+    // If in the shop, update the UI instantly
+    if (gameState === 'observatory') {
+        updateObservatoryUI();
+    }
+}
 
 function savePlayerData() {
     try {
