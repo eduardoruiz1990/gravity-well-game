@@ -32,7 +32,7 @@ const pauseMenu = document.getElementById('pauseMenu');
 const resumeButton = document.getElementById('resumeButton');
 const quitButton = document.getElementById('quitButton');
 
-// OBSERVATORY UI ELEMENTS (RE-INTEGRATED)
+// RE-INTEGRATED: Observatory UI Elements
 const observatoryButton = document.getElementById('observatoryButton');
 const closeObservatoryButton = document.getElementById('closeObservatoryButton');
 const observatory = document.getElementById('observatory');
@@ -438,7 +438,6 @@ function loadPlayerData() {
         const savedData = localStorage.getItem('gravityWellSaveData');
         if (savedData) {
             const loaded = JSON.parse(savedData);
-            // Backwards compatibility for old save files that don't have the upgrades object
             if (!loaded.upgrades) {
                 loaded.upgrades = { shield: 0, magnet: 0, score: 0, headstart: false, revive: false };
             }
@@ -464,7 +463,6 @@ function updateObservatoryUI() {
             const levelDisplay = item.querySelector('.upgrade-level');
             
             if (level >= upgradeCosts[id].length) {
-                // Max level reached
                 button.textContent = 'Max Level';
                 button.disabled = true;
                 levelDisplay.textContent = `Level ${level}/${upgradeCosts[id].length}`;
@@ -632,8 +630,15 @@ function updateGame() {
     }
     if (collisionResult.powerUp) {
         activePowerUp.type = collisionResult.powerUp;
-        const durations = { shield: 300, shrink: 480, boost: 600 };
+        
+        // IMPLEMENTED: Shield duration is now calculated based on the upgrade level.
+        let shieldDuration = 300; // Base duration: 5 seconds
+        if (playerData.upgrades.shield > 0) {
+            shieldDuration *= (1 + playerData.upgrades.shield * 0.1);
+        }
+        const durations = { shield: shieldDuration, shrink: 480, boost: 600 };
         activePowerUp.timer = durations[activePowerUp.type];
+        
         audioManager.playPowerUpSound();
         const color = new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main;
         createExplosion(collisionResult.item.x, collisionResult.item.y, 5, color);
