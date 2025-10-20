@@ -1,7 +1,7 @@
 /**
  * Gravity Well - Main Game Engine
- * This version implements the gameplay logic for the "Head Start" utility and
- * adds new navigation buttons to the Game Over screen.
+ * This version implements the gameplay logic for the "Fragment Magnet" upgrade
+ * and a cinematic "Head Start" utility.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -36,7 +36,6 @@ const closeObservatoryButton = document.getElementById('closeObservatoryButton')
 const observatory = document.getElementById('observatory');
 const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
 
-// NEW: Game Over navigation buttons
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
 const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
 
@@ -85,8 +84,9 @@ let nextFragmentSpawnX = 0;
 let activePowerUp = { type: null, timer: 0 };
 let lastZoneIndex = -1;
 let currentZoneColors = {};
-// NEW: State for the Head Start utility
 let isHeadstarting = false;
+let headstartTimer = 0;
+const HEADSTART_DURATION = 500; // Approx 8.3 seconds at 60fps
 
 const PLAYER_COMET_RADIUS = 15;
 const GRAVITY_INFLUENCE = 0.2; 
@@ -200,9 +200,8 @@ class PlayerComet {
         this.orbiters = [];
     }
     update() {
-        // If we are in the headstart sequence, override the normal speed calculation
         if (isHeadstarting) {
-            this.baseSpeed = 30; // A very fast speed for the visual effect
+            this.baseSpeed = 30;
         } else {
             this.baseSpeed = calculateCurrentSpeed();
         }
@@ -213,7 +212,6 @@ class PlayerComet {
         const inertiaFactor = 1 - INERTIAL_DAMPING;
         this.vy += (sway - this.vy) * inertiaFactor;
         
-        // Disable player control during headstart
         if (gravityWell && !isHeadstarting) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
@@ -238,7 +236,10 @@ class PlayerComet {
             this.vy = 0;
         }
         
-        this.x += this.vx; this.y += this.vy;
+        if (!isHeadstarting) {
+            this.x += this.vx; this.y += this.vy;
+        }
+
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 15) {
             this.trail.shift();
@@ -384,6 +385,33 @@ class StarFragment {
         this.y = y;
         this.radius = 8;
         this.animation = Math.random() * Math.PI * 2;
+        // NEW: Velocity for the magnet effect
+        this.vx = 0;
+        this.vy = 0;
+    }
+    // NEW: Update method for the magnet effect
+    update() {
+        const magnetLevel = playerData.upgrades.magnet || 0;
+        if (magnetLevel > 0 && playerComet) {
+            const magnetRange = 50 + magnetLevel * 25;
+            const dx = playerComet.x - this.x;
+            const dy = playerComet.y - this.y;
+            const distSq = dx * dx + dy * dy;
+
+            if (distSq < magnetRange * magnetRange) {
+                const dist = Math.sqrt(distSq);
+                const pullForce = 5;
+                this.vx += (dx / dist) * pullForce;
+                this.vy += (dy / dist) * pullForce;
+            }
+        }
+        
+        // Apply friction
+        this.vx *= 0.95;
+        this.vy *= 0.95;
+
+        this.x += this.vx;
+        this.y += this.vy;
     }
     draw() {
         this.animation += 0.07;
@@ -574,10 +602,10 @@ function initNewRun() {
   scoreElement.textContent = '0';
   powerUpStatusElement.className = 'powerup-hidden';
   
-  // NEW: Check for Head Start utility
   if (playerData.upgrades.headstart) {
     isHeadstarting = true;
-    playerData.upgrades.headstart = false; // Consume the item
+    headstartTimer = 0;
+    playerData.upgrades.headstart = false;
     savePlayerData();
   } else {
     isHeadstarting = false;
@@ -615,14 +643,17 @@ function gameLoop() {
 function updateGame() {
     if (!playerComet) return;
     
-    // NEW: Handle the headstart logic
     if (isHeadstarting) {
-        if (score >= ZONE_SCORE_INCREMENT) {
-            isHeadstarting = false; // End the headstart
-        } else {
-            // Force progress
-            maxDistanceReached += 30 * SCORE_DIVISOR;
-            playerComet.x = maxDistanceReached;
+        headstartTimer++;
+        const progress = headstartTimer / HEADSTART_DURATION;
+        // Use an ease-out function for a smooth cinematic slowdown
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+        maxDistanceReached = easedProgress * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
+        playerComet.x = maxDistanceReached;
+        
+        if (headstartTimer >= HEADSTART_DURATION) {
+            isHeadstarting = false;
         }
     }
     
@@ -643,8 +674,9 @@ function updateGame() {
             obstacles[i].update();
         }
     }
+
+    starFragments.forEach(sf => sf.update());
     
-    // During headstart, collisions are ignored
     const collisionResult = isHeadstarting ? { obstacle: false } : checkCollisions();
     if (collisionResult.obstacle) {
         isGameOver = true;
@@ -675,13 +707,12 @@ function updateGame() {
     
     handleActivePowerUp();
     
-    // Score calculation is handled by headstart or normal progress
     if (!isHeadstarting) {
         const oldMaxDistance = maxDistanceReached;
         maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
         const distanceGained = maxDistanceReached - oldMaxDistance;
         if (distanceGained > 0) {
-            const scoreMultiplier = activePowerUp.type === 'boost' ? 2 : 1;
+            const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0);
             score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
         }
     } else {
@@ -1070,7 +1101,6 @@ function setupEventListeners() {
         });
     });
 
-    // NEW: Add event listeners for the new Game Over buttons
     gameOverMenuButton.addEventListener('click', () => {
         audioManager.playClickSound();
         setGameState('menu');
