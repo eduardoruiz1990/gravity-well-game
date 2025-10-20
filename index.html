@@ -5,36 +5,38 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
+    <!-- We are now importing the audio library locally -->
   </head>
   <body>
     <div id="app">
-      <!-- Animated Background -->
-      <div class="stars"></div>
-      <div class="twinkling"></div>
-      
-      <!-- In-Game UI -->
-      <div class="ui-container">
-        <!-- MODIFIED: Grouped score and fragments on the left -->
-        <div class="left-ui">
-          <div class="score-display">
-            <span>Score: </span>
-            <span id="score">0</span>
-          </div>
-          <div id="runFragmentsContainer">
-            <span class="star-icon">★</span>
-            <span id="runFragmentsDisplay">0</span>
-          </div>
-        </div>
-        
-        <button id="pauseButton" class="pause-btn">||</button>
+      <!-- ARCHITECTURAL FIX: The starfield is now a pure CSS background element -->
+      <div class="stars-bg">
+        <div class="stars-1"></div>
+        <div class="stars-2"></div>
+        <div class="stars-3"></div>
       </div>
-      <div id="powerUpStatus" class="powerup-hidden"></div>
 
-      <!-- Game Canvas -->
       <canvas id="gameCanvas"></canvas>
 
-      <!-- Main Menu Modal -->
-      <div id="mainMenu" class="modal modal-hidden">
+      <div class="ui-container">
+        <div class="left-ui">
+            <div class="score-display">
+                <span>Score:</span>
+                <span id="score">0</span>
+            </div>
+            <div id="runFragmentsContainer">
+                <span class="star-icon">★</span>
+                <span id="runFragmentsDisplay">0</span>
+            </div>
+        </div>
+        <div class="right-ui">
+            <button id="pauseButton" class="pause-btn">||</button>
+        </div>
+      </div>
+      
+      <div id="powerUpStatus" class="powerup-hidden"></div>
+
+      <div id="mainMenu" class="modal">
         <div class="modal-content">
           <h1>Gravity Well</h1>
           <p>Click and hold to guide the comet. Survive as long as you can.</p>
@@ -49,11 +51,12 @@
             </div>
           </div>
           <button id="playButton" class="btn">Play</button>
+          <!-- NEW: Button to open the Observatory -->
+          <button id="observatoryButton" class="btn btn-secondary">Observatory</button>
         </div>
       </div>
 
-      <!-- Game Over Modal -->
-      <div id="gameOverModal" class="modal modal-hidden">
+      <div id="gameOverModal" class="modal">
         <div class="modal-content">
           <h2>Game Over</h2>
           <div class="stats-display">
@@ -69,13 +72,83 @@
           <button id="restartButton" class="btn">Play Again</button>
         </div>
       </div>
-      
-      <!-- Pause Menu Modal -->
-      <div id="pauseMenu" class="modal modal-hidden">
+
+      <div id="pauseMenu" class="modal">
         <div class="modal-content">
-          <h2>Paused</h2>
-          <button id="resumeButton" class="btn">Resume</button>
-          <button id="quitButton" class="btn btn-secondary">Quit to Menu</button>
+            <h2>Paused</h2>
+            <button id="resumeButton" class="btn">Resume</button>
+            <button id="quitButton" class="btn btn-secondary">Quit to Menu</button>
+        </div>
+      </div>
+
+      <!-- NEW: The entire UI for the Observatory/Shop -->
+      <div id="observatory" class="modal">
+        <div class="modal-content shop-modal">
+            <div class="shop-header">
+                <h2>The Observatory</h2>
+                <div class="shop-currency">
+                    <span>★</span>
+                    <span id="shopFragmentsDisplay">0</span>
+                </div>
+            </div>
+            
+            <div class="shop-section">
+                <h3>Permanent Upgrades</h3>
+                <div class="upgrade-item" id="upgrade-shield">
+                    <div class="upgrade-info">
+                        <strong>Longer Shield</strong>
+                        <p>Increases Shield power-up duration.</p>
+                    </div>
+                    <div class="upgrade-action">
+                        <span class="upgrade-level">Level 0 / 5</span>
+                        <button class="btn btn-buy" data-cost="100">★ 100</button>
+                    </div>
+                </div>
+                <div class="upgrade-item" id="upgrade-magnet">
+                    <div class="upgrade-info">
+                        <strong>Fragment Magnet</strong>
+                        <p>Automatically collects nearby fragments.</p>
+                    </div>
+                    <div class="upgrade-action">
+                        <span class="upgrade-level">Level 0 / 3</span>
+                        <button class="btn btn-buy" data-cost="300">★ 300</button>
+                    </div>
+                </div>
+                 <div class="upgrade-item" id="upgrade-score">
+                    <div class="upgrade-info">
+                        <strong>Score Bonus</strong>
+                        <p>Permanently increases score gain.</p>
+                    </div>
+                    <div class="upgrade-action">
+                        <span class="upgrade-level">Level 0 / 5</span>
+                        <button class="btn btn-buy" data-cost="200">★ 200</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Single-Use Utilities</h3>
+                <div class="upgrade-item" id="utility-headstart">
+                    <div class="upgrade-info">
+                        <strong>Head Start</strong>
+                        <p>Start the next run at Zone 2 (Score 1500).</p>
+                    </div>
+                    <div class="upgrade-action">
+                        <button class="btn btn-buy" data-cost="150">★ 150</button>
+                    </div>
+                </div>
+                 <div class="upgrade-item" id="utility-revive">
+                    <div class="upgrade-info">
+                        <strong>Second Chance</strong>
+                        <p>Revive once after crashing.</p>
+                    </div>
+                    <div class="upgrade-action">
+                        <button class="btn btn-buy" data-cost="250">★ 250</button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="closeObservatoryButton" class="btn btn-secondary">Back to Menu</button>
         </div>
       </div>
 

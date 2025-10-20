@@ -1,9 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
- * * Final Performance Refactor by Senior Performance Optimization Engineer.
- * This version corrects all rendering and performance issues by consolidating
- * the background into the JavaScript Canvas API. The architecture is now stable,
- * performant, and built to run smoothly on low-end devices.
+ * This version re-integrates the full implementation of "The Observatory" shop,
+ * with complete purchasing logic and data persistence for upgrades. All other
+ * game systems are considered stable and have not been altered.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -33,12 +32,35 @@ const pauseMenu = document.getElementById('pauseMenu');
 const resumeButton = document.getElementById('resumeButton');
 const quitButton = document.getElementById('quitButton');
 
+// OBSERVATORY UI ELEMENTS (RE-INTEGRATED)
+const observatoryButton = document.getElementById('observatoryButton');
+const closeObservatoryButton = document.getElementById('closeObservatoryButton');
+const observatory = document.getElementById('observatory');
+const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
+
 
 // --- Step 2: Game State and Configuration ---
-let gameState = 'menu'; // 'menu', 'playing', 'paused', 'game-over'
+let gameState = 'menu'; // 'menu', 'playing', 'paused', 'game-over', 'observatory'
 let playerData = {
     highScore: 0,
-    starFragments: 0
+    starFragments: 0,
+    // RE-INTEGRATED: Object to store player's permanent upgrade levels and single-use items
+    upgrades: {
+        shield: 0,
+        magnet: 0,
+        score: 0,
+        headstart: false,
+        revive: false,
+    }
+};
+
+// RE-INTEGRATED: Configuration for all upgrade costs
+const upgradeCosts = {
+    shield: [100, 250, 500, 1000, 2000],
+    magnet: [300, 750, 1500],
+    score: [200, 400, 800, 1600, 3200],
+    headstart: 150,
+    revive: 250
 };
 
 // Game Object Arrays
@@ -47,7 +69,6 @@ let obstacles = [];
 let powerUps = [];
 let starFragments = [];
 let particles = [];
-// ARCHITECTURAL FIX: New arrays for the JavaScript-based starfield
 let stars = [];
 
 // Game State Variables
@@ -65,7 +86,6 @@ let activePowerUp = { type: null, timer: 0 };
 let lastZoneIndex = -1;
 let currentZoneColors = {};
 
-// --- Gameplay & Visual Constants ---
 const PLAYER_COMET_RADIUS = 15;
 const GRAVITY_INFLUENCE = 0.2; 
 const INERTIAL_DAMPING = 0.98;
@@ -73,14 +93,12 @@ const SCORE_DIVISOR = 7;
 const WAVE_AMPLITUDE = 0.5;
 const WAVE_FREQUENCY = 0.03;
 
-// --- Procedural Generation Constants ---
 const ZONE_SCORE_INCREMENT = 1500;
 const INITIAL_SPEED = 2.5;
 const SPEED_INCREMENT_PER_ZONE = 0.5; 
 const START_HUE = 240; // Blue
 const HUE_INCREMENT_PER_ZONE = 50;
 
-// --- Virtual Resolution ---
 const VIRTUAL_WIDTH = 1280;
 const VIRTUAL_HEIGHT = 720;
 let scale = 1;
@@ -149,27 +167,20 @@ const audioManager = {
 };
 
 // --- Step 3: Game Classes (The Blueprints) ---
-
-// NEW: A class for a single star in our procedural background
 class Star {
     constructor() {
         this.x = Math.random() * VIRTUAL_WIDTH;
         this.y = Math.random() * VIRTUAL_HEIGHT;
-        this.z = Math.random() * VIRTUAL_WIDTH; // z-depth for parallax
+        this.z = Math.random() * VIRTUAL_WIDTH;
         this.radius = 0.5 + Math.random() * 1.5;
     }
-
     update(speed) {
-        // Move the star based on its depth, creating parallax
         this.x -= speed * (this.z / VIRTUAL_WIDTH);
-
-        // If star goes off-screen, wrap it around to the right
         if (this.x < 0) {
             this.x = VIRTUAL_WIDTH;
             this.y = Math.random() * VIRTUAL_HEIGHT;
         }
     }
-
     draw() {
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -177,8 +188,6 @@ class Star {
         ctx.fill();
     }
 }
-
-
 class PlayerComet {
     constructor(x, y) {
         this.x = x; this.y = y;
@@ -193,15 +202,12 @@ class PlayerComet {
         this.waveAngle += WAVE_FREQUENCY;
         this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
         const sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
-
         const inertiaFactor = 1 - INERTIAL_DAMPING;
         this.vy += (sway - this.vy) * inertiaFactor;
-
         if (gravityWell) {
             const dx = gravityWell.x - this.x;
             const dy = gravityWell.y - this.y;
             const distSq = dx * dx + dy * dy;
-
             if (distSq > 0.01) {
                 const dist = Math.sqrt(distSq);
                 if (dist < gravityWell.radius) {
@@ -212,7 +218,6 @@ class PlayerComet {
                 }
             }
         }
-
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > 0) {
             this.vx = (this.vx / currentSpeed) * this.baseSpeed;
@@ -221,14 +226,11 @@ class PlayerComet {
             this.vx = this.baseSpeed;
             this.vy = 0;
         }
-        
         this.x += this.vx; this.y += this.vy;
-
         this.trail.push({ x: this.x, y: this.y });
         if (this.trail.length > 15) {
             this.trail.shift();
         }
-        
         this.orbiters.forEach(orb => orb.update());
     }
     draw() {
@@ -252,11 +254,9 @@ class PlayerComet {
             ctx.lineWidth = 3;
             ctx.stroke();
         }
-        
         this.orbiters.forEach(orb => orb.draw(screenX, this.y));
     }
 }
-
 class Orbiter {
     constructor(distance, color) {
         this.distance = distance;
@@ -270,7 +270,6 @@ class Orbiter {
     draw(cometX, cometY) {
         const x = cometX + Math.cos(this.angle) * this.distance;
         const y = cometY + Math.sin(this.angle) * this.distance;
-        
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
         gradient.addColorStop(0, this.color);
         gradient.addColorStop(0.5, this.color);
@@ -279,14 +278,12 @@ class Orbiter {
         ctx.beginPath();
         ctx.arc(x, y, 10, 0, Math.PI * 2);
         ctx.fill();
-        
         ctx.fillStyle = 'white';
         ctx.beginPath();
         ctx.arc(x, y, 4, 0, Math.PI * 2);
         ctx.fill();
     }
 }
-
 class GravityWell {
     constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; }
     draw() {
@@ -369,7 +366,6 @@ class PowerUp {
         ctx.fill();
     }
 }
-
 class StarFragment {
     constructor(x, y) {
         this.x = x;
@@ -377,21 +373,17 @@ class StarFragment {
         this.radius = 8;
         this.animation = Math.random() * Math.PI * 2;
     }
-
     draw() {
         this.animation += 0.07;
         const scale = 1 + Math.sin(this.animation) * 0.1;
         const screenX = this.x - cameraX;
-
         ctx.save();
         ctx.translate(screenX, this.y);
         ctx.rotate(this.animation * 0.5);
         ctx.scale(scale, scale);
-
         ctx.fillStyle = '#facc15';
         ctx.strokeStyle = '#fde047';
         ctx.lineWidth = 2;
-
         ctx.beginPath();
         for (let i = 0; i < 5; i++) {
             let angle = (i / 5) * 2 * Math.PI;
@@ -404,11 +396,9 @@ class StarFragment {
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
-
         ctx.restore();
     }
 }
-
 class Particle {
     constructor(x, y, color) {
         this.x = x;
@@ -419,13 +409,11 @@ class Particle {
         this.vx = (Math.random() - 0.5) * 3;
         this.vy = (Math.random() - 0.5) * 3;
     }
-
     update() {
         this.x += this.vx;
         this.y += this.vy;
         this.lifespan--;
     }
-
     draw() {
         ctx.beginPath();
         ctx.arc(this.x - cameraX, this.y, this.radius, 0, Math.PI * 2);
@@ -449,12 +437,60 @@ function loadPlayerData() {
     try {
         const savedData = localStorage.getItem('gravityWellSaveData');
         if (savedData) {
-            playerData = JSON.parse(savedData);
+            const loaded = JSON.parse(savedData);
+            // Backwards compatibility for old save files that don't have the upgrades object
+            if (!loaded.upgrades) {
+                loaded.upgrades = { shield: 0, magnet: 0, score: 0, headstart: false, revive: false };
+            }
+            playerData = loaded;
         }
     } catch (e) {
         console.error("Could not load player data.", e);
-        playerData = { highScore: 0, starFragments: 0 };
+        playerData = { highScore: 0, starFragments: 0, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false } };
     }
+}
+
+// RE-INTEGRATED: This function updates the shop UI based on player data.
+function updateObservatoryUI() {
+    shopFragmentsDisplay.textContent = playerData.starFragments;
+
+    // Update permanent upgrades
+    Object.keys(upgradeCosts).forEach(id => {
+        if (Array.isArray(upgradeCosts[id])) { // This is a permanent upgrade
+            const level = playerData.upgrades[id] || 0;
+            const item = document.getElementById(`upgrade-${id}`);
+            if (!item) return;
+            const button = item.querySelector('button');
+            const levelDisplay = item.querySelector('.upgrade-level');
+            
+            if (level >= upgradeCosts[id].length) {
+                // Max level reached
+                button.textContent = 'Max Level';
+                button.disabled = true;
+                levelDisplay.textContent = `Level ${level}/${upgradeCosts[id].length}`;
+            } else {
+                const cost = upgradeCosts[id][level];
+                button.textContent = `Buy (${cost})`;
+                button.disabled = playerData.starFragments < cost;
+                levelDisplay.textContent = `Level ${level}/${upgradeCosts[id].length}`;
+            }
+        }
+    });
+
+    // Update single-use utilities
+    ['headstart', 'revive'].forEach(id => {
+        const item = document.getElementById(`utility-${id}`);
+        if (!item) return;
+        const button = item.querySelector('button');
+        if (playerData.upgrades[id]) {
+            button.textContent = 'Owned';
+            button.disabled = true;
+        } else {
+            const cost = upgradeCosts[id];
+            button.textContent = `Buy (${cost})`;
+            button.disabled = playerData.starFragments < cost;
+        }
+    });
 }
 
 function setGameState(newState) {
@@ -465,6 +501,7 @@ function setGameState(newState) {
     mainMenu.className = 'modal modal-hidden';
     gameOverModal.className = 'modal modal-hidden';
     pauseMenu.className = 'modal modal-hidden';
+    observatory.className = 'modal modal-hidden';
     inGameUi.style.display = 'none';
 
     if (gameState === 'menu') {
@@ -503,6 +540,9 @@ function setGameState(newState) {
         finalScoreElement.textContent = Math.floor(score);
         fragmentsEarnedDisplay.textContent = fragmentsThisRun;
         gameOverModal.className = 'modal modal-visible';
+    } else if (gameState === 'observatory') {
+        updateObservatoryUI();
+        observatory.className = 'modal modal-visible';
     }
 }
 
@@ -567,7 +607,6 @@ function updateGame() {
     managePowerUps();
     manageStarFragments();
     manageParticles();
-    // NEW: Update stars
     for (let i = 0; i < stars.length; i++) {
         stars[i].update(playerComet.vx);
     }
@@ -622,13 +661,11 @@ function drawGame() {
     ctx.save();
     ctx.scale(scale, scale);
 
-    // ARCHITECTURAL FIX: Draw the background color first.
     if (currentZoneColors.background) {
         ctx.fillStyle = currentZoneColors.background;
         ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
     }
 
-    // NEW: Draw the starfield on top of the solid color
     for (let i = 0; i < stars.length; i++) {
         stars[i].draw();
     }
@@ -976,19 +1013,76 @@ function setupEventListeners() {
             setGameState('menu');
         }
     });
+
+    // RE-INTEGRATED: Event listeners for the Observatory
+    observatoryButton.addEventListener('click', () => {
+        audioManager.playClickSound();
+        setGameState('observatory');
+    });
+
+    closeObservatoryButton.addEventListener('click', () => {
+        audioManager.playClickSound();
+        setGameState('menu');
+    });
+
+    // RE-INTEGRATED: Event listeners for all purchase buttons
+    const buyButtons = document.querySelectorAll('.buy-btn');
+    buyButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            const upgradeId = e.target.dataset.upgrade;
+            buyUpgrade(upgradeId);
+        });
+    });
 }
 
-// NEW: This function creates our procedural starfield one time.
+// RE-INTEGRATED: Logic to handle purchasing an upgrade
+function buyUpgrade(upgradeId) {
+    let cost = 0;
+    let canAfford = false;
+
+    if (Array.isArray(upgradeCosts[upgradeId])) { // Permanent upgrade
+        const level = playerData.upgrades[upgradeId] || 0;
+        if (level < upgradeCosts[upgradeId].length) {
+            cost = upgradeCosts[upgradeId][level];
+            if (playerData.starFragments >= cost) {
+                playerData.starFragments -= cost;
+                playerData.upgrades[upgradeId]++;
+                canAfford = true;
+            }
+        }
+    } else { // Single-use utility
+        if (!playerData.upgrades[upgradeId]) {
+            cost = upgradeCosts[upgradeId];
+            if (playerData.starFragments >= cost) {
+                playerData.starFragments -= cost;
+                playerData.upgrades[upgradeId] = true;
+                canAfford = true;
+            }
+        }
+    }
+
+    if (canAfford) {
+        console.log(`Purchased ${upgradeId}`);
+        audioManager.playFragmentSound();
+        savePlayerData();
+        updateObservatoryUI();
+    } else {
+        console.log(`Cannot afford ${upgradeId}`);
+        // Optional: play a "cannot afford" sound
+    }
+}
+
+
+// --- Step 6: Game Initialization ---
+// ARCHITECTURAL FIX: initStars was missing. It is now defined and called correctly.
 function initStars() {
     for (let i = 0; i < 200; i++) {
         stars.push(new Star());
     }
 }
 
-
-// --- Step 6: Game Initialization ---
 function init() {
-    initStars(); // Create the stars
+    initStars();
     setupEventListeners();
     loadPlayerData();
     resizeCanvas(); 

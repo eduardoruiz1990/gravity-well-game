@@ -228,25 +228,97 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
   animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
 }
 
-/* STARFIELD ANIMATION REMOVED - NOW HANDLED IN JAVASCRIPT */
-/* .starfield {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  z-index: 0;
+
+/* --- NEW: Observatory / Shop Styles --- */
+.shop-modal {
+    max-width: 600px;
+    width: 90%;
 }
-.star {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-  background: white;
-  border-radius: 50%;
-  opacity: 0.8;
-  animation: star-move linear infinite;
+
+.shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
-@keyframes star-move {
-  from { transform: translateY(0); }
-  to { transform: translateY(100vh); }  
-} */    
- 
+
+.shop-header h2 {
+    margin: 0;
+}
+
+.shop-currency {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #facc15;
+}
+
+.shop-section {
+    margin-bottom: 2rem;
+}
+
+.shop-section h3 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+}
+
+.upgrade-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(17, 24, 39, 0.5);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.upgrade-info {
+    text-align: left;
+}
+
+.upgrade-info strong {
+    font-size: 1.1rem;
+    color: white;
+}
+
+.upgrade-info p {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin: 0.25rem 0 0 0;
+}
+
+.upgrade-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 100px;
+}
+
+.upgrade-level {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.btn-buy {
+    padding: 8px 16px;
+    font-size: 1rem;
+}
+
+/* Style for when a player can't afford an upgrade */
+.btn-buy:disabled {
+    background-color: #374151;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
