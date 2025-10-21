@@ -1,7 +1,6 @@
 /**
  * Gravity Well - Main Game Engine
- * This version implements the gameplay logic for the "Score Bonus" and "Second Chance"
- * upgrades, and adds UI indicators for active upgrades.
+ * This version implements the Dynamic Main Menu feature.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -39,7 +38,6 @@ const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
 const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
 
-// NEW: Upgrade Indicator UI Elements
 const activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
 const magnetIndicator = document.getElementById('magnetIndicator');
 const scoreIndicator = document.getElementById('scoreIndicator');
@@ -75,6 +73,8 @@ let powerUps = [];
 let starFragments = [];
 let particles = [];
 let stars = [];
+// NEW: A separate comet object for the main menu animation
+let menuComet = null; 
 
 // Game State Variables
 let gravityWell = null;
@@ -93,7 +93,6 @@ let currentZoneColors = {};
 let isHeadstarting = false;
 let headstartTimer = 0;
 const HEADSTART_DURATION = 500;
-// NEW: State for Second Chance utility
 let hasRevive = false;
 
 const PLAYER_COMET_RADIUS = 15;
@@ -177,7 +176,6 @@ const audioManager = {
 };
 
 // --- Step 3: Game Classes (The Blueprints) ---
-// ... (All other classes are unchanged)
 class Star {
     constructor() {
         this.x = Math.random() * VIRTUAL_WIDTH;
@@ -548,6 +546,21 @@ function setGameState(newState) {
         mainMenu.className = 'modal modal-visible';
         highScoreDisplay.textContent = playerData.highScore;
         starFragmentsDisplay.textContent = playerData.starFragments;
+
+        // NEW: Initialize and start the menu animation loop
+        if (!menuComet) {
+            menuComet = {
+                x: VIRTUAL_WIDTH / 2,
+                y: VIRTUAL_HEIGHT / 2,
+                angle: 0,
+                trail: []
+            };
+        }
+        if (oldState !== 'menu') {
+             if (animationFrameId) cancelAnimationFrame(animationFrameId);
+             gameLoop();
+        }
+
     } else if (gameState === 'playing') {
         inGameUi.style.display = 'flex';
         runFragmentsContainer.className = '';
@@ -614,16 +627,14 @@ function initNewRun() {
     isHeadstarting = false;
   }
   
-  // NEW: Handle revive state
   if (playerData.upgrades.revive) {
       hasRevive = true;
-      playerData.upgrades.revive = false; // It's consumed at the start of the run
+      playerData.upgrades.revive = false; 
       savePlayerData();
   } else {
       hasRevive = false;
   }
   
-  // Update UI indicators at the start of the run
   updateUpgradeIndicators();
 
   checkZoneTransition();
@@ -640,19 +651,20 @@ function startGame() {
 }
 
 function gameLoop() {
-  if (gameState !== 'playing' || isGameOver) {
-      if(gameState === 'paused'){
-          animationFrameId = requestAnimationFrame(gameLoop);
-      }
+  if (gameState === 'playing' && !isGameOver) {
+      updateGame();
+      drawGame();
+  } else if (gameState === 'menu') {
+      updateMenu();
+      drawMenu();
+  } else if (gameState === 'paused') {
+      // Do nothing, just keep the loop alive to resume
+  } else {
+      // Game over or other states, stop the loop
       return;
   }
 
-  updateGame();
-  drawGame();
-
-  if (!isGameOver) {
-    animationFrameId = requestAnimationFrame(gameLoop);
-  }
+  animationFrameId = requestAnimationFrame(gameLoop);
 }
 
 function updateGame() {
@@ -668,6 +680,8 @@ function updateGame() {
         
         if (headstartTimer >= HEADSTART_DURATION) {
             isHeadstarting = false;
+            activePowerUp.type = 'shield';
+            activePowerUp.timer = 300; // 5 seconds of safety
         }
     }
     
@@ -691,9 +705,8 @@ function updateGame() {
 
     starFragments.forEach(sf => sf.update());
     
-    const collisionResult = (isHeadstarting || activePowerUp.type === 'shield') ? { obstacle: false } : checkCollisions();
+    const collisionResult = checkCollisions();
     
-    // MODIFIED: Handle revive logic before setting game over
     if (collisionResult.obstacle) {
         if (hasRevive) {
             revivePlayer();
@@ -770,6 +783,61 @@ function drawGame() {
 
     if (gravityWell && !isHeadstarting) {
         gravityWell.draw();
+    }
+    
+    ctx.restore();
+}
+
+// NEW: Functions to handle the dynamic main menu animation
+function updateMenu() {
+    if (!menuComet) return;
+    
+    // Update background stars with a slow, constant speed
+    for (let i = 0; i < stars.length; i++) {
+        stars[i].update(0.5);
+    }
+
+    // Update menu comet with a scripted figure-eight pattern
+    menuComet.angle += 0.01;
+    menuComet.x = VIRTUAL_WIDTH / 2 + Math.cos(menuComet.angle) * (VIRTUAL_WIDTH * 0.3);
+    menuComet.y = VIRTUAL_HEIGHT / 2 + Math.sin(menuComet.angle * 2) * (VIRTUAL_HEIGHT * 0.2);
+
+    menuComet.trail.push({ x: menuComet.x, y: menuComet.y });
+    if (menuComet.trail.length > 20) {
+        menuComet.trail.shift();
+    }
+}
+
+function drawMenu() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.scale(scale, scale);
+
+    // Draw a solid dark background for the menu
+    ctx.fillStyle = '#0c0a09';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+
+    for (let i = 0; i < stars.length; i++) {
+        stars[i].draw();
+    }
+
+    if (menuComet) {
+        // Draw trail
+        for (let i = 0; i < menuComet.trail.length; i++) {
+            const t = menuComet.trail[i];
+            const alpha = (i / menuComet.trail.length) * 0.4;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, PLAYER_COMET_RADIUS * (i / menuComet.trail.length), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.fill();
+        }
+        // Draw comet
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(menuComet.x, menuComet.y, PLAYER_COMET_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
     }
     
     ctx.restore();
@@ -939,6 +1007,7 @@ function handleActivePowerUp() {
 function checkCollisions() {
     if (!playerComet) return { obstacle: false, powerUp: null, fragment: false, item: null };
     
+    // BUG FIX: The check for fragments and power-ups must happen *before* the shield check.
     for (let i = starFragments.length - 1; i >= 0; i--) {
         const sf = starFragments[i];
         const dx = sf.x - playerComet.x;
@@ -978,20 +1047,16 @@ function checkCollisions() {
     return { obstacle: false, powerUp: null, fragment: false, item: null };
 }
 
-// NEW: Function to handle the player's revival
 function revivePlayer() {
     console.log("Second Chance Used!");
-    hasRevive = false; // Consume the revive
-    updateUpgradeIndicators(); // Hide the revive icon
+    hasRevive = false; 
+    updateUpgradeIndicators();
     
-    // Create a visual effect for the revival
     createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9');
     
-    // Give the player a temporary shield
     activePowerUp.type = 'shield';
-    activePowerUp.timer = 180; // 3 seconds of invincibility
+    activePowerUp.timer = 180;
     
-    // Clear nearby obstacles to give the player a chance
     for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
         if (obs.x > cameraX && obs.x < cameraX + VIRTUAL_WIDTH) {
@@ -1044,9 +1109,8 @@ function checkZoneTransition() {
     }
 }
 
-// NEW: Function to show/hide the upgrade indicators
 function updateUpgradeIndicators() {
-    powerUpStatusElement.className = 'powerup-hidden'; // Hide temp power-up
+    powerUpStatusElement.className = 'powerup-hidden'; 
     activeUpgradesContainer.style.display = 'flex';
     magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none';
     scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none';
