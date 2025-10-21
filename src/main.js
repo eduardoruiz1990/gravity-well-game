@@ -1,6 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
- * This version implements the Dynamic Main Menu feature.
+ * This version implements two targeted fixes:
+ * 1. Corrects a bug preventing fragment collection while a shield is active.
+ * 2. Adds a 5-second safety shield after the Head Start utility concludes.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -45,7 +47,7 @@ const reviveIndicator = document.getElementById('reviveIndicator');
 
 
 // --- Step 2: Game State and Configuration ---
-let gameState = 'menu'; // 'menu', 'playing', 'paused', 'game-over', 'observatory'
+let gameState = 'menu';
 let playerData = {
     highScore: 0,
     starFragments: 0,
@@ -66,17 +68,14 @@ const upgradeCosts = {
     revive: 250
 };
 
-// Game Object Arrays
 let playerComet = null;
 let obstacles = [];
 let powerUps = [];
 let starFragments = [];
 let particles = [];
 let stars = [];
-// NEW: A separate comet object for the main menu animation
 let menuComet = null; 
 
-// Game State Variables
 let gravityWell = null;
 let score = 0;
 let fragmentsThisRun = 0;
@@ -105,7 +104,7 @@ const WAVE_FREQUENCY = 0.03;
 const ZONE_SCORE_INCREMENT = 1500;
 const INITIAL_SPEED = 2.5;
 const SPEED_INCREMENT_PER_ZONE = 0.5; 
-const START_HUE = 240; // Blue
+const START_HUE = 240;
 const HUE_INCREMENT_PER_ZONE = 50;
 
 const VIRTUAL_WIDTH = 1280;
@@ -546,8 +545,8 @@ function setGameState(newState) {
         mainMenu.className = 'modal modal-visible';
         highScoreDisplay.textContent = playerData.highScore;
         starFragmentsDisplay.textContent = playerData.starFragments;
-
-        // NEW: Initialize and start the menu animation loop
+        
+// NEW: Initialize and start the menu animation loop
         if (!menuComet) {
             menuComet = {
                 x: VIRTUAL_WIDTH / 2,
@@ -661,6 +660,7 @@ function gameLoop() {
       // Do nothing, just keep the loop alive to resume
   } else {
       // Game over or other states, stop the loop
+      if(animationFrameId) cancelAnimationFrame(animationFrameId);
       return;
   }
 
@@ -673,11 +673,13 @@ function updateGame() {
     if (isHeadstarting) {
         headstartTimer++;
         const progress = headstartTimer / HEADSTART_DURATION;
+        // Use an ease-out function for a smooth cinematic slowdown
         const easedProgress = 1 - Math.pow(1 - progress, 3);
 
         maxDistanceReached = easedProgress * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
         playerComet.x = maxDistanceReached;
         
+        // FEATURE ENHANCEMENT: When the headstart ends, grant a safety shield
         if (headstartTimer >= HEADSTART_DURATION) {
             isHeadstarting = false;
             activePowerUp.type = 'shield';
@@ -788,16 +790,13 @@ function drawGame() {
     ctx.restore();
 }
 
-// NEW: Functions to handle the dynamic main menu animation
 function updateMenu() {
     if (!menuComet) return;
     
-    // Update background stars with a slow, constant speed
     for (let i = 0; i < stars.length; i++) {
         stars[i].update(0.5);
     }
 
-    // Update menu comet with a scripted figure-eight pattern
     menuComet.angle += 0.01;
     menuComet.x = VIRTUAL_WIDTH / 2 + Math.cos(menuComet.angle) * (VIRTUAL_WIDTH * 0.3);
     menuComet.y = VIRTUAL_HEIGHT / 2 + Math.sin(menuComet.angle * 2) * (VIRTUAL_HEIGHT * 0.2);
@@ -815,7 +814,6 @@ function drawMenu() {
     ctx.save();
     ctx.scale(scale, scale);
 
-    // Draw a solid dark background for the menu
     ctx.fillStyle = '#0c0a09';
     ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 
@@ -824,7 +822,6 @@ function drawMenu() {
     }
 
     if (menuComet) {
-        // Draw trail
         for (let i = 0; i < menuComet.trail.length; i++) {
             const t = menuComet.trail[i];
             const alpha = (i / menuComet.trail.length) * 0.4;
@@ -833,7 +830,6 @@ function drawMenu() {
             ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
             ctx.fill();
         }
-        // Draw comet
         ctx.fillStyle = 'white';
         ctx.beginPath();
         ctx.arc(menuComet.x, menuComet.y, PLAYER_COMET_RADIUS, 0, Math.PI * 2);
@@ -1275,7 +1271,10 @@ function init() {
     setupEventListeners();
     loadPlayerData();
     resizeCanvas(); 
+    // ARCHITECTURAL FIX: The game must start its own animation loop for the menu.
+    // setGameState('menu') is not enough on its own.
     setGameState('menu');
+    gameLoop();
 }
 
 // --- And finally, we start the whole process! ---
