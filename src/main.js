@@ -1,10 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
- * COSMETIC STORE PHASE 1: UI & Data Structure
- * - Added basic structure for cosmetics in playerData.
- * - Created UI tabs and placeholder cosmetic items in index.html.
- * - Added basic styling for cosmetic items in style.css.
- * - Updated JS to handle cosmetic data loading and UI population.
+ * COSMETIC STORE PHASE 2: Comet Skin Rendering
+ * - Modified PlayerComet.draw() to render the comet based on the equipped skin.
+ * - Uses styles defined in cosmeticItems for rendering.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -91,12 +89,12 @@ const upgradeCosts = {
     revive: 250
 };
 
-// NEW: Define Cosmetic Items
+// Define Cosmetic Items
 const cosmeticItems = {
-    comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;' },
-    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);' },
-    comet_emerald: { name: 'Emerald', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);' },
-    comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 1000, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);' },
+    comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;',fillStyle: 'white' },
+    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' }, // Use gradient for drawing too
+    comet_emerald: { name: 'Emerald', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)' },
+    comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 1000, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)' },
     // Add more skins later
 };
 
@@ -289,21 +287,62 @@ class PlayerComet {
     }
     draw() {
         const screenX = this.x - cameraX;
+        const equippedSkinId = playerData.cosmetics.equipped.comet;
+        const skin = cosmeticItems[equippedSkinId] || cosmeticItems['comet_default'];
+
+        // Draw Trail
         this.trail.forEach((t, i) => {
             ctx.beginPath();
             ctx.arc(t.x - cameraX, t.y, this.radius * (i / this.trail.length), 0, Math.PI * 2);
+             // Use a semi-transparent white for trail regardless of skin for visibility
             ctx.fillStyle = `rgba(255, 255, 255, ${(i / this.trail.length) * 0.4})`;
             ctx.fill();
         });
-        ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        
+        // Draw Comet Body based on skin
+         ctx.beginPath();
+         ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
+
+        // Apply skin style
+        if (skin.fillStyle.startsWith('linear-gradient')) {
+             // Basic gradient parsing (assumes 2 colors)
+            const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+            if(colors && colors.length >= 2){
+                const gradient = ctx.createLinearGradient(screenX - this.radius, this.y, screenX + this.radius, this.y);
+                gradient.addColorStop(0, colors[0]);
+                gradient.addColorStop(1, colors[1]);
+                ctx.fillStyle = gradient;
+            } else {
+                 ctx.fillStyle = 'white'; // Fallback
+            }
+        } else if (skin.fillStyle.startsWith('radial-gradient')) {
+             const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+             if (colors && colors.length >= 2) {
+                 const gradient = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
+                 gradient.addColorStop(0, colors[0]);
+                 gradient.addColorStop(0.5, colors[1]);
+                 gradient.addColorStop(1, colors[2] || colors[1]); // Use second color if third is missing
+                 ctx.fillStyle = gradient;
+             } else {
+                 ctx.fillStyle = 'white'; // Fallback
+             }
+        } else {
+             ctx.fillStyle = skin.fillStyle; // Solid color
+        }
+        ctx.fill();
+
+
+        // Draw Score Bonus Indicator (if applicable)
         if (playerData.upgrades.score > 0) {
             const indicatorX = screenX + this.radius * 0.8, indicatorY = this.y - this.radius * 0.8;
             ctx.fillStyle = 'rgba(253, 224, 71, 0.5)'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
         }
+        // Draw Shield (if applicable)
         if (activePowerUp.type === 'shield' || isHeadstarting) {
             ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
         }
+        // Draw Orbiters
         this.orbiters.forEach(orb => orb.draw(screenX, this.y));
     }
 }
