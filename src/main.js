@@ -1,8 +1,10 @@
 /**
  * Gravity Well - Main Game Engine
- * This version implements two targeted fixes:
- * 1. Corrects a bug preventing fragment collection while a shield is active.
- * 2. Adds a 5-second safety shield after the Head Start utility concludes.
+ * CRITICAL BUG FIXES & TUTORIAL POLISH
+ * - Fixed game-breaking bug where input would lock if touch/mouse was released off-canvas.
+ * - Fixed infinite star fragment collection bug.
+ * - Fixed a critical bug where the tutorial star fragment would not respawn on checkpoint reset.
+ * - Polished tutorial arrow style and positioning for clarity.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -45,12 +47,20 @@ const magnetIndicator = document.getElementById('magnetIndicator');
 const scoreIndicator = document.getElementById('scoreIndicator');
 const reviveIndicator = document.getElementById('reviveIndicator');
 
+const tutorialOverlay = document.getElementById('tutorialOverlay');
+const tutorialText = document.getElementById('tutorialText');
+const skipTutorialButton = document.getElementById('skipTutorialButton');
+const tutorialHighlight = document.getElementById('tutorialHighlight');
+const tutorialArrow = document.getElementById('tutorialArrow');
+const replayTutorialButton = document.getElementById('replayTutorialButton');
+
 
 // --- Step 2: Game State and Configuration ---
 let gameState = 'menu';
 let playerData = {
     highScore: 0,
     starFragments: 0,
+    hasPlayedBefore: false,
     upgrades: {
         shield: 0,
         magnet: 0,
@@ -111,7 +121,6 @@ const VIRTUAL_WIDTH = 1280;
 const VIRTUAL_HEIGHT = 720;
 let scale = 1;
 
-
 const audioManager = {
     isInitialized: false,
     synth: null,
@@ -128,42 +137,21 @@ const audioManager = {
         }).toDestination();
         this.isInitialized = true;
     },
-
-    playFragmentSound() {
-        if (!this.isInitialized) return;
-        this.synth.triggerAttackRelease("C5", "8n");
-    },
-    playPowerUpSound() {
-        if (!this.isInitialized) return;
-        this.synth.triggerAttackRelease("G5", "8n");
-    },
-    playGameOverSound() {
-        if (!this.isInitialized) return;
-        this.noiseSynth.triggerAttack();
-    },
-    playClickSound() {
-        if (!this.isInitialized) return;
-        this.synth.triggerAttackRelease("C4", "16n");
-    },
+    playFragmentSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C5", "8n"); },
+    playPowerUpSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("G5", "8n"); },
+    playGameOverSound() { if (!this.isInitialized) return; this.noiseSynth.triggerAttack(); },
+    playClickSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C4", "16n"); },
     startMusic() {
         if (!this.isInitialized || this.musicLoop) return;
-        
         Tone.Transport.bpm.value = this.baseBPM;
-
         const notes = ["C2", "G2", "Eb3", "G2"];
         let noteIndex = 0;
-        
         this.musicLoop = new Tone.Loop(time => {
-            this.synth.triggerAttackRelease(notes[noteIndex % notes.length], "8n", time);
-            noteIndex++;
+            this.synth.triggerAttackRelease(notes[noteIndex++ % notes.length], "8n", time);
         }, "4n").start(0);
-
         Tone.Transport.start();
     },
-    updateTempo(newBPM) {
-        if (!this.isInitialized || Tone.Transport.state !== 'started') return;
-        Tone.Transport.bpm.value = newBPM;
-    },
+    updateTempo(newBPM) { if (!this.isInitialized || Tone.Transport.state !== 'started') return; Tone.Transport.bpm.value = newBPM; },
     stopMusic() {
         if (this.musicLoop) {
             this.musicLoop.stop(0);
@@ -174,1109 +162,544 @@ const audioManager = {
     }
 };
 
-// --- Step 3: Game Classes (The Blueprints) ---
+const tutorialManager = {
+    isActive: false,
+    currentStep: 0,
+    isPausedForInstruction: false,
+    checkpoint: null,
+    steps: [
+        { text: "Welcome to Gravity Well! Let's learn the basics.", isCheckpoint: true, autoAdvance: 2000 },
+        { text: "Here comes an obstacle. Get ready to dodge it.", isCheckpoint: true, autoAdvance: 2000, setup: () => { obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.7, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')]; }, target: () => (obstacles.length > 0 ? { x: obstacles[0].x, y: obstacles[0].y + obstacles[0].height / 2 } : null) },
+        { text: "CLICK and HOLD the glowing spot to pull your comet upwards.", targetFn: () => ({ x: playerComet.x + 150, y: playerComet.y - 150 }), condition: () => gravityWell !== null },
+        { text: "Now release to fly past the obstacle!", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => gravityWell === null },
+        { text: "Nice one!", isCheckpoint: true, autoAdvance: 1500, condition: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width },
+        { text: "Let's try another.", isCheckpoint: true, autoAdvance: 2000, setup: (isReset) => { if (!isReset) obstacles = [new Obstacle(playerComet.x + 400, VIRTUAL_HEIGHT * 0.2, 30, 250, 'static')]; }, target: () => (obstacles.length > 0 ? { x: obstacles[0].x, y: obstacles[0].y + obstacles[0].height / 2 } : null) },
+        { text: "Guide the comet past this one too.", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width },
+        { text: "See your score? It goes up as you travel forward.", autoAdvance: 3000, target: () => ({ x: 100, y: 30, isUITarget: true }) },
+        { text: "Now for a pro move. Let's grab that star fragment.", isCheckpoint: true, autoAdvance: 2000, setup: (isReset) => { if (isReset || starFragments.length === 0) { obstacles = []; starFragments = [new StarFragment(playerComet.x - 100, playerComet.y - 100)]; } }, target: () => (starFragments.length > 0 ? { x: starFragments[0].x, y: starFragments[0].y } : null)},
+        { text: "Place a well BEHIND the comet to pull it backward.", targetFn: () => ({ x: playerComet.x - 150, y: playerComet.y }), condition: () => gravityWell !== null && gravityWell.x < playerComet.x, setup: () => { tutorialManager.isPausedForInstruction = false; } },
+        { text: "Notice your score stops when moving backward. No cheating!", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => starFragments.length === 0 },
+        { text: "You've got it! Skills Learned:\n✓ Comet Control\n✓ Dodging\n✓ Backtracking\nGet ready for the real run!", autoAdvance: 5000, onComplete: () => { tutorialManager.end(true); } }
+    ],
+
+    start() {
+        this.isActive = true; this.currentStep = 0;
+        this.runStep();
+    },
+    advance() {
+        const currentStepConfig = this.steps[this.currentStep];
+        if (currentStepConfig && currentStepConfig.onComplete) { currentStepConfig.onComplete(); }
+        this.currentStep++;
+        if (this.currentStep >= this.steps.length) { this.end(true); } else { this.runStep(); }
+    },
+    runStep(isReset = false) {
+        const step = this.steps[this.currentStep];
+        tutorialText.innerHTML = step.text.replace(/\n/g, '<br>');
+        this.isPausedForInstruction = !step.condition && !step.autoAdvance;
+        if (step.isCheckpoint) { this.checkpoint = { step: this.currentStep, cometX: playerComet.x, cometY: playerComet.y, obstacles: obstacles.map(o => new Obstacle(o.x, o.y, o.width, o.height, o.type)), fragments: starFragments.map(sf => new StarFragment(sf.x, sf.y)) }; }
+        if (step.setup) step.setup(isReset);
+        if (step.autoAdvance) {
+            this.isPausedForInstruction = true;
+            setTimeout(() => { if (this.isActive && this.currentStep === this.steps.indexOf(step)) { this.advance(); } }, step.autoAdvance);
+        }
+    },
+    checkCondition() {
+        if (!this.isActive || this.isPausedForInstruction) return;
+        const step = this.steps[this.currentStep];
+        if (step.condition && step.condition()) { this.advance(); }
+    },
+    resetToCheckpoint(failureMessage) {
+        if (!this.checkpoint) return;
+        this.isPausedForInstruction = true;
+        tutorialText.innerHTML = `${failureMessage}<br><br>Let's try that again.`;
+        playerComet.x = this.checkpoint.cometX; playerComet.y = this.checkpoint.cometY;
+        playerComet.vx = 0; playerComet.vy = 0; playerComet.trail = [];
+        obstacles = this.checkpoint.obstacles.map(o => new Obstacle(o.x, o.y, o.width, o.height, o.type));
+        starFragments = this.checkpoint.fragments.map(sf => new StarFragment(sf.x, sf.y));
+        this.currentStep = this.checkpoint.step;
+        setTimeout(() => { if (this.isActive) this.runStep(true); }, 2500);
+    },
+    end(startNewGame = false) {
+        if (!this.isActive) return;
+        this.isActive = false; tutorialHighlight.className = 'tutorial-highlight-hidden'; tutorialArrow.className = 'tutorial-arrow-hidden';
+        playerData.hasPlayedBefore = true; savePlayerData();
+        if (startNewGame) { setGameState('playing'); } else { setGameState('menu'); }
+    }
+};
+
+
+// --- Step 3: Game Classes ---
 class Star {
-    constructor() {
-        this.x = Math.random() * VIRTUAL_WIDTH;
-        this.y = Math.random() * VIRTUAL_HEIGHT;
-        this.z = Math.random() * VIRTUAL_WIDTH;
-        this.radius = 0.5 + Math.random() * 1.5;
-    }
-    update(speed) {
-        this.x -= speed * (this.z / VIRTUAL_WIDTH);
-        if (this.x < 0) {
-            this.x = VIRTUAL_WIDTH;
-            this.y = Math.random() * VIRTUAL_HEIGHT;
-        }
-    }
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.fill();
-    }
+    constructor() { this.x = Math.random() * VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; this.z = Math.random() * VIRTUAL_WIDTH; this.radius = 0.5 + Math.random() * 1.5; }
+    update(speed) { this.x -= speed * (this.z / VIRTUAL_WIDTH); if (this.x < 0) { this.x = VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; } }
+    draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.fill(); }
 }
+
 class PlayerComet {
-    constructor(x, y) {
-        this.x = x; this.y = y;
-        this.baseSpeed = calculateCurrentSpeed();
-        this.vx = this.baseSpeed; this.vy = 0;
-        this.radius = PLAYER_COMET_RADIUS;
-        this.trail = []; this.waveAngle = 0;
-        this.orbiters = [];
-    }
+    constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; }
     update() {
-        if (isHeadstarting) {
-            this.baseSpeed = 30;
-        } else {
-            this.baseSpeed = calculateCurrentSpeed();
-        }
+        if (isHeadstarting) { this.baseSpeed = 30; } 
+        else if (!tutorialManager.isActive || !tutorialManager.isPausedForInstruction) { this.baseSpeed = calculateCurrentSpeed(); }
+        else { this.baseSpeed = 0; }
+
         this.waveAngle += WAVE_FREQUENCY;
         this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
-        const sway = Math.cos(this.waveAngle) * WAVE_AMPLITUDE;
-        const inertiaFactor = 1 - INERTIAL_DAMPING;
-        this.vy += (sway - this.vy) * inertiaFactor;
-        
+        this.vy += (Math.cos(this.waveAngle) * WAVE_AMPLITUDE - this.vy) * (1 - INERTIAL_DAMPING);
         if (gravityWell && !isHeadstarting) {
-            const dx = gravityWell.x - this.x;
-            const dy = gravityWell.y - this.y;
-            const distSq = dx * dx + dy * dy;
-            if (distSq > 0.01) {
-                const dist = Math.sqrt(distSq);
-                if (dist < gravityWell.radius) {
-                    const pullX = dx / dist;
-                    const pullY = dy / dist;
-                    this.vx += pullX * GRAVITY_INFLUENCE;
-                    this.vy += pullY * GRAVITY_INFLUENCE;
-                }
+            const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 0.01 && dist < gravityWell.radius) {
+                this.vx += (dx / dist) * GRAVITY_INFLUENCE;
+                this.vy += (dy / dist) * GRAVITY_INFLUENCE;
             }
         }
-        
         const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
         if (currentSpeed > 0) {
             this.vx = (this.vx / currentSpeed) * this.baseSpeed;
             this.vy = (this.vy / currentSpeed) * this.baseSpeed;
-        } else {
-            this.vx = this.baseSpeed;
-            this.vy = 0;
-        }
-        
-        if (!isHeadstarting) {
-            this.x += this.vx; this.y += this.vy;
-        }
+        } else { this.vx = this.baseSpeed; this.vy = 0; }
+        if (!isHeadstarting && (!tutorialManager.isActive || !tutorialManager.isPausedForInstruction)) { this.x += this.vx; this.y += this.vy; }
         this.trail.push({ x: this.x, y: this.y });
-        if (this.trail.length > 15) {
-            this.trail.shift();
-        }
+        if (this.trail.length > 15) this.trail.shift();
         this.orbiters.forEach(orb => orb.update());
     }
     draw() {
         const screenX = this.x - cameraX;
-        for (let i = 0; i < this.trail.length; i++) {
-            const t = this.trail[i];
-            const alpha = (i / this.trail.length) * 0.4;
+        this.trail.forEach((t, i) => {
             ctx.beginPath();
             ctx.arc(t.x - cameraX, t.y, this.radius * (i / this.trail.length), 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+            ctx.fillStyle = `rgba(255, 255, 255, ${(i / this.trail.length) * 0.4})`;
             ctx.fill();
+        });
+        ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        if (playerData.upgrades.score > 0) {
+            const indicatorX = screenX + this.radius * 0.8, indicatorY = this.y - this.radius * 0.8;
+            ctx.fillStyle = 'rgba(253, 224, 71, 0.5)'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
         if (activePowerUp.type === 'shield' || isHeadstarting) {
-            ctx.beginPath();
-            ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
+            ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
         }
         this.orbiters.forEach(orb => orb.draw(screenX, this.y));
     }
 }
+
 class Orbiter {
-    constructor(distance, color) {
-        this.distance = distance;
-        this.color = color;
-        this.angle = Math.random() * Math.PI * 2;
-        this.speed = 0.02 + Math.random() * 0.02;
-    }
-    update() {
-        this.angle += this.speed;
-    }
+    constructor(distance, color) { this.distance = distance; this.color = color; this.angle = Math.random() * Math.PI * 2; this.speed = 0.02 + Math.random() * 0.02; }
+    update() { this.angle += this.speed; }
     draw(cometX, cometY) {
-        const x = cometX + Math.cos(this.angle) * this.distance;
-        const y = cometY + Math.sin(this.angle) * this.distance;
+        const x = cometX + Math.cos(this.angle) * this.distance; const y = cometY + Math.sin(this.angle) * this.distance;
         const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
-        gradient.addColorStop(0, this.color);
-        gradient.addColorStop(0.5, this.color);
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(x, y, 10, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fill();
+        gradient.addColorStop(0, this.color); gradient.addColorStop(0.5, this.color); gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
     }
 }
 class GravityWell {
     constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; }
     draw() {
         const screenX = this.x - cameraX;
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(196, 181, 253, 0.15)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(196, 181, 253, 0.1)';
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.15)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.1)'; ctx.fill();
     }
 }
 class Obstacle {
-    constructor(x, y, width, height, type) {
-        this.x = x; this.y = y; this.width = width; this.height = height; this.type = type;
-        this.initialY = y; this.direction = 1; this.speedY = 1;
-        this.isActive = true; this.phaseTimer = 0; this.phaseDuration = 120; this.warningFrames = 45;
-    }
+    constructor(x, y, width, height, type) { this.x = x; this.y = y; this.width = width; this.height = height; this.type = type; this.initialY = y; this.direction = 1; this.speedY = 1; this.isActive = true; this.phaseTimer = 0; this.phaseDuration = 120; this.warningFrames = 45; }
     update() {
-        if (this.type === 'vertical') {
-            this.y += this.speedY * this.direction;
-            if (Math.abs(this.y - this.initialY) > 50) this.direction *= -1;
-        } else if (this.type === 'phasing') {
-            this.phaseTimer++;
-            if (this.phaseTimer > this.phaseDuration) {
-                this.phaseTimer = 0;
-                this.isActive = !this.isActive;
-            }
-        }
+        if (this.type === 'vertical') { this.y += this.speedY * this.direction; if (Math.abs(this.y - this.initialY) > 50) this.direction *= -1; }
+        else if (this.type === 'phasing') { this.phaseTimer++; if (this.phaseTimer > this.phaseDuration) { this.phaseTimer = 0; this.isActive = !this.isActive; } }
     }
     draw() {
-        let color = currentZoneColors.obstacle;
-        let shouldDraw = true;
-        if (this.type === 'phasing') {
-            if (!this.isActive) {
-                const timeToActivate = this.phaseDuration - this.phaseTimer;
-                if (timeToActivate < this.warningFrames) {
-                    const alpha = Math.abs(Math.sin(this.phaseTimer * 0.2));
-                    color = `rgba(239, 68, 68, ${alpha})`;
-                } else {
-                    shouldDraw = false;
-                }
-            }
+        let color = currentZoneColors.obstacle; let shouldDraw = true;
+        if (this.type === 'phasing' && !this.isActive) {
+            const timeToActivate = this.phaseDuration - this.phaseTimer;
+            if (timeToActivate < this.warningFrames) { color = `rgba(239, 68, 68, ${Math.abs(Math.sin(this.phaseTimer * 0.2))})`; }
+            else { shouldDraw = false; }
         }
         if (shouldDraw) {
-            ctx.fillStyle = color;
-            ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
-            if (this.type !== 'phasing' || this.isActive) {
-                ctx.strokeStyle = currentZoneColors.stroke; 
-                ctx.lineWidth = 2;
-                ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height);
-            }
+            ctx.fillStyle = color; ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+            if (this.type !== 'phasing' || this.isActive) { ctx.strokeStyle = currentZoneColors.stroke; ctx.lineWidth = 2; ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height); }
         }
     }
 }
 class PowerUp {
-    constructor(x, y, type) {
-        this.x = x; this.y = y; this.type = type; this.radius = 12;
-        this.colors = {
-            shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' },
-            shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' },
-            boost: { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' }
-        };
-        this.animation = Math.random() * Math.PI * 2;
-    }
+    constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' }, shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' }, boost: { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' } }; this.animation = Math.random() * Math.PI * 2; }
     draw() {
-        this.animation += 0.05;
-        const pulse = 0.9 + Math.sin(this.animation) * 0.1;
-        const colorSet = this.colors[this.type];
-        const screenX = this.x - cameraX;
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius * pulse * 1.5, 0, Math.PI * 2);
-        ctx.fillStyle = colorSet.glow;
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius * pulse, 0, Math.PI * 2);
-        ctx.fillStyle = colorSet.main;
-        ctx.fill();
+        this.animation += 0.05; const pulse = 0.9 + Math.sin(this.animation) * 0.1; const colorSet = this.colors[this.type]; const screenX = this.x - cameraX;
+        ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse * 1.5, 0, Math.PI * 2); ctx.fillStyle = colorSet.glow; ctx.fill();
+        ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse, 0, Math.PI * 2); ctx.fillStyle = colorSet.main; ctx.fill();
     }
 }
 class StarFragment {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = 8;
-        this.animation = Math.random() * Math.PI * 2;
-        this.vx = 0;
-        this.vy = 0;
-    }
+    constructor(x, y) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; }
     update() {
         const magnetLevel = playerData.upgrades.magnet || 0;
         if (magnetLevel > 0 && playerComet) {
-            const magnetRange = 50 + magnetLevel * 25;
-            const dx = playerComet.x - this.x;
-            const dy = playerComet.y - this.y;
-            const distSq = dx * dx + dy * dy;
-
-            if (distSq < magnetRange * magnetRange) {
-                const dist = Math.sqrt(distSq);
-                const pullForce = 5;
-                this.vx += (dx / dist) * pullForce;
-                this.vy += (dy / dist) * pullForce;
-            }
+            const magnetRange = 50 + magnetLevel * 25; const dx = playerComet.x - this.x; const dy = playerComet.y - this.y; const distSq = dx * dx + dy * dy;
+            if (distSq < magnetRange * magnetRange) { const dist = Math.sqrt(distSq); this.vx += (dx / dist) * 5; this.vy += (dy / dist) * 5; }
         }
-        
-        this.vx *= 0.95;
-        this.vy *= 0.95;
-
-        this.x += this.vx;
-        this.y += this.vy;
+        this.vx *= 0.95; this.vy *= 0.95; this.x += this.vx; this.y += this.vy;
     }
     draw() {
-        this.animation += 0.07;
-        const scale = 1 + Math.sin(this.animation) * 0.1;
-        const screenX = this.x - cameraX;
-        ctx.save();
-        ctx.translate(screenX, this.y);
-        ctx.rotate(this.animation * 0.5);
-        ctx.scale(scale, scale);
-        ctx.fillStyle = '#facc15';
-        ctx.strokeStyle = '#fde047';
-        ctx.lineWidth = 2;
+        this.animation += 0.07; const scale = 1 + Math.sin(this.animation) * 0.1; const screenX = this.x - cameraX;
+        ctx.save(); ctx.translate(screenX, this.y); ctx.rotate(this.animation * 0.5); ctx.scale(scale, scale); ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
         ctx.beginPath();
-        for (let i = 0; i < 5; i++) {
-            let angle = (i / 5) * 2 * Math.PI;
-            let outerRadius = this.radius;
-            let innerRadius = this.radius / 2;
-            ctx.lineTo(Math.cos(angle) * outerRadius, Math.sin(angle) * outerRadius);
-            angle += (1 / 5) * Math.PI;
-            ctx.lineTo(Math.cos(angle) * innerRadius, Math.sin(angle) * innerRadius);
-        }
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+        for (let i = 0; i < 5; i++) { let angle = (i / 5) * 2 * Math.PI; ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius); angle += (1 / 5) * Math.PI; ctx.lineTo(Math.cos(angle) * (this.radius / 2), Math.sin(angle) * (this.radius / 2)); }
+        ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
     }
 }
 class Particle {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.color = color;
-        this.radius = Math.random() * 2 + 1;
-        this.lifespan = 45;
-        this.vx = (Math.random() - 0.5) * 3;
-        this.vy = (Math.random() - 0.5) * 3;
-    }
-    update() {
-        this.x += this.vx;
-        this.y += this.vy;
-        this.lifespan--;
-    }
-    draw() {
-        ctx.beginPath();
-        ctx.arc(this.x - cameraX, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.globalAlpha = this.lifespan / 45;
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-    }
+    constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.radius = Math.random() * 2 + 1; this.lifespan = 45; this.vx = (Math.random() - 0.5) * 3; this.vy = (Math.random() - 0.5) * 3; }
+    update() { this.x += this.vx; this.y += this.vy; this.lifespan--; }
+    draw() { ctx.beginPath(); ctx.arc(this.x - cameraX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.globalAlpha = this.lifespan / 45; ctx.fill(); ctx.globalAlpha = 1.0; }
 }
-
 
 // --- Step 4: Core Game Logic Functions ---
-
-function savePlayerData() {
-    try {
-        localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData));
-    } catch (e) { console.error("Could not save player data.", e); }
-}
-
+function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData)); } catch (e) { console.error("Could not save player data.", e); } }
 function loadPlayerData() {
     try {
         const savedData = localStorage.getItem('gravityWellSaveData');
-        if (savedData) {
-            const loaded = JSON.parse(savedData);
-            if (!loaded.upgrades) {
-                loaded.upgrades = { shield: 0, magnet: 0, score: 0, headstart: false, revive: false };
-            }
-            playerData = loaded;
-        }
-    } catch (e) {
-        console.error("Could not load player data.", e);
-        playerData = { highScore: 0, starFragments: 0, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false } };
-    }
+        if (savedData) { const loaded = JSON.parse(savedData); playerData = { ...{ highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }}, ...loaded }; }
+    } catch (e) { console.error("Could not load player data."); playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false } }; }
 }
-
 function updateObservatoryUI() {
     shopFragmentsDisplay.textContent = playerData.starFragments;
-
     Object.keys(upgradeCosts).forEach(id => {
         if (Array.isArray(upgradeCosts[id])) {
-            const level = playerData.upgrades[id] || 0;
-            const item = document.getElementById(`upgrade-${id}`);
-            if (!item) return;
-            const button = item.querySelector('button');
-            const levelDisplay = item.querySelector('.upgrade-level');
-            
-            if (level >= upgradeCosts[id].length) {
-                button.textContent = 'Max Level';
-                button.disabled = true;
-                levelDisplay.textContent = `Level ${level}/${upgradeCosts[id].length}`;
-            } else {
-                const cost = upgradeCosts[id][level];
-                button.textContent = `Buy (${cost})`;
-                button.disabled = playerData.starFragments < cost;
-                levelDisplay.textContent = `Level ${level}/${upgradeCosts[id].length}`;
-            }
-        }
-    });
-
-    ['headstart', 'revive'].forEach(id => {
-        const item = document.getElementById(`utility-${id}`);
-        if (!item) return;
-        const button = item.querySelector('button');
-        if (playerData.upgrades[id]) {
-            button.textContent = 'Owned';
-            button.disabled = true;
+            const level = playerData.upgrades[id] || 0; const item = document.getElementById(`upgrade-${id}`); if (!item) return;
+            const button = item.querySelector('button'); const levelDisplay = item.querySelector('.upgrade-level'); const maxLevel = upgradeCosts[id].length;
+            if (level >= maxLevel) { button.textContent = 'Max Level'; button.disabled = true; } 
+            else { const cost = upgradeCosts[id][level]; button.textContent = `Buy (${cost})`; button.disabled = playerData.starFragments < cost; }
+            levelDisplay.textContent = `Level ${level}/${maxLevel}`;
         } else {
-            const cost = upgradeCosts[id];
-            button.textContent = `Buy (${cost})`;
-            button.disabled = playerData.starFragments < cost;
+            const item = document.getElementById(`utility-${id}`); if (!item) return;
+            const button = item.querySelector('button');
+            if (playerData.upgrades[id]) { button.textContent = 'Owned'; button.disabled = true; } 
+            else { const cost = upgradeCosts[id]; button.textContent = `Buy (${cost})`; button.disabled = playerData.starFragments < cost; }
         }
     });
 }
 
 function setGameState(newState) {
-    const oldState = gameState;
-    gameState = newState;
-    
-    appContainer.classList.remove('screen-shake');
-    mainMenu.className = 'modal modal-hidden';
-    gameOverModal.className = 'modal modal-hidden';
-    pauseMenu.className = 'modal modal-hidden';
-    observatory.className = 'modal modal-hidden';
-    inGameUi.style.display = 'none';
-
-    if (gameState === 'menu') {
-        audioManager.stopMusic();
-        mainMenu.className = 'modal modal-visible';
-        highScoreDisplay.textContent = playerData.highScore;
-        starFragmentsDisplay.textContent = playerData.starFragments;
-        
-// NEW: Initialize and start the menu animation loop
-        if (!menuComet) {
-            menuComet = {
-                x: VIRTUAL_WIDTH / 2,
-                y: VIRTUAL_HEIGHT / 2,
-                angle: 0,
-                trail: []
-            };
-        }
-        if (oldState !== 'menu') {
-             if (animationFrameId) cancelAnimationFrame(animationFrameId);
-             gameLoop();
-        }
-
-    } else if (gameState === 'playing') {
-        inGameUi.style.display = 'flex';
-        runFragmentsContainer.className = '';
-        if (oldState === 'paused') {
-            audioManager.startMusic();
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
-            gameLoop();
-        } else {
-            setTimeout(startGame, 350);
-        }
-    } else if (gameState === 'paused') {
-        audioManager.stopMusic();
-        inGameUi.style.display = 'flex';
-        pauseMenu.className = 'modal modal-visible';
-    } else if (gameState === 'game-over') {
-        if (playerComet) {
-            createExplosion(playerComet.x, playerComet.y, 10, 'white');
-        }
-        audioManager.stopMusic();
-        audioManager.playGameOverSound();
-        inGameUi.style.display = 'flex';
-        runFragmentsContainer.className = 'run-fragments-hidden';
+    const oldState = gameState; gameState = newState;
+    mainMenu.className = gameOverModal.className = pauseMenu.className = observatory.className = tutorialOverlay.className = 'modal modal-hidden';
+    tutorialHighlight.className = 'tutorial-highlight-hidden'; tutorialArrow.className = 'tutorial-arrow-hidden';
+    inGameUi.style.display = 'none'; appContainer.classList.remove('screen-shake');
+    if (newState === 'menu') {
+        audioManager.stopMusic(); mainMenu.className = 'modal modal-visible';
+        highScoreDisplay.textContent = playerData.highScore; starFragmentsDisplay.textContent = playerData.starFragments;
+        if (!menuComet) menuComet = { x: VIRTUAL_WIDTH / 2, y: VIRTUAL_HEIGHT / 2, angle: 0, trail: [] };
+        if (oldState !== 'menu' || !animationFrameId) gameLoop();
+    } else if (newState === 'playing') {
+        inGameUi.style.display = 'flex'; runFragmentsContainer.className = '';
+        if (oldState === 'paused') { audioManager.startMusic(); if (!animationFrameId) gameLoop(); } 
+        else { setTimeout(startGame, 350); }
+    } else if (newState === 'paused') {
+        audioManager.stopMusic(); inGameUi.style.display = 'flex'; pauseMenu.className = 'modal modal-visible';
+    } else if (newState === 'tutorial') {
+        inGameUi.style.display = 'flex'; tutorialOverlay.className = 'modal modal-visible'; setTimeout(startTutorial, 350);
+    } else if (newState === 'game-over') {
+        if (playerComet) createExplosion(playerComet.x, playerComet.y, 10, 'white');
+        audioManager.stopMusic(); audioManager.playGameOverSound(); inGameUi.style.display = 'flex'; runFragmentsContainer.className = 'run-fragments-hidden';
         appContainer.classList.add('screen-shake');
-        if (score > playerData.highScore) {
-            playerData.highScore = Math.floor(score);
-        }
+        if (score > playerData.highScore) playerData.highScore = Math.floor(score);
         playerData.starFragments += fragmentsThisRun;
         savePlayerData();
-        finalScoreElement.textContent = Math.floor(score);
-        fragmentsEarnedDisplay.textContent = fragmentsThisRun;
+        finalScoreElement.textContent = Math.floor(score); fragmentsEarnedDisplay.textContent = fragmentsThisRun;
         gameOverModal.className = 'modal modal-visible';
-    } else if (gameState === 'observatory') {
-        updateObservatoryUI();
-        observatory.className = 'modal modal-visible';
+    } else if (newState === 'observatory') {
+        updateObservatoryUI(); observatory.className = 'modal modal-visible';
     }
 }
 
-function initNewRun() {
-  isGameOver = false;
-  score = 0;
-  fragmentsThisRun = 0;
-  runFragmentsDisplay.textContent = '0';
-  maxDistanceReached = 0;
-  lastZoneIndex = -1;
-  playerComet = null;
-  gravityWell = null;
-  cameraX = 0;
-  obstacles = [];
-  powerUps = [];
-  starFragments = [];
-  particles = [];
-  nextObstacleSpawnX = VIRTUAL_WIDTH; 
-  nextPowerUpSpawnX = VIRTUAL_WIDTH / 2;
-  nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
-  activePowerUp = { type: null, timer: 0 };
-  scoreElement.textContent = '0';
-  
-  if (playerData.upgrades.headstart) {
-    isHeadstarting = true;
-    headstartTimer = 0;
-    playerData.upgrades.headstart = false;
-    savePlayerData();
-  } else {
-    isHeadstarting = false;
-  }
-  
-  if (playerData.upgrades.revive) {
-      hasRevive = true;
-      playerData.upgrades.revive = false; 
-      savePlayerData();
-  } else {
-      hasRevive = false;
-  }
-  
-  updateUpgradeIndicators();
-
-  checkZoneTransition();
-  
-  playerComet = new PlayerComet(50, VIRTUAL_HEIGHT / 2);
+function initNewRun(isTutorial = false) {
+    score = 0; fragmentsThisRun = 0; maxDistanceReached = 0; lastZoneIndex = -1; cameraX = 0;
+    obstacles = []; powerUps = []; starFragments = []; particles = [];
+    nextObstacleSpawnX = VIRTUAL_WIDTH; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
+    activePowerUp = { type: null, timer: 0 };
+    runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
+    if (!isTutorial) {
+        isHeadstarting = playerData.upgrades.headstart;
+        if (isHeadstarting) { headstartTimer = 0; playerData.upgrades.headstart = false; savePlayerData(); }
+        hasRevive = playerData.upgrades.revive;
+        if (hasRevive) { playerData.upgrades.revive = false; savePlayerData(); }
+    } else { isHeadstarting = false; hasRevive = false; }
+    updateUpgradeIndicators();
+    playerComet = new PlayerComet(150, VIRTUAL_HEIGHT / 2);
+    checkZoneTransition();
 }
 
-function startGame() {
-    resizeCanvas();
-    initNewRun();
-    audioManager.startMusic();
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    gameLoop();
-}
+function startGame() { resizeCanvas(); initNewRun(); audioManager.startMusic(); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } gameLoop(); }
+function startTutorial() { resizeCanvas(); initNewRun(true); audioManager.stopMusic(); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } tutorialManager.start(); gameLoop(); }
 
 function gameLoop() {
-  if (gameState === 'playing' && !isGameOver) {
-      updateGame();
-      drawGame();
-  } else if (gameState === 'menu') {
-      updateMenu();
-      drawMenu();
-  } else if (gameState === 'paused') {
-      // Do nothing, just keep the loop alive to resume
-  } else {
-      // Game over or other states, stop the loop
-      if(animationFrameId) cancelAnimationFrame(animationFrameId);
-      return;
-  }
+    if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent multiple loops
 
-  animationFrameId = requestAnimationFrame(gameLoop);
+    if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
+        if (gameState === 'playing') updateGame();
+        else updateTutorial();
+        drawGame();
+    } else if (gameState === 'menu') {
+        updateMenu(); drawMenu();
+    }
+    
+    if (gameState !== 'game-over' && gameState !== 'paused') {
+        animationFrameId = requestAnimationFrame(gameLoop);
+    }
 }
+
 
 function updateGame() {
     if (!playerComet) return;
-    
     if (isHeadstarting) {
-        headstartTimer++;
-        const progress = headstartTimer / HEADSTART_DURATION;
-        // Use an ease-out function for a smooth cinematic slowdown
-        const easedProgress = 1 - Math.pow(1 - progress, 3);
-
-        maxDistanceReached = easedProgress * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
-        playerComet.x = maxDistanceReached;
-        
-        // FEATURE ENHANCEMENT: When the headstart ends, grant a safety shield
-        if (headstartTimer >= HEADSTART_DURATION) {
-            isHeadstarting = false;
-            activePowerUp.type = 'shield';
-            activePowerUp.timer = 300; // 5 seconds of safety
-        }
+        headstartTimer++; const progress = headstartTimer / HEADSTART_DURATION;
+        playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
+        if (headstartTimer >= HEADSTART_DURATION) { isHeadstarting = false; activePowerUp.type = 'shield'; activePowerUp.timer = 300; }
     }
-    
     cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
-
     playerComet.update();
-    
-    manageObstacles();
-    managePowerUps();
-    manageStarFragments();
-    manageParticles();
-    for (let i = 0; i < stars.length; i++) {
-        stars[i].update(playerComet.vx);
-    }
-    
-    for (let i = 0; i < obstacles.length; i++) {
-        if (obstacles[i].x < cameraX + VIRTUAL_WIDTH && obstacles[i].x + obstacles[i].width > cameraX) {
-            obstacles[i].update();
-        }
-    }
-
+    manageObstacles(); managePowerUps(); manageStarFragments(); manageParticles();
+    stars.forEach(s => s.update(playerComet.vx));
+    obstacles.forEach(o => o.update());
     starFragments.forEach(sf => sf.update());
-    
     const collisionResult = checkCollisions();
-    
-    if (collisionResult.obstacle) {
-        if (hasRevive) {
-            revivePlayer();
-        } else {
-            isGameOver = true;
-            setGameState('game-over');
-            return;
-        }
-    }
-
-    if (collisionResult.fragment) {
-        fragmentsThisRun++;
-        runFragmentsDisplay.textContent = fragmentsThisRun;
-        audioManager.playFragmentSound();
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15');
-    }
-    if (collisionResult.powerUp) {
-        activePowerUp.type = collisionResult.powerUp;
-        
-        let shieldDuration = 300;
-        if (playerData.upgrades.shield > 0) {
-            shieldDuration *= (1 + playerData.upgrades.shield * 0.1);
-        }
-        const durations = { shield: shieldDuration, shrink: 480, boost: 600 };
-        activePowerUp.timer = durations[activePowerUp.type];
-        
-        audioManager.playPowerUpSound();
-        const color = new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main;
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 5, color);
-    }
-    
+    if (collisionResult.obstacle) { if (hasRevive) revivePlayer(); else { setGameState('game-over'); return; } }
+    if (collisionResult.fragment) { fragmentsThisRun++; runFragmentsDisplay.textContent = fragmentsThisRun; audioManager.playFragmentSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15'); }
+    if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main); }
     handleActivePowerUp();
-    
     if (!isHeadstarting) {
-        const oldMaxDistance = maxDistanceReached;
-        maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
-        const distanceGained = maxDistanceReached - oldMaxDistance;
-        if (distanceGained > 0) {
-            const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0);
-            score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
+        if (playerComet.vx > 0) {
+            const distanceGained = Math.max(0, playerComet.x - maxDistanceReached);
+            if (distanceGained > 0) { const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0); score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier; }
         }
-    } else {
-        score = (maxDistanceReached / SCORE_DIVISOR);
-    }
-    
+        maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
+    } else { score = (maxDistanceReached / SCORE_DIVISOR); }
     scoreElement.textContent = Math.floor(score);
     checkZoneTransition();
 }
 
+function drawTutorialArrow(target) {
+    if (!target) {
+        tutorialArrow.className = 'tutorial-arrow-hidden';
+        return;
+    }
+    let screenX = (target.x - cameraX) * scale;
+    let screenY = target.y * scale;
+
+    if (target.isUITarget) {
+        screenX = target.x * scale;
+        screenY = target.y * scale;
+    }
+    
+    const arrowSize = 60;
+    const angle = Math.atan2(screenY - (canvas.height / 2), screenX - (canvas.width / 2));
+    
+    const radius = Math.min(canvas.width, canvas.height) / 2 - arrowSize * 1.5;
+    const arrowX = (canvas.width / 2) + Math.cos(angle) * radius;
+    const arrowY = (canvas.height / 2) + Math.sin(angle) * radius;
+
+    tutorialArrow.style.left = `${arrowX}px`;
+    tutorialArrow.style.top = `${arrowY}px`;
+    tutorialArrow.style.transform = `translate(-50%, -50%) rotate(${angle}rad)`;
+    tutorialArrow.className = 'tutorial-arrow';
+}
+
 function drawGame() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.scale(scale, scale);
-
-    if (currentZoneColors.background) {
-        ctx.fillStyle = currentZoneColors.background;
-        ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.scale(scale, scale);
+    ctx.fillStyle = currentZoneColors.background || '#0c0a09';
+    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    stars.forEach(s => s.draw());
+    if (playerComet) playerComet.draw(); 
+    obstacles.forEach(o => o.draw()); powerUps.forEach(p => p.draw()); starFragments.forEach(sf => sf.draw()); particles.forEach(p => p.draw());
+    if (gravityWell && !isHeadstarting) gravityWell.draw();
+    if (tutorialManager.isActive) {
+        const step = tutorialManager.steps[tutorialManager.currentStep];
+        if (step.targetFn) {
+            const targetPos = step.targetFn(); const screenX = (targetPos.x - cameraX) * scale; const screenY = targetPos.y * scale;
+            tutorialHighlight.style.left = `${screenX}px`; tutorialHighlight.style.top = `${screenY}px`;
+            tutorialHighlight.className = 'tutorial-highlight';
+            tutorialArrow.className = 'tutorial-arrow-hidden';
+        } else if (step.target) {
+            drawTutorialArrow(step.target());
+            tutorialHighlight.className = 'tutorial-highlight-hidden';
+        } else {
+            tutorialHighlight.className = 'tutorial-highlight-hidden';
+            tutorialArrow.className = 'tutorial-arrow-hidden';
+        }
     }
-
-    for (let i = 0; i < stars.length; i++) {
-        stars[i].draw();
-    }
-
-    if (playerComet) {
-        playerComet.draw(); 
-    }
-    
-    for (let i = 0; i < obstacles.length; i++) obstacles[i].draw();
-    for (let i = 0; i < powerUps.length; i++) powerUps[i].draw();
-    for (let i = 0; i < starFragments.length; i++) starFragments[i].draw();
-    for (let i = 0; i < particles.length; i++) particles[i].draw();
-
-    if (gravityWell && !isHeadstarting) {
-        gravityWell.draw();
-    }
-    
     ctx.restore();
+}
+
+function updateTutorial() {
+    if (!playerComet || !tutorialManager.isActive) return;
+    cameraX = playerComet.x - (VIRTUAL_WIDTH / 4);
+    playerComet.update();
+    obstacles.forEach(o => o.update());
+    manageParticles();
+    starFragments.forEach(sf => sf.update());
+    tutorialManager.checkCondition();
+    if (playerComet.vx > 0) { maxDistanceReached = Math.max(maxDistanceReached, playerComet.x); score = (maxDistanceReached - 150) / SCORE_DIVISOR; scoreElement.textContent = Math.floor(score); }
+    const collisionResult = checkCollisions();
+    if (collisionResult.obstacle) { tutorialManager.resetToCheckpoint("Oops, you hit an obstacle!"); }
+    if (collisionResult.fragment) { audioManager.playFragmentSound(); tutorialManager.advance(); }
 }
 
 function updateMenu() {
-    if (!menuComet) return;
-    
-    for (let i = 0; i < stars.length; i++) {
-        stars[i].update(0.5);
-    }
-
-    menuComet.angle += 0.01;
+    if (!menuComet) return; stars.forEach(s => s.update(0.5)); menuComet.angle += 0.01;
     menuComet.x = VIRTUAL_WIDTH / 2 + Math.cos(menuComet.angle) * (VIRTUAL_WIDTH * 0.3);
     menuComet.y = VIRTUAL_HEIGHT / 2 + Math.sin(menuComet.angle * 2) * (VIRTUAL_HEIGHT * 0.2);
-
     menuComet.trail.push({ x: menuComet.x, y: menuComet.y });
-    if (menuComet.trail.length > 20) {
-        menuComet.trail.shift();
-    }
+    if (menuComet.trail.length > 20) menuComet.trail.shift();
 }
-
 function drawMenu() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    ctx.save();
-    ctx.scale(scale, scale);
-
-    ctx.fillStyle = '#0c0a09';
-    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-
-    for (let i = 0; i < stars.length; i++) {
-        stars[i].draw();
-    }
-
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save(); ctx.scale(scale, scale); ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    stars.forEach(s => s.draw());
     if (menuComet) {
-        for (let i = 0; i < menuComet.trail.length; i++) {
-            const t = menuComet.trail[i];
-            const alpha = (i / menuComet.trail.length) * 0.4;
-            ctx.beginPath();
-            ctx.arc(t.x, t.y, PLAYER_COMET_RADIUS * (i / menuComet.trail.length), 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-            ctx.fill();
-        }
-        ctx.fillStyle = 'white';
-        ctx.beginPath();
-        ctx.arc(menuComet.x, menuComet.y, PLAYER_COMET_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
+        menuComet.trail.forEach((t, i) => {
+            ctx.beginPath(); ctx.arc(t.x, t.y, PLAYER_COMET_RADIUS * (i / menuComet.trail.length), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 255, 255, ${(i / menuComet.trail.length) * 0.4})`; ctx.fill();
+        });
+        ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(menuComet.x, menuComet.y, PLAYER_COMET_RADIUS, 0, Math.PI * 2); ctx.fill();
     }
-    
     ctx.restore();
 }
 
-
-function resizeCanvas() {
-    const container = document.getElementById('app');
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    
-    const scaleX = containerWidth / VIRTUAL_WIDTH;
-    const scaleY = containerHeight / VIRTUAL_HEIGHT;
-    scale = Math.min(scaleX, scaleY);
-
-    const newWidth = VIRTUAL_WIDTH * scale;
-    const newHeight = VIRTUAL_HEIGHT * scale;
-
-    canvas.width = newWidth;
-    canvas.height = newHeight;
-}
-
-
-function getObstacleTypeForZone() {
-    const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-    const rand = Math.random();
-    
-    if (zoneIndex < 1) return 'static';
-    if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical';
-    if (rand < 0.4) return 'static';
-    if (rand < 0.8) return 'vertical';
-    return 'phasing';
-}
-
+function resizeCanvas() { const { clientWidth, clientHeight } = appContainer; scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT); canvas.width = VIRTUAL_WIDTH * scale; canvas.height = VIRTUAL_HEIGHT * scale; }
+function getObstacleTypeForZone() { const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); const rand = Math.random(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
 function manageObstacles() {
-    if (!playerComet) return;
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-        if (obstacles[i].x + obstacles[i].width < cameraX) {
-            obstacles.splice(i, 1);
-        }
-    }
-
+    if (!playerComet || gameState === 'tutorial') return;
+    obstacles = obstacles.filter(o => o.x + o.width > cameraX);
     const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
     if (nextObstacleSpawnX < spawnAheadPoint) {
         const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
         const minDistance = Math.max(80, 200 - zoneIndex * 15);
         const randomDistance = Math.max(50, 150 - zoneIndex * 10);
-        
-        const obstacleType = getObstacleTypeForZone();
-        const width = Math.random() * 50 + 25; const height = Math.random() * 180 + 50;
         const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance; 
+        const width = Math.random() * 50 + 25; const height = Math.random() * 180 + 50;
         const y = Math.random() * (VIRTUAL_HEIGHT - height);
-        obstacles.push(new Obstacle(x, y, width, height, obstacleType));
+        obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
         nextObstacleSpawnX = x;
     }
 }
 function managePowerUps() {
-    if (!playerComet) return;
-    for (let i = powerUps.length - 1; i >= 0; i--) {
-        if (powerUps[i].x + powerUps[i].radius < cameraX) {
-            powerUps.splice(i, 1);
-        }
-    }
-
+    if (!playerComet || gameState === 'tutorial') return;
+    powerUps = powerUps.filter(p => p.x + p.radius > cameraX);
     const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
     if (nextPowerUpSpawnX < spawnAheadPoint) {
-        let spawnAttempts = 0;
-        let validPosition = false;
-        while(spawnAttempts < 5 && !validPosition) {
-            const x = spawnAheadPoint + Math.random() * 500;
-            const y = Math.random() * VIRTUAL_HEIGHT;
-            let overlapping = false;
-            for (const obs of obstacles) {
-                if (x < obs.x + obs.width && x + 24 > obs.x && y < obs.y + obs.height && y + 24 > obs.y) {
-                    overlapping = true;
-                    break;
-                }
-            }
-            if (!overlapping) {
-                const powerUpTypes = ['shield', 'shrink', 'boost'];
-                const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
+        for (let attempts = 0; attempts < 5; attempts++) {
+            const x = spawnAheadPoint + Math.random() * 500; const y = Math.random() * VIRTUAL_HEIGHT;
+            if (!obstacles.some(obs => x < obs.x + obs.width && x + 24 > obs.x && y < obs.y + obs.height && y + 24 > obs.y)) {
+                const type = ['shield', 'shrink', 'boost'][Math.floor(Math.random() * 3)];
                 powerUps.push(new PowerUp(x, y, type));
-                validPosition = true;
+                break;
             }
-            spawnAttempts++;
         }
-        nextPowerUpSpawnX = cameraX + VIRTUAL_WIDTH + (Math.random() * 1000 + 800);
+        nextPowerUpSpawnX = spawnAheadPoint + (Math.random() * 1000 + 800);
     }
 }
-
 function manageStarFragments() {
-    if (!playerComet) return;
-    for (let i = starFragments.length - 1; i >= 0; i--) {
-        if (starFragments[i].x + starFragments[i].radius < cameraX) {
-            starFragments.splice(i, 1);
-        }
-    }
-
+    if (!playerComet || gameState === 'tutorial') return;
+    starFragments = starFragments.filter(sf => sf.x + sf.radius > cameraX);
     const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
     if (nextFragmentSpawnX < spawnAheadPoint) {
         const clusterSize = Math.floor(Math.random() * 4) + 3;
         const startX = spawnAheadPoint + 100;
-        const startY = Math.random() * VIRTUAL_HEIGHT * 0.6 + VIRTUAL_HEIGHT * 0.2;
+        const startY = VIRTUAL_HEIGHT * 0.2 + Math.random() * VIRTUAL_HEIGHT * 0.6;
         const angle = (Math.random() - 0.5) * Math.PI / 4;
-
-        const potentialFragments = [];
-        for (let i = 0; i < clusterSize; i++) {
-            const x = startX + i * 40;
-            const y = startY + Math.sin(i * 0.5 + angle) * 50;
-            potentialFragments.push({ x, y });
+        const potentialFragments = Array.from({length: clusterSize}, (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
+        if (!potentialFragments.some(pf => obstacles.some(obs => pf.x > obs.x && pf.x < obs.x + obs.width && pf.y > obs.y && pf.y < obs.y + obs.height))) {
+            potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y)));
         }
-        
-        let isClusterSafe = true;
-        const fragmentRadius = 8;
-        for (const fragPos of potentialFragments) {
-            for (const obs of obstacles) {
-                if (fragPos.x - fragmentRadius < obs.x + obs.width &&
-                    fragPos.x + fragmentRadius > obs.x &&
-                    fragPos.y - fragmentRadius < obs.y + obs.height &&
-                    fragPos.y + fragmentRadius > obs.y) {
-                    isClusterSafe = false;
-                    break;
-                }
-            }
-            if (!isClusterSafe) break;
-        }
-        
-        if (isClusterSafe) {
-            for (const fragPos of potentialFragments) {
-                starFragments.push(new StarFragment(fragPos.x, fragPos.y));
-            }
-        }
-        
         nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
     }
 }
-
-function createExplosion(x, y, count, color) {
-    for (let i = 0; i < count; i++) {
-        particles.push(new Particle(x, y, color));
-    }
-}
-
-function manageParticles() {
-    for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
-        if (particles[i].lifespan <= 0) {
-            particles.splice(i, 1);
-        }
-    }
-}
-
-
+function createExplosion(x, y, count, color) { for (let i = 0; i < count; i++) { particles.push(new Particle(x, y, color)); } }
+function manageParticles() { particles = particles.filter(p => { p.update(); return p.lifespan > 0; }); }
 function handleActivePowerUp() {
     if (activePowerUp.type && activePowerUp.timer > 0) {
         activePowerUp.timer--;
-        const secondsLeft = (activePowerUp.timer / 60).toFixed(1);
-        powerUpStatusElement.textContent = `${activePowerUp.type.toUpperCase()}: ${secondsLeft}s`;
+        powerUpStatusElement.textContent = `${activePowerUp.type.toUpperCase()}: ${(activePowerUp.timer / 60).toFixed(1)}s`;
         powerUpStatusElement.className = 'powerup-active';
-        if (activePowerUp.timer <= 0) {
-            activePowerUp.type = null;
-            powerUpStatusElement.className = 'powerup-hidden';
-        }
+        if (activePowerUp.timer <= 0) { activePowerUp.type = null; powerUpStatusElement.className = 'powerup-hidden'; }
     }
 }
-
 function checkCollisions() {
-    if (!playerComet) return { obstacle: false, powerUp: null, fragment: false, item: null };
-    
-    // BUG FIX: The check for fragments and power-ups must happen *before* the shield check.
-    for (let i = starFragments.length - 1; i >= 0; i--) {
-        const sf = starFragments[i];
-        const dx = sf.x - playerComet.x;
-        const dy = sf.y - playerComet.y;
-        const distSq = dx * dx + dy * dy;
-        const radiiSq = (playerComet.radius + sf.radius) * (playerComet.radius + sf.radius);
-        if (distSq < radiiSq) {
-            const collectedFragment = starFragments.splice(i, 1)[0];
-            return { obstacle: false, powerUp: null, fragment: true, item: collectedFragment };
-        }
+    if (!playerComet) return {};
+    for (let i = starFragments.length - 1; i >= 0; i--) { 
+        const sf = starFragments[i]; 
+        if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
+            return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
+        } 
     }
-
-    for (let i = powerUps.length - 1; i >= 0; i--) {
-        const p = powerUps[i];
-        const dx = p.x - playerComet.x;
-        const dy = p.y - playerComet.y;
-        const distSq = dx * dx + dy * dy;
-        const radiiSq = (playerComet.radius + p.radius) * (playerComet.radius + p.radius);
-        if (distSq < radiiSq) {
-            const collectedPowerUp = powerUps.splice(i, 1)[0];
-            return { obstacle: false, powerUp: p.type, fragment: false, item: collectedPowerUp };
-        }
-    }
-
+    for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
     if (activePowerUp.type !== 'shield' && !isHeadstarting) {
-        for (const obstacle of obstacles) {
-            if (obstacle.type === 'phasing' && !obstacle.isActive) continue;
-            if (playerComet.x + playerComet.radius > obstacle.x && playerComet.x - playerComet.radius < obstacle.x + obstacle.width && playerComet.y + playerComet.radius > obstacle.y && playerComet.y - playerComet.radius < obstacle.y + obstacle.height) {
-                return { obstacle: true, powerUp: null, fragment: false, item: null };
-            }
-        }
-        if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) {
-            return { obstacle: true, powerUp: null, fragment: false, item: null };
-        }
+        if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
+        for (const obs of obstacles) { if (obs.isActive && playerComet.x + playerComet.radius > obs.x && playerComet.x - playerComet.radius < obs.x + obs.width && playerComet.y + playerComet.radius > obs.y && playerComet.y - playerComet.radius < obs.y + obs.height) { return { obstacle: true }; } }
     }
-    
-    return { obstacle: false, powerUp: null, fragment: false, item: null };
+    return {};
 }
-
-function revivePlayer() {
-    console.log("Second Chance Used!");
-    hasRevive = false; 
-    updateUpgradeIndicators();
-    
-    createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9');
-    
-    activePowerUp.type = 'shield';
-    activePowerUp.timer = 180;
-    
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-        const obs = obstacles[i];
-        if (obs.x > cameraX && obs.x < cameraX + VIRTUAL_WIDTH) {
-            obstacles.splice(i, 1);
-        }
-    }
-}
-
-function calculateCurrentSpeed() {
-    if(!playerComet) return INITIAL_SPEED;
-    const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-    return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
-}
-
-function updateMusicTempo() {
-    if (!playerComet) return;
-    const minSpeed = INITIAL_SPEED;
-    const maxSpeedForTempo = 10;
-    const speedRange = maxSpeedForTempo - minSpeed;
-    const currentSpeedAboveMin = playerComet.baseSpeed - minSpeed;
-    const speedRatio = Math.max(0, Math.min(1, currentSpeedAboveMin / speedRange));
-    const minBPM = audioManager.baseBPM;
-    const maxBPM = 180;
-    const bpmRange = maxBPM - minBPM;
-    const newBPM = minBPM + (speedRatio * bpmRange);
-    audioManager.updateTempo(newBPM);
-}
-
-
+function revivePlayer() { hasRevive = false; updateUpgradeIndicators(); createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9'); activePowerUp.type = 'shield'; activePowerUp.timer = 180; obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH); }
+function calculateCurrentSpeed() { if(gameState === 'tutorial') return INITIAL_SPEED * 0.8; const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); }
+function updateMusicTempo() { if (!playerComet) return; const speedRatio = Math.max(0, Math.min(1, (calculateCurrentSpeed() - INITIAL_SPEED) / (10 - INITIAL_SPEED))); audioManager.updateTempo(audioManager.baseBPM + (speedRatio * 80)); }
 function checkZoneTransition() {
     const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
     if (zoneIndex !== lastZoneIndex) {
-        console.log(`Entering procedural zone ${zoneIndex + 1}`);
         const hue = (START_HUE + (zoneIndex * HUE_INCREMENT_PER_ZONE)) % 360;
-        
-        currentZoneColors = {
-            background: `hsla(${hue}, 60%, 15%, 0.8)`,
-            obstacle: `hsl(${hue + 20}, 80%, 60%)`,
-            stroke: `hsl(${hue + 20}, 80%, 70%)`
-        };
-
-        if (playerComet) {
-            const orbiterDistance = playerComet.radius + 10 + (playerComet.orbiters.length * 5);
-            playerComet.orbiters.push(new Orbiter(orbiterDistance, currentZoneColors.obstacle));
-        }
-
+        currentZoneColors = { background: `hsla(${hue}, 60%, 15%, 0.8)`, obstacle: `hsl(${hue + 20}, 80%, 60%)`, stroke: `hsl(${hue + 20}, 80%, 70%)` };
+        if (playerComet) { playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle)); }
         updateMusicTempo();
-
         lastZoneIndex = zoneIndex;
     }
 }
-
-function updateUpgradeIndicators() {
-    powerUpStatusElement.className = 'powerup-hidden'; 
-    activeUpgradesContainer.style.display = 'flex';
-    magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none';
-    scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none';
-    reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none';
-}
-
-
-// --- Step 5: Event Listeners ---
+function updateUpgradeIndicators() { powerUpStatusElement.className = 'powerup-hidden'; activeUpgradesContainer.style.display = 'flex'; magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none'; scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none'; reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none'; }
 function setupEventListeners() {
-    const getPos = (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const clientX = e.clientX || e.touches[0].clientX;
-        const clientY = e.clientY || e.touches[0].clientY;
-        return {
-            x: (clientX - rect.left) / scale,
-            y: (clientY - rect.top) / scale
-        };
-    };
-    const startWell = (e) => {
-        if (gameState !== 'playing' || isHeadstarting) return;
-        e.preventDefault();
-        const pos = getPos(e);
-        gravityWell = new GravityWell(pos.x + cameraX, pos.y);
-    };
-    const moveWell = (e) => {
-        if (gravityWell && gameState === 'playing' && !isHeadstarting) {
-            e.preventDefault();
-            const pos = getPos(e);
-            gravityWell.x = pos.x + cameraX;
-            gravityWell.y = pos.y;
-        }
-    };
-    const endWell = (e) => {
-        e.preventDefault();
-        gravityWell = null;
-    };
-
+    const getPos = (e) => { const rect = canvas.getBoundingClientRect(); const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY; return { x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale }; };
+    const startWell = (e) => { if ((gameState !== 'playing' && gameState !== 'tutorial') || isHeadstarting) return; e.preventDefault(); const pos = getPos(e); gravityWell = new GravityWell(pos.x + cameraX, pos.y); };
+    const moveWell = (e) => { if (gravityWell && !isHeadstarting) { e.preventDefault(); const pos = getPos(e); gravityWell.x = pos.x + cameraX; gravityWell.y = pos.y; } };
+    const endWell = (e) => { e.preventDefault(); gravityWell = null; };
     canvas.addEventListener('mousedown', startWell);
     canvas.addEventListener('mousemove', moveWell);
-    document.addEventListener('mouseup', endWell);
+    document.addEventListener('mouseup', endWell); // CRITICAL FIX: Listen on document to catch releases outside canvas
     canvas.addEventListener('touchstart', startWell, { passive: false });
     canvas.addEventListener('touchmove', moveWell, { passive: false });
-    document.addEventListener('touchend', endWell);
+    document.addEventListener('touchend', endWell); // CRITICAL FIX: Listen on document for mobile
+    document.addEventListener('touchcancel', endWell); // CRITICAL FIX: Handle cancelled touches
     window.addEventListener('resize', resizeCanvas); 
-    
-    const handlePlayClick = async () => {
-        try {
-            if (typeof Tone !== 'undefined') {
-                if (Tone.context.state !== 'running') {
-                    await Tone.start();
-                    console.log("Audio Context started by user gesture.");
-                }
-                if (!audioManager.isInitialized) {
-                    audioManager.init();
-                }
-                audioManager.playClickSound();
-            } else {
-                 console.error("Tone.js is not defined. Game will run without sound.");
-            }
-        } catch (error) {
-            console.error("Audio could not be initialized. The game will run without sound.", error);
-        } finally {
-            setGameState('playing');
-        }
+    const handlePlayClick = async (isTutorial) => {
+        try { if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') await Tone.start(); if (!audioManager.isInitialized) audioManager.init(); audioManager.playClickSound(); } catch (error) { console.error("Audio could not be initialized.", error); } 
+        finally { if (isTutorial) { setGameState('tutorial'); } else if (playerData.hasPlayedBefore) { setGameState('playing'); } else { setGameState('tutorial'); } }
     };
-
-    playButton.addEventListener('click', handlePlayClick);
-    restartButton.addEventListener('click', handlePlayClick);
-    
-    pauseButton.addEventListener('click', () => {
-        if (gameState === 'playing') {
-            setGameState('paused');
-        }
-    });
-
-    resumeButton.addEventListener('click', () => {
-        if (gameState === 'paused') {
-            handlePlayClick();
-        }
-    });
-
-    quitButton.addEventListener('click', () => {
-        if (gameState === 'paused') {
-            audioManager.playClickSound();
-            setGameState('menu');
-        }
-    });
-
-    observatoryButton.addEventListener('click', () => {
-        audioManager.playClickSound();
-        setGameState('observatory');
-    });
-
-    closeObservatoryButton.addEventListener('click', () => {
-        audioManager.playClickSound();
-        setGameState('menu');
-    });
-
-    const buyButtons = document.querySelectorAll('.buy-btn');
-    buyButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-            const upgradeId = e.target.dataset.upgrade;
-            buyUpgrade(upgradeId);
-        });
-    });
-
-    gameOverMenuButton.addEventListener('click', () => {
-        audioManager.playClickSound();
-        setGameState('menu');
-    });
-    gameOverObservatoryButton.addEventListener('click', () => {
-        audioManager.playClickSound();
-        setGameState('observatory');
-    });
+    playButton.addEventListener('click', () => handlePlayClick(false)); restartButton.addEventListener('click', () => setGameState('playing')); replayTutorialButton.addEventListener('click', () => handlePlayClick(true));
+    pauseButton.addEventListener('click', () => { if (gameState === 'playing') setGameState('paused'); }); resumeButton.addEventListener('click', () => { if (gameState === 'paused') setGameState('playing'); }); quitButton.addEventListener('click', () => { if (gameState === 'paused') { audioManager.playClickSound(); setGameState('menu'); } });
+    observatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); }); closeObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); });
+    document.querySelectorAll('.buy-btn').forEach(button => { button.addEventListener('click', (e) => buyUpgrade(e.target.dataset.upgrade)); });
+    gameOverMenuButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); }); gameOverObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); });
+    skipTutorialButton.addEventListener('click', () => { audioManager.playClickSound(); tutorialManager.end(false); });
 }
-
 function buyUpgrade(upgradeId) {
-    let cost = 0;
-    let canAfford = false;
-
-    if (Array.isArray(upgradeCosts[upgradeId])) { // Permanent upgrade
+    let cost, canAfford = false;
+    if (Array.isArray(upgradeCosts[upgradeId])) {
         const level = playerData.upgrades[upgradeId] || 0;
         if (level < upgradeCosts[upgradeId].length) {
             cost = upgradeCosts[upgradeId][level];
-            if (playerData.starFragments >= cost) {
-                playerData.starFragments -= cost;
-                playerData.upgrades[upgradeId]++;
-                canAfford = true;
-            }
+            if (playerData.starFragments >= cost) { playerData.starFragments -= cost; playerData.upgrades[upgradeId]++; canAfford = true; }
         }
-    } else { // Single-use utility
-        if (!playerData.upgrades[upgradeId]) {
-            cost = upgradeCosts[upgradeId];
-            if (playerData.starFragments >= cost) {
-                playerData.starFragments -= cost;
-                playerData.upgrades[upgradeId] = true;
-                canAfford = true;
-            }
-        }
-    }
-
-    if (canAfford) {
-        console.log(`Purchased ${upgradeId}`);
-        audioManager.playFragmentSound();
-        savePlayerData();
-        updateObservatoryUI();
     } else {
-        console.log(`Cannot afford ${upgradeId}`);
+        if (!playerData.upgrades[upgradeId]) { cost = upgradeCosts[upgradeId]; if (playerData.starFragments >= cost) { playerData.starFragments -= cost; playerData.upgrades[upgradeId] = true; canAfford = true; } }
     }
+    if (canAfford) { audioManager.playFragmentSound(); savePlayerData(); updateObservatoryUI(); }
 }
 
-
-// --- Step 6: Game Initialization ---
-function initStars() {
-    for (let i = 0; i < 200; i++) {
-        stars.push(new Star());
-    }
-}
-
-function init() {
-    initStars();
-    setupEventListeners();
-    loadPlayerData();
+// --- Initialization ---
+function init() { 
+    for (let i = 0; i < 200; i++) stars.push(new Star()); 
+    setupEventListeners(); 
+    loadPlayerData(); 
     resizeCanvas(); 
-    // ARCHITECTURAL FIX: The game must start its own animation loop for the menu.
-    // setGameState('menu') is not enough on its own.
-    setGameState('menu');
-    gameLoop();
+    setGameState('menu'); 
 }
-
-// --- And finally, we start the whole process! ---
 init();
+window.resetTutorial = function() { playerData.hasPlayedBefore = false; savePlayerData(); console.log("Tutorial flag reset."); }
 

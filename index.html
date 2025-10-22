@@ -5,11 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-    <!-- Tone.js is loaded locally via the main.js module, so no script tag is needed here. -->
   </head>
   <body>
     <div id="app">
-      <!-- These divs will be used by the CSS to create the animated starfield -->
       <div class="stars-bg">
         <div class="stars-1"></div>
         <div class="stars-2"></div>
@@ -31,7 +29,6 @@
         </div>
         
         <div class="right-ui">
-            <!-- Container for active upgrade icons -->
             <div id="activeUpgradesContainer">
                 <span id="magnetIndicator" class="upgrade-icon" title="Fragment Magnet Active">🧲</span>
                 <span id="scoreIndicator" class="upgrade-icon" title="Score Bonus Active">✨</span>
@@ -43,7 +40,6 @@
       
       <div id="powerUpStatus" class="powerup-hidden"></div>
 
-      <!-- Main Menu -->
       <div id="mainMenu" class="modal modal-hidden">
         <div class="modal-content">
           <h1>Gravity Well</h1>
@@ -59,11 +55,11 @@
             </div>
           </div>
           <button id="playButton" class="btn">Play</button>
+          <button id="replayTutorialButton" class="btn btn-secondary">How to Play</button>
           <button id="observatoryButton" class="btn btn-secondary">Observatory</button>
         </div>
       </div>
 
-      <!-- Game Over Modal -->
       <div id="gameOverModal" class="modal modal-hidden">
         <div class="modal-content">
           <h2>Game Over</h2>
@@ -83,7 +79,6 @@
         </div>
       </div>
 
-      <!-- Pause Menu Modal -->
       <div id="pauseMenu" class="modal modal-hidden">
           <div class="modal-content">
               <h2>Paused</h2>
@@ -92,7 +87,6 @@
           </div>
       </div>
 
-      <!-- Observatory Modal -->
       <div id="observatory" class="modal modal-hidden">
         <div class="modal-content shop-modal">
             <div class="shop-header">
@@ -162,6 +156,30 @@
             <button id="closeObservatoryButton" class="btn btn-secondary">Back to Menu</button>
         </div>
       </div>
+      
+      <div id="tutorialOverlay" class="modal modal-hidden">
+          <div class="modal-content">
+              <div class="tutorial-text-box">
+                  <p id="tutorialText"></p>
+                  <button id="skipTutorialButton" class="btn btn-secondary">Skip Tutorial</button>
+              </div>
+          </div>
+      </div>
+      
+      <div id="tutorialHighlight" class="tutorial-highlight-hidden"></div>
+
+      <div id="tutorialArrow" class="tutorial-arrow-hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <defs>
+                <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#fde047;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#facc15;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <path class="arrow-bg" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.41 13.59L12 14.17l1.41 1.42L15.83 12 12 8.17 8.17 12l2.42 2.41.01.01.01-.01z" transform="rotate(90 12 12)"/>
+            <path class="arrow-chevron" d="m12 15.4-3.8-3.8L9.6 10l2.4 2.4L14.4 10l1.4 1.6-3.8 3.8z" transform="rotate(90 12 12)"/>
+        </svg>
+    </div>
 
     </div>
     <script type="module" src="/src/main.js"></script>
