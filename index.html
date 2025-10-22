@@ -98,10 +98,11 @@
                 </div>
             </div>
 
-            <!-- Tabs for Upgrades and Cosmetics -->
+            <!-- Tabs for Upgrades, Skins, and Themes -->
             <div class="shop-tabs">
                 <button class="tab-button active" data-tab="upgradesTab">Upgrades</button>
-                <button class="tab-button" data-tab="cosmeticsTab">Cosmetics</button>
+                <button class="tab-button" data-tab="skinsTab">Skins</button>
+                <button class="tab-button" data-tab="themesTab">Themes</button>
             </div>
 
             <!-- Upgrades Tab Content -->
@@ -163,30 +164,33 @@
                 </div>
             </div>
 
-            <!-- Cosmetics Tab Content -->
-            <div id="cosmeticsTab" class="tab-content">
+            <!-- Skins Tab Content -->
+            <div id="skinsTab" class="tab-content">
+                 <!-- Comet Skins Section -->
                 <div class="shop-section">
                     <h3>Comet Skins</h3>
                     <div class="cosmetic-grid" id="cometSkinsGrid">
                         <!-- Comet skin items will be added here by JS -->
-                        <div class="cosmetic-item placeholder">
-                             <div class="cosmetic-preview" style="background-color: white;"></div>
-                             <strong>Default</strong>
-                             <button class="btn equip-btn" disabled>Equipped</button>
-                        </div>
-                        <div class="cosmetic-item placeholder">
-                            <div class="cosmetic-preview" style="background: linear-gradient(45deg, #f87171, #fb923c);"></div>
-                            <strong>Inferno</strong>
-                            <button class="btn buy-cosmetic-btn" data-cosmetic-id="comet_inferno">Buy (500 ★)</button>
-                        </div>
-                         <div class="cosmetic-item placeholder">
-                            <div class="cosmetic-preview" style="background: linear-gradient(45deg, #34d399, #22c55e);"></div>
-                            <strong>Emerald</strong>
-                            <button class="btn buy-cosmetic-btn" data-cosmetic-id="comet_emerald">Buy (500 ★)</button>
-                        </div>
                     </div>
                 </div>
-                 <!-- Add sections for Obstacle Skins, Backgrounds later -->
+                 <!-- Obstacle Skins Section -->
+                 <div class="shop-section">
+                    <h3>Obstacle Skins</h3>
+                    <div class="cosmetic-grid" id="obstacleSkinsGrid">
+                        <!-- Obstacle skin items will be added here by JS -->
+                    </div>
+                </div>
+            </div>
+            
+             <!-- Themes Tab Content -->
+             <div id="themesTab" class="tab-content">
+                 <!-- Game Themes Section -->
+                 <div class="shop-section">
+                    <h3>Game Themes</h3>
+                    <div class="cosmetic-grid" id="backgroundThemesGrid">
+                        <!-- Background theme items will be added here by JS -->
+                    </div>
+                </div>
             </div>
 
 

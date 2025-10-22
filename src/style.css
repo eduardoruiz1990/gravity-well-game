@@ -201,6 +201,8 @@ body {
   text-align: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.5);
   min-width: 300px;
+  max-height: 90vh; /* Prevent modal from being too tall */
+  overflow-y: auto;  /* Allow scrolling if content overflows */
 }
 
 h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
@@ -438,6 +440,22 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
     box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
 }
 
+/* Specific preview styles for non-comet types */
+.cosmetic-preview.obstacle-preview {
+    width: 50px;
+    height: 80px;
+    border-radius: 4px; /* Rectangular for obstacles */
+}
+
+.cosmetic-preview.background-preview {
+    width: 100px; /* Wider for background */
+    height: 60px;
+    border-radius: 4px;
+    background-size: cover;
+    background-position: center;
+}
+
+
 .cosmetic-item strong {
     font-size: 1rem;
     margin-bottom: 0.75rem;
@@ -527,29 +545,32 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 
 .tutorial-arrow {
     position: absolute;
-    width: 60px;
-    height: 60px;
+    width: 80px;  /* Increased size */
+    height: 80px; /* Increased size */
     z-index: 50;
     opacity: 1;
     transition: opacity 0.3s, left 0.2s, top 0.2s, transform 0.2s;
     pointer-events: none;
-    filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.8));
-    animation: arrow-pulse 1.5s infinite ease-in-out;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5)); /* Brighter shadow */
+    animation: arrow-pulse 1.2s infinite ease-in-out; /* Faster pulse */
 }
 
 .tutorial-arrow svg {
     width: 100%;
     height: 100%;
+    overflow: visible; /* Prevent clipping */
 }
 
 .tutorial-arrow .arrow-bg {
     fill: url(#arrow-gradient);
     stroke: #fff;
-    stroke-width: 2px;
+    stroke-width: 2.5px; /* Thicker stroke */
+    filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.7));
 }
 
 .tutorial-arrow .arrow-chevron {
     fill: #fff;
+    filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
 }
 
 
@@ -566,7 +587,7 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 }
 
 @keyframes arrow-pulse {
-    0%, 100% { transform: translate(-50%, -50%) scale(1); }
-    50% { transform: translate(-50%, -50%) scale(1.15); }
+    0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(var(--arrow-angle, 0deg)); }
+    50% { transform: translate(-50%, -50%) scale(1.15) rotate(var(--arrow-angle, 0deg)); }
 }
 

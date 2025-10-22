@@ -1,8 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
- * COSMETIC STORE PHASE 3: Trail Rendering & Bug Fix
- * - Modified PlayerComet.draw() to color the trail based on the equipped skin.
- * - Fixed bug preventing leaving Observatory after equipping certain skins.
+ * COSMETIC STORE PHASE 1.6: UI Tab Restructure
+ * - Restructured Observatory tabs into Upgrades, Skins, and Themes.
+ * - Updated tab switching logic to accommodate the three tabs.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -38,7 +38,9 @@ const observatory = document.getElementById('observatory');
 const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
 const shopTabs = document.querySelector('.shop-tabs');
 const tabContents = document.querySelectorAll('.tab-content');
-const cometSkinsGrid = document.getElementById('cometSkinsGrid'); // Cosmetic grid
+const cometSkinsGrid = document.getElementById('cometSkinsGrid'); 
+const obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid'); // New Grid
+const backgroundThemesGrid = document.getElementById('backgroundThemesGrid'); // New Grid
 
 
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
@@ -70,13 +72,12 @@ let playerData = {
         headstart: false,
         revive: false,
     },
-    // NEW: Cosmetics Data Structure
     cosmetics: {
-        unlocked: ['comet_default'], // Start with default unlocked
+        unlocked: ['comet_default', 'obstacle_default', 'background_default'], // Default items
         equipped: {
-            comet: 'comet_default'
-            // obstacle: 'obstacle_default', // Add later
-            // background: 'bg_default'     // Add later
+            comet: 'comet_default',
+            obstacle: 'obstacle_default', // Add obstacle type
+            background: 'background_default'     // Add background type
         }
     }
 };
@@ -91,11 +92,19 @@ const upgradeCosts = {
 
 // Define Cosmetic Items
 const cosmeticItems = {
-    comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;',fillStyle: 'white' },
-    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' }, // Use gradient for drawing too
+    // Comet Skins
+    comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
+    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' },
     comet_emerald: { name: 'Emerald', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)' },
     comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 1000, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)' },
-    // Add more skins later
+    
+    // Obstacle Skins
+    obstacle_default: { name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);' },
+    obstacle_rock: { name: 'Asteroid', type: 'obstacle', cost: 750, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 15px 5px 20px 8px;' }, // Example rock style
+    
+    // Background Themes
+    background_default: { name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;' },
+    background_nebula: { name: 'Nebula', type: 'background', cost: 1500, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b);' }, // Example nebula
 };
 
 
@@ -449,18 +458,22 @@ function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JS
 function loadPlayerData() {
     try {
         const savedData = localStorage.getItem('gravityWellSaveData');
-        const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default'], equipped: { comet: 'comet_default' } } };
+        const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
         if (savedData) { 
             const loaded = JSON.parse(savedData); 
-            // Ensure cosmetics structure exists
-            if (!loaded.cosmetics) loaded.cosmetics = defaultPlayerData.cosmetics;
-            if (!loaded.cosmetics.unlocked) loaded.cosmetics.unlocked = ['comet_default'];
-            if (!loaded.cosmetics.equipped) loaded.cosmetics.equipped = { comet: 'comet_default' };
-             playerData = { ...defaultPlayerData, ...loaded }; 
+            // Deep merge cosmetics to ensure new properties are added if save data is old
+             const mergedCosmetics = {
+                unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])], // Combine and deduplicate unlocked
+                equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) } // Merge equipped, loaded takes precedence
+            };
+             playerData = { ...defaultPlayerData, ...loaded, cosmetics: mergedCosmetics }; 
         } else {
              playerData = defaultPlayerData;
         }
-    } catch (e) { console.error("Could not load player data.", e); playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default'], equipped: { comet: 'comet_default' } } }; }
+    } catch (e) { 
+        console.error("Could not load player data, resetting.", e); 
+        playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+    }
 }
 function updateObservatoryUI() {
     shopFragmentsDisplay.textContent = playerData.starFragments;
@@ -481,44 +494,55 @@ function updateObservatoryUI() {
         }
     });
 
-    // Update Cosmetics Tab
-    cometSkinsGrid.innerHTML = ''; // Clear existing items
-    Object.keys(cosmeticItems).forEach(id => {
-        if (cosmeticItems[id].type === 'comet') {
-            const item = cosmeticItems[id];
-            const div = document.createElement('div');
-            div.className = 'cosmetic-item';
-            
-            const preview = document.createElement('div');
-            preview.className = 'cosmetic-preview';
-            preview.style.cssText = item.previewStyle;
-            
-            const name = document.createElement('strong');
-            name.textContent = item.name;
-            
-            const button = document.createElement('button');
-            button.dataset.cosmeticId = id;
+    // Update Cosmetics Grids
+    const grids = {
+        comet: cometSkinsGrid,
+        obstacle: obstacleSkinsGrid,
+        background: backgroundThemesGrid
+    };
 
-            if (playerData.cosmetics.equipped.comet === id) {
-                button.className = 'btn equip-btn';
-                button.textContent = 'Equipped';
-                button.disabled = true;
-            } else if (playerData.cosmetics.unlocked.includes(id)) {
-                button.className = 'btn equip-btn';
-                button.textContent = 'Equip';
-                button.onclick = () => equipCosmetic(id);
-            } else {
-                 button.className = 'btn buy-cosmetic-btn';
-                 button.textContent = `Buy (${item.cost} ★)`;
-                 button.disabled = playerData.starFragments < item.cost;
-                 button.onclick = () => buyCosmetic(id);
-            }
-            
-            div.appendChild(preview);
-            div.appendChild(name);
-            div.appendChild(button);
-            cometSkinsGrid.appendChild(div);
+    // Clear existing items in all grids
+    Object.values(grids).forEach(grid => { if (grid) grid.innerHTML = ''; }); // Add check if grid exists
+
+    Object.keys(cosmeticItems).forEach(id => {
+        const item = cosmeticItems[id];
+        const grid = grids[item.type]; // Find the correct grid based on item type
+        if (!grid) return; // Skip if grid doesn't exist for this type
+
+        const div = document.createElement('div');
+        div.className = 'cosmetic-item';
+        
+        const preview = document.createElement('div');
+        preview.className = `cosmetic-preview ${item.previewClass || ''}`; // Add specific class if defined
+        preview.style.cssText = item.previewStyle;
+        
+        const name = document.createElement('strong');
+        name.textContent = item.name;
+        
+        const button = document.createElement('button');
+        button.dataset.cosmeticId = id;
+
+        if (playerData.cosmetics.equipped[item.type] === id) {
+            button.className = 'btn equip-btn';
+            button.textContent = 'Equipped';
+            button.disabled = true;
+        } else if (playerData.cosmetics.unlocked.includes(id)) {
+            button.className = 'btn equip-btn';
+            button.textContent = 'Equip';
+            // Use arrow function to pass ID correctly
+            button.onclick = () => equipCosmetic(id); 
+        } else {
+             button.className = 'btn buy-cosmetic-btn';
+             button.textContent = `Buy (${item.cost} ★)`;
+             button.disabled = playerData.starFragments < item.cost;
+              // Use arrow function to pass ID correctly
+             button.onclick = () => buyCosmetic(id);
         }
+        
+        div.appendChild(preview);
+        div.appendChild(name);
+        div.appendChild(button);
+        grid.appendChild(div); // Append to the correct grid
     });
 }
 
@@ -642,7 +666,8 @@ function drawTutorialArrow(target) {
 
     tutorialArrow.style.left = `${arrowX}px`;
     tutorialArrow.style.top = `${arrowY}px`;
-    tutorialArrow.style.transform = `translate(-50%, -50%) rotate(${angle}rad)`;
+    // Pass angle as a CSS variable for the animation
+    tutorialArrow.style.setProperty('--arrow-angle', `${angle}rad`);
     tutorialArrow.className = 'tutorial-arrow';
 }
 
@@ -823,12 +848,15 @@ function setupEventListeners() {
     pauseButton.addEventListener('click', () => { if (gameState === 'playing') setGameState('paused'); }); resumeButton.addEventListener('click', () => { if (gameState === 'paused') setGameState('playing'); }); quitButton.addEventListener('click', () => { if (gameState === 'paused') { audioManager.playClickSound(); setGameState('menu'); } });
     observatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); }); closeObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); });
     
-    // Add event listener for cosmetic grid (using event delegation)
-    cometSkinsGrid.addEventListener('click', (e) => {
-        if (e.target.classList.contains('buy-cosmetic-btn')) {
-            buyCosmetic(e.target.dataset.cosmeticId);
-        } else if (e.target.classList.contains('equip-btn')) {
-             equipCosmetic(e.target.dataset.cosmeticId);
+    // Add event listener for all cosmetic grids (using event delegation on parent)
+    observatory.addEventListener('click', (e) => {
+        const button = e.target.closest('.buy-cosmetic-btn, .equip-btn');
+        if (button && button.dataset.cosmeticId) {
+             if (button.classList.contains('buy-cosmetic-btn')) {
+                buyCosmetic(button.dataset.cosmeticId);
+            } else if (button.classList.contains('equip-btn')) {
+                 equipCosmetic(button.dataset.cosmeticId);
+            }
         }
     });
 
@@ -864,7 +892,7 @@ function buyUpgrade(upgradeId) {
     if (canAfford) { audioManager.playFragmentSound(); savePlayerData(); updateObservatoryUI(); }
 }
 
-// Placeholder functions for cosmetics
+// Functions for cosmetics
 function buyCosmetic(cosmeticId) {
     const item = cosmeticItems[cosmeticId];
     if (item && !playerData.cosmetics.unlocked.includes(cosmeticId) && playerData.starFragments >= item.cost) {
