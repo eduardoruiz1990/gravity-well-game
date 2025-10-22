@@ -87,6 +87,7 @@
           </div>
       </div>
 
+      <!-- Observatory Modal -->
       <div id="observatory" class="modal modal-hidden">
         <div class="modal-content shop-modal">
             <div class="shop-header">
@@ -97,61 +98,97 @@
                 </div>
             </div>
 
-            <div class="shop-section">
-                <h3>Permanent Upgrades</h3>
-                <div class="upgrade-item" id="upgrade-shield">
-                    <div class="upgrade-info">
-                        <strong>Longer Shield</strong>
-                        <p>Increases Shield power-up duration.</p>
+            <!-- Tabs for Upgrades and Cosmetics -->
+            <div class="shop-tabs">
+                <button class="tab-button active" data-tab="upgradesTab">Upgrades</button>
+                <button class="tab-button" data-tab="cosmeticsTab">Cosmetics</button>
+            </div>
+
+            <!-- Upgrades Tab Content -->
+            <div id="upgradesTab" class="tab-content active">
+                <div class="shop-section">
+                    <h3>Permanent Upgrades</h3>
+                    <div class="upgrade-item" id="upgrade-shield">
+                        <div class="upgrade-info">
+                            <strong>Longer Shield</strong>
+                            <p>Increases Shield power-up duration.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/5</span>
+                            <button class="btn buy-btn" data-upgrade="shield">Buy (100)</button>
+                        </div>
                     </div>
-                    <div class="upgrade-action">
-                        <span class="upgrade-level">Level 0/5</span>
-                        <button class="btn buy-btn" data-upgrade="shield">Buy (100)</button>
+                    <div class="upgrade-item" id="upgrade-magnet">
+                        <div class="upgrade-info">
+                            <strong>Fragment Magnet</strong>
+                            <p>Automatically collects nearby fragments.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/3</span>
+                            <button class="btn buy-btn" data-upgrade="magnet">Buy (300)</button>
+                        </div>
+                    </div>
+                     <div class="upgrade-item" id="upgrade-score">
+                        <div class="upgrade-info">
+                            <strong>Score Bonus</strong>
+                            <p>Permanently increases score gain.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/5</span>
+                            <button class="btn buy-btn" data-upgrade="score">Buy (200)</button>
+                        </div>
                     </div>
                 </div>
-                <div class="upgrade-item" id="upgrade-magnet">
-                    <div class="upgrade-info">
-                        <strong>Fragment Magnet</strong>
-                        <p>Automatically collects nearby fragments.</p>
+
+                <div class="shop-section">
+                    <h3>Single-Use Utilities</h3>
+                    <div class="upgrade-item" id="utility-headstart">
+                        <div class="upgrade-info">
+                            <strong>Head Start</strong>
+                            <p>Start the next run at Zone 2 (Score 1500).</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <button class="btn buy-btn" data-upgrade="headstart">Buy (150)</button>
+                        </div>
                     </div>
-                    <div class="upgrade-action">
-                        <span class="upgrade-level">Level 0/3</span>
-                        <button class="btn buy-btn" data-upgrade="magnet">Buy (300)</button>
-                    </div>
-                </div>
-                 <div class="upgrade-item" id="upgrade-score">
-                    <div class="upgrade-info">
-                        <strong>Score Bonus</strong>
-                        <p>Permanently increases score gain.</p>
-                    </div>
-                    <div class="upgrade-action">
-                        <span class="upgrade-level">Level 0/5</span>
-                        <button class="btn buy-btn" data-upgrade="score">Buy (200)</button>
+                    <div class="upgrade-item" id="utility-revive">
+                        <div class="upgrade-info">
+                            <strong>Second Chance</strong>
+                            <p>Revive once after crashing.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <button class="btn buy-btn" data-upgrade="revive">Buy (250)</button>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="shop-section">
-                <h3>Single-Use Utilities</h3>
-                <div class="upgrade-item" id="utility-headstart">
-                    <div class="upgrade-info">
-                        <strong>Head Start</strong>
-                        <p>Start the next run at Zone 2 (Score 1500).</p>
-                    </div>
-                    <div class="upgrade-action">
-                        <button class="btn buy-btn" data-upgrade="headstart">Buy (150)</button>
+            <!-- Cosmetics Tab Content -->
+            <div id="cosmeticsTab" class="tab-content">
+                <div class="shop-section">
+                    <h3>Comet Skins</h3>
+                    <div class="cosmetic-grid" id="cometSkinsGrid">
+                        <!-- Comet skin items will be added here by JS -->
+                        <div class="cosmetic-item placeholder">
+                             <div class="cosmetic-preview" style="background-color: white;"></div>
+                             <strong>Default</strong>
+                             <button class="btn equip-btn" disabled>Equipped</button>
+                        </div>
+                        <div class="cosmetic-item placeholder">
+                            <div class="cosmetic-preview" style="background: linear-gradient(45deg, #f87171, #fb923c);"></div>
+                            <strong>Inferno</strong>
+                            <button class="btn buy-cosmetic-btn" data-cosmetic-id="comet_inferno">Buy (500 ★)</button>
+                        </div>
+                         <div class="cosmetic-item placeholder">
+                            <div class="cosmetic-preview" style="background: linear-gradient(45deg, #34d399, #22c55e);"></div>
+                            <strong>Emerald</strong>
+                            <button class="btn buy-cosmetic-btn" data-cosmetic-id="comet_emerald">Buy (500 ★)</button>
+                        </div>
                     </div>
                 </div>
-                <div class="upgrade-item" id="utility-revive">
-                    <div class="upgrade-info">
-                        <strong>Second Chance</strong>
-                        <p>Revive once after crashing.</p>
-                    </div>
-                    <div class="upgrade-action">
-                        <button class="btn buy-btn" data-upgrade="revive">Buy (250)</button>
-                    </div>
-                </div>
+                 <!-- Add sections for Obstacle Skins, Backgrounds later -->
             </div>
+
 
             <button id="closeObservatoryButton" class="btn btn-secondary">Back to Menu</button>
         </div>

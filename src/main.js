@@ -1,10 +1,10 @@
 /**
  * Gravity Well - Main Game Engine
- * CRITICAL BUG FIXES & TUTORIAL POLISH
- * - Fixed game-breaking bug where input would lock if touch/mouse was released off-canvas.
- * - Fixed infinite star fragment collection bug.
- * - Fixed a critical bug where the tutorial star fragment would not respawn on checkpoint reset.
- * - Polished tutorial arrow style and positioning for clarity.
+ * COSMETIC STORE PHASE 1: UI & Data Structure
+ * - Added basic structure for cosmetics in playerData.
+ * - Created UI tabs and placeholder cosmetic items in index.html.
+ * - Added basic styling for cosmetic items in style.css.
+ * - Updated JS to handle cosmetic data loading and UI population.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -38,6 +38,10 @@ const observatoryButton = document.getElementById('observatoryButton');
 const closeObservatoryButton = document.getElementById('closeObservatoryButton');
 const observatory = document.getElementById('observatory');
 const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
+const shopTabs = document.querySelector('.shop-tabs');
+const tabContents = document.querySelectorAll('.tab-content');
+const cometSkinsGrid = document.getElementById('cometSkinsGrid'); // Cosmetic grid
+
 
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
 const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
@@ -67,6 +71,15 @@ let playerData = {
         score: 0,
         headstart: false,
         revive: false,
+    },
+    // NEW: Cosmetics Data Structure
+    cosmetics: {
+        unlocked: ['comet_default'], // Start with default unlocked
+        equipped: {
+            comet: 'comet_default'
+            // obstacle: 'obstacle_default', // Add later
+            // background: 'bg_default'     // Add later
+        }
     }
 };
 
@@ -77,6 +90,16 @@ const upgradeCosts = {
     headstart: 150,
     revive: 250
 };
+
+// NEW: Define Cosmetic Items
+const cosmeticItems = {
+    comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;' },
+    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);' },
+    comet_emerald: { name: 'Emerald', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);' },
+    comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 1000, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);' },
+    // Add more skins later
+};
+
 
 let playerComet = null;
 let obstacles = [];
@@ -215,7 +238,8 @@ const tutorialManager = {
         playerComet.x = this.checkpoint.cometX; playerComet.y = this.checkpoint.cometY;
         playerComet.vx = 0; playerComet.vy = 0; playerComet.trail = [];
         obstacles = this.checkpoint.obstacles.map(o => new Obstacle(o.x, o.y, o.width, o.height, o.type));
-        starFragments = this.checkpoint.fragments.map(sf => new StarFragment(sf.x, sf.y));
+        // BUG FIX: Ensure fragment is respawned from checkpoint data
+        starFragments = this.checkpoint.fragments.map(sf => new StarFragment(sf.x, sf.y)); 
         this.currentStep = this.checkpoint.step;
         setTimeout(() => { if (this.isActive) this.runStep(true); }, 2500);
     },
@@ -359,11 +383,23 @@ function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JS
 function loadPlayerData() {
     try {
         const savedData = localStorage.getItem('gravityWellSaveData');
-        if (savedData) { const loaded = JSON.parse(savedData); playerData = { ...{ highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }}, ...loaded }; }
-    } catch (e) { console.error("Could not load player data."); playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false } }; }
+        const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default'], equipped: { comet: 'comet_default' } } };
+        if (savedData) { 
+            const loaded = JSON.parse(savedData); 
+            // Ensure cosmetics structure exists
+            if (!loaded.cosmetics) loaded.cosmetics = defaultPlayerData.cosmetics;
+            if (!loaded.cosmetics.unlocked) loaded.cosmetics.unlocked = ['comet_default'];
+            if (!loaded.cosmetics.equipped) loaded.cosmetics.equipped = { comet: 'comet_default' };
+             playerData = { ...defaultPlayerData, ...loaded }; 
+        } else {
+             playerData = defaultPlayerData;
+        }
+    } catch (e) { console.error("Could not load player data.", e); playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default'], equipped: { comet: 'comet_default' } } }; }
 }
 function updateObservatoryUI() {
     shopFragmentsDisplay.textContent = playerData.starFragments;
+    
+    // Update Upgrades Tab
     Object.keys(upgradeCosts).forEach(id => {
         if (Array.isArray(upgradeCosts[id])) {
             const level = playerData.upgrades[id] || 0; const item = document.getElementById(`upgrade-${id}`); if (!item) return;
@@ -376,6 +412,46 @@ function updateObservatoryUI() {
             const button = item.querySelector('button');
             if (playerData.upgrades[id]) { button.textContent = 'Owned'; button.disabled = true; } 
             else { const cost = upgradeCosts[id]; button.textContent = `Buy (${cost})`; button.disabled = playerData.starFragments < cost; }
+        }
+    });
+
+    // Update Cosmetics Tab
+    cometSkinsGrid.innerHTML = ''; // Clear existing items
+    Object.keys(cosmeticItems).forEach(id => {
+        if (cosmeticItems[id].type === 'comet') {
+            const item = cosmeticItems[id];
+            const div = document.createElement('div');
+            div.className = 'cosmetic-item';
+            
+            const preview = document.createElement('div');
+            preview.className = 'cosmetic-preview';
+            preview.style.cssText = item.previewStyle;
+            
+            const name = document.createElement('strong');
+            name.textContent = item.name;
+            
+            const button = document.createElement('button');
+            button.dataset.cosmeticId = id;
+
+            if (playerData.cosmetics.equipped.comet === id) {
+                button.className = 'btn equip-btn';
+                button.textContent = 'Equipped';
+                button.disabled = true;
+            } else if (playerData.cosmetics.unlocked.includes(id)) {
+                button.className = 'btn equip-btn';
+                button.textContent = 'Equip';
+                button.onclick = () => equipCosmetic(id);
+            } else {
+                 button.className = 'btn buy-cosmetic-btn';
+                 button.textContent = `Buy (${item.cost} ★)`;
+                 button.disabled = playerData.starFragments < item.cost;
+                 button.onclick = () => buyCosmetic(id);
+            }
+            
+            div.appendChild(preview);
+            div.appendChild(name);
+            div.appendChild(button);
+            cometSkinsGrid.appendChild(div);
         }
     });
 }
@@ -494,7 +570,7 @@ function drawTutorialArrow(target) {
     const arrowSize = 60;
     const angle = Math.atan2(screenY - (canvas.height / 2), screenX - (canvas.width / 2));
     
-    const radius = Math.min(canvas.width, canvas.height) / 2 - arrowSize * 1.5;
+    const radius = Math.min(canvas.width, canvas.height) / 2 - arrowSize * 1.5; // Adjusted radius
     const arrowX = (canvas.width / 2) + Math.cos(angle) * radius;
     const arrowY = (canvas.height / 2) + Math.sin(angle) * radius;
 
@@ -521,7 +597,12 @@ function drawGame() {
             tutorialHighlight.className = 'tutorial-highlight';
             tutorialArrow.className = 'tutorial-arrow-hidden';
         } else if (step.target) {
-            drawTutorialArrow(step.target());
+             const targetPos = step.target(); // Check if target exists
+             if(targetPos) {
+                 drawTutorialArrow(targetPos);
+             } else {
+                 tutorialArrow.className = 'tutorial-arrow-hidden';
+             }
             tutorialHighlight.className = 'tutorial-highlight-hidden';
         } else {
             tutorialHighlight.className = 'tutorial-highlight-hidden';
@@ -630,6 +711,7 @@ function checkCollisions() {
     for (let i = starFragments.length - 1; i >= 0; i--) { 
         const sf = starFragments[i]; 
         if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
+            // BUG FIX: Must return the *spliced* item, not the item before splicing
             return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
         } 
     }
@@ -674,7 +756,31 @@ function setupEventListeners() {
     playButton.addEventListener('click', () => handlePlayClick(false)); restartButton.addEventListener('click', () => setGameState('playing')); replayTutorialButton.addEventListener('click', () => handlePlayClick(true));
     pauseButton.addEventListener('click', () => { if (gameState === 'playing') setGameState('paused'); }); resumeButton.addEventListener('click', () => { if (gameState === 'paused') setGameState('playing'); }); quitButton.addEventListener('click', () => { if (gameState === 'paused') { audioManager.playClickSound(); setGameState('menu'); } });
     observatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); }); closeObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); });
-    document.querySelectorAll('.buy-btn').forEach(button => { button.addEventListener('click', (e) => buyUpgrade(e.target.dataset.upgrade)); });
+    
+    // Add event listener for cosmetic grid (using event delegation)
+    cometSkinsGrid.addEventListener('click', (e) => {
+        if (e.target.classList.contains('buy-cosmetic-btn')) {
+            buyCosmetic(e.target.dataset.cosmeticId);
+        } else if (e.target.classList.contains('equip-btn')) {
+             equipCosmetic(e.target.dataset.cosmeticId);
+        }
+    });
+
+    // Add event listener for shop tabs
+    shopTabs.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tab-button')) {
+            shopTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            e.target.classList.add('active');
+            const targetTab = document.getElementById(e.target.dataset.tab);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+        }
+    });
+
+
     gameOverMenuButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); }); gameOverObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); });
     skipTutorialButton.addEventListener('click', () => { audioManager.playClickSound(); tutorialManager.end(false); });
 }
@@ -691,6 +797,35 @@ function buyUpgrade(upgradeId) {
     }
     if (canAfford) { audioManager.playFragmentSound(); savePlayerData(); updateObservatoryUI(); }
 }
+
+// Placeholder functions for cosmetics
+function buyCosmetic(cosmeticId) {
+    const item = cosmeticItems[cosmeticId];
+    if (item && !playerData.cosmetics.unlocked.includes(cosmeticId) && playerData.starFragments >= item.cost) {
+        playerData.starFragments -= item.cost;
+        playerData.cosmetics.unlocked.push(cosmeticId);
+        audioManager.playFragmentSound();
+        savePlayerData();
+        updateObservatoryUI(); // Refresh UI to show Equip button
+        console.log(`Bought cosmetic: ${cosmeticId}`);
+    } else {
+        console.log(`Cannot buy cosmetic: ${cosmeticId}`);
+    }
+}
+
+function equipCosmetic(cosmeticId) {
+     const item = cosmeticItems[cosmeticId];
+    if (item && playerData.cosmetics.unlocked.includes(cosmeticId)) {
+        playerData.cosmetics.equipped[item.type] = cosmeticId; // Equip based on type
+        audioManager.playClickSound();
+        savePlayerData();
+        updateObservatoryUI(); // Refresh UI to show Equipped status
+        console.log(`Equipped cosmetic: ${cosmeticId}`);
+    } else {
+         console.log(`Cannot equip cosmetic: ${cosmeticId}`);
+    }
+}
+
 
 // --- Initialization ---
 function init() { 
