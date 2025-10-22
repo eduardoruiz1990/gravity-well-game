@@ -1,8 +1,8 @@
 /**
  * Gravity Well - Main Game Engine
- * COSMETIC STORE PHASE 2: Comet Skin Rendering
- * - Modified PlayerComet.draw() to render the comet based on the equipped skin.
- * - Uses styles defined in cosmeticItems for rendering.
+ * COSMETIC STORE PHASE 3: Trail Rendering & Bug Fix
+ * - Modified PlayerComet.draw() to color the trail based on the equipped skin.
+ * - Fixed bug preventing leaving Observatory after equipping certain skins.
  */
 import './style.css'
 import * as Tone from 'tone';
@@ -285,17 +285,43 @@ class PlayerComet {
         if (this.trail.length > 15) this.trail.shift();
         this.orbiters.forEach(orb => orb.update());
     }
+    
+    // Helper function to get the primary color from a skin's fillStyle
+    getPrimarySkinColor(skinStyle) {
+         if (skinStyle.startsWith('linear-gradient') || skinStyle.startsWith('radial-gradient')) {
+            const colors = skinStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+            return colors ? colors[0] : 'white'; // Return first color or fallback
+        }
+        return skinStyle; // Solid color
+    }
+
     draw() {
         const screenX = this.x - cameraX;
         const equippedSkinId = playerData.cosmetics.equipped.comet;
         const skin = cosmeticItems[equippedSkinId] || cosmeticItems['comet_default'];
+        const primaryColor = this.getPrimarySkinColor(skin.fillStyle); // Get primary color for trail
 
-        // Draw Trail
+        // Draw Trail using primary skin color
         this.trail.forEach((t, i) => {
             ctx.beginPath();
             ctx.arc(t.x - cameraX, t.y, this.radius * (i / this.trail.length), 0, Math.PI * 2);
-             // Use a semi-transparent white for trail regardless of skin for visibility
-            ctx.fillStyle = `rgba(255, 255, 255, ${(i / this.trail.length) * 0.4})`;
+            // Apply primary color with alpha based on trail position
+            const alpha = (i / this.trail.length) * 0.4;
+             // Need to handle color parsing if it's hex/rgb etc.
+            let trailColor = primaryColor;
+             if (trailColor.startsWith('#')) { // Simple hex handling
+                 const r = parseInt(trailColor.slice(1, 3), 16);
+                 const g = parseInt(trailColor.slice(3, 5), 16);
+                 const b = parseInt(trailColor.slice(5, 7), 16);
+                 ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+             } else if (trailColor.startsWith('rgb')) { // Simple rgb/rgba handling
+                 trailColor = trailColor.replace(/rgba?\(|\)/g, '');
+                 const parts = trailColor.split(',');
+                 ctx.fillStyle = `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+             } else { // Assume solid color name like 'white'
+                  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; // Fallback to white for simplicity
+                  // A more robust solution would map color names to RGB
+             }
             ctx.fill();
         });
         
@@ -304,30 +330,31 @@ class PlayerComet {
          ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
 
         // Apply skin style
-        if (skin.fillStyle.startsWith('linear-gradient')) {
-             // Basic gradient parsing (assumes 2 colors)
-            const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-            if(colors && colors.length >= 2){
-                const gradient = ctx.createLinearGradient(screenX - this.radius, this.y, screenX + this.radius, this.y);
-                gradient.addColorStop(0, colors[0]);
-                gradient.addColorStop(1, colors[1]);
-                ctx.fillStyle = gradient;
+        // BUG FIX: More robust gradient handling
+        try {
+            if (skin.fillStyle.startsWith('linear-gradient')) {
+                const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                if(colors && colors.length >= 2){
+                    const gradient = ctx.createLinearGradient(screenX - this.radius, this.y, screenX + this.radius, this.y);
+                    gradient.addColorStop(0, colors[0]);
+                    gradient.addColorStop(1, colors[1]);
+                    ctx.fillStyle = gradient;
+                } else { ctx.fillStyle = 'white'; }
+            } else if (skin.fillStyle.startsWith('radial-gradient')) {
+                 const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                 if (colors && colors.length >= 2) {
+                     const gradient = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
+                     gradient.addColorStop(0, colors[0]);
+                     gradient.addColorStop(0.5, colors[1]);
+                     gradient.addColorStop(1, colors[2] || colors[1]); 
+                     ctx.fillStyle = gradient;
+                 } else { ctx.fillStyle = 'white'; }
             } else {
-                 ctx.fillStyle = 'white'; // Fallback
+                 ctx.fillStyle = skin.fillStyle; // Solid color
             }
-        } else if (skin.fillStyle.startsWith('radial-gradient')) {
-             const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-             if (colors && colors.length >= 2) {
-                 const gradient = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
-                 gradient.addColorStop(0, colors[0]);
-                 gradient.addColorStop(0.5, colors[1]);
-                 gradient.addColorStop(1, colors[2] || colors[1]); // Use second color if third is missing
-                 ctx.fillStyle = gradient;
-             } else {
-                 ctx.fillStyle = 'white'; // Fallback
-             }
-        } else {
-             ctx.fillStyle = skin.fillStyle; // Solid color
+        } catch (e) {
+            console.error("Error applying skin style:", skin.fillStyle, e);
+            ctx.fillStyle = 'white'; // Fallback on error
         }
         ctx.fill();
 
