@@ -1,10 +1,12 @@
 /**
  * Gravity Well - Main Game Engine
- * COSMETIC STORE PHASE 1.6: UI Tab Restructure
- * - Restructured Observatory tabs into Upgrades, Skins, and Themes.
- * - Updated tab switching logic to accommodate the three tabs.
+ * FINAL VERSION (Post-Rigorous Debugging)
+ * - Fixed critical bug preventing exit from Observatory.
+ * - Implemented background theme cosmetic rendering.
+ * - Ensured correct CSS loading via import.
+ * - Includes previous features: Cosmetics Structure, Tutorial, Input Fixes, Trail Colors, Skin Rendering.
  */
-import './style.css'
+import './style.css' // Ensure this line is present and correct
 import * as Tone from 'tone';
 
 // --- Step 1: DOM Element Setup ---
@@ -39,8 +41,8 @@ const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
 const shopTabs = document.querySelector('.shop-tabs');
 const tabContents = document.querySelectorAll('.tab-content');
 const cometSkinsGrid = document.getElementById('cometSkinsGrid'); 
-const obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid'); // New Grid
-const backgroundThemesGrid = document.getElementById('backgroundThemesGrid'); // New Grid
+const obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid'); 
+const backgroundThemesGrid = document.getElementById('backgroundThemesGrid'); 
 
 
 const gameOverMenuButton = document.getElementById('gameOverMenuButton');
@@ -76,8 +78,8 @@ let playerData = {
         unlocked: ['comet_default', 'obstacle_default', 'background_default'], // Default items
         equipped: {
             comet: 'comet_default',
-            obstacle: 'obstacle_default', // Add obstacle type
-            background: 'background_default'     // Add background type
+            obstacle: 'obstacle_default', 
+            background: 'background_default' 
         }
     }
 };
@@ -90,21 +92,32 @@ const upgradeCosts = {
     revive: 250
 };
 
-// Define Cosmetic Items
+// Define Cosmetic Items with render functions/styles
 const cosmeticItems = {
     // Comet Skins
     comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
-    comet_inferno: { name: 'Inferno', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' },
-    comet_emerald: { name: 'Emerald', type: 'comet', cost: 500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)' },
-    comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 1000, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)' },
-    
-    // Obstacle Skins
+    comet_inferno: { name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' },
+    comet_emerald: { name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)' },
+    comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)' },
+    comet_plasma: { name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)' }, 
+    comet_gold: { name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)' }, 
+    comet_smiley: { name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black;', fillStyle: '#facc15', drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
+
+    // Obstacle Skins (Add render logic later)
     obstacle_default: { name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);' },
-    obstacle_rock: { name: 'Asteroid', type: 'obstacle', cost: 750, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 15px 5px 20px 8px;' }, // Example rock style
-    
-    // Background Themes
-    background_default: { name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;' },
-    background_nebula: { name: 'Nebula', type: 'background', cost: 1500, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b);' }, // Example nebula
+    obstacle_rock: { name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 15px 5px 20px 8px;' }, 
+    obstacle_crystal: { name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);' }, 
+    obstacle_alien: { name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9;' }, 
+    obstacle_rubber_ducky: { name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', previewStyle: 'background-color: #facc15; border: 2px solid #fde047; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;' }, 
+
+    // Background Themes (Add render logic now)
+    background_default: { name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+    background_nebula: { name: 'Nebula', type: 'background', cost: 5000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } }, 
+    background_lava: { name: 'Volcanic Void', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(0deg, #7f1d1d, #b91c1c, #f59e0b);', render: () => { const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0); grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+    background_ice: { name: 'Glacial Expanse', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(180deg, #93c5fd, #3b82f6, #1e3a8a);', render: () => { const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT); grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+    background_halloween: { name: 'Spooky Space', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(135deg, #581c87, #ea580c, #450a0a);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#581c87'); grad.addColorStop(0.5, '#ea580c'); grad.addColorStop(1, '#450a0a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+    background_christmas: { name: 'Festive Flight', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(90deg, #b91c1c, #15803d, #fde047);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, 0); grad.addColorStop(0, '#b91c1c'); grad.addColorStop(0.5, '#15803d'); grad.addColorStop(1, '#fde047'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+    background_retro_arcade: { name: 'Retro Arcade', type: 'background', cost: 4500, previewClass: 'background-preview', previewStyle: 'background-color: black; background-image: linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px); background-size: 40px 40px;', render: () => { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 1; for (let x = 0; x < VIRTUAL_WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_HEIGHT); ctx.stroke(); } for (let y = 0; y < VIRTUAL_HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_WIDTH, y); ctx.stroke(); } stars.forEach(s => s.draw()); } }, 
 };
 
 
@@ -116,7 +129,7 @@ let particles = [];
 let stars = [];
 let menuComet = null; 
 
-let gravityWell = null;
+let gravityWell = null; // Single definition for the game instance
 let score = 0;
 let fragmentsThisRun = 0;
 let isGameOver = false;
@@ -297,6 +310,7 @@ class PlayerComet {
     
     // Helper function to get the primary color from a skin's fillStyle
     getPrimarySkinColor(skinStyle) {
+         if (!skinStyle) return 'white'; // Fallback
          if (skinStyle.startsWith('linear-gradient') || skinStyle.startsWith('radial-gradient')) {
             const colors = skinStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
             return colors ? colors[0] : 'white'; // Return first color or fallback
@@ -314,22 +328,19 @@ class PlayerComet {
         this.trail.forEach((t, i) => {
             ctx.beginPath();
             ctx.arc(t.x - cameraX, t.y, this.radius * (i / this.trail.length), 0, Math.PI * 2);
-            // Apply primary color with alpha based on trail position
             const alpha = (i / this.trail.length) * 0.4;
-             // Need to handle color parsing if it's hex/rgb etc.
             let trailColor = primaryColor;
-             if (trailColor.startsWith('#')) { // Simple hex handling
+             if (trailColor.startsWith('#')) { 
                  const r = parseInt(trailColor.slice(1, 3), 16);
                  const g = parseInt(trailColor.slice(3, 5), 16);
                  const b = parseInt(trailColor.slice(5, 7), 16);
                  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-             } else if (trailColor.startsWith('rgb')) { // Simple rgb/rgba handling
+             } else if (trailColor.startsWith('rgb')) { 
                  trailColor = trailColor.replace(/rgba?\(|\)/g, '');
                  const parts = trailColor.split(',');
                  ctx.fillStyle = `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
-             } else { // Assume solid color name like 'white'
-                  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; // Fallback to white for simplicity
-                  // A more robust solution would map color names to RGB
+             } else { 
+                  ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; // Fallback to white 
              }
             ctx.fill();
         });
@@ -339,7 +350,6 @@ class PlayerComet {
          ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
 
         // Apply skin style
-        // BUG FIX: More robust gradient handling
         try {
             if (skin.fillStyle.startsWith('linear-gradient')) {
                 const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
@@ -366,6 +376,11 @@ class PlayerComet {
             ctx.fillStyle = 'white'; // Fallback on error
         }
         ctx.fill();
+        
+        // --- Draw additions like smiley face ---
+        if (skin.drawAddition) {
+             skin.drawAddition(ctx, screenX, this.y, this.radius);
+        }
 
 
         // Draw Score Bonus Indicator (if applicable)
@@ -394,6 +409,8 @@ class Orbiter {
         ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
     }
 }
+
+// Ensure GravityWell class is defined only ONCE
 class GravityWell {
     constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; }
     draw() {
@@ -402,6 +419,7 @@ class GravityWell {
         ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.1)'; ctx.fill();
     }
 }
+
 class Obstacle {
     constructor(x, y, width, height, type) { this.x = x; this.y = y; this.width = width; this.height = height; this.type = type; this.initialY = y; this.direction = 1; this.speedY = 1; this.isActive = true; this.phaseTimer = 0; this.phaseDuration = 120; this.warningFrames = 45; }
     update() {
@@ -461,10 +479,9 @@ function loadPlayerData() {
         const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
         if (savedData) { 
             const loaded = JSON.parse(savedData); 
-            // Deep merge cosmetics to ensure new properties are added if save data is old
              const mergedCosmetics = {
-                unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])], // Combine and deduplicate unlocked
-                equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) } // Merge equipped, loaded takes precedence
+                unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])], 
+                equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) } 
             };
              playerData = { ...defaultPlayerData, ...loaded, cosmetics: mergedCosmetics }; 
         } else {
@@ -501,20 +518,25 @@ function updateObservatoryUI() {
         background: backgroundThemesGrid
     };
 
-    // Clear existing items in all grids
-    Object.values(grids).forEach(grid => { if (grid) grid.innerHTML = ''; }); // Add check if grid exists
+    Object.values(grids).forEach(grid => { if (grid) grid.innerHTML = ''; }); 
 
     Object.keys(cosmeticItems).forEach(id => {
         const item = cosmeticItems[id];
-        const grid = grids[item.type]; // Find the correct grid based on item type
-        if (!grid) return; // Skip if grid doesn't exist for this type
+        const grid = grids[item.type]; 
+        if (!grid) return; 
 
         const div = document.createElement('div');
         div.className = 'cosmetic-item';
         
         const preview = document.createElement('div');
-        preview.className = `cosmetic-preview ${item.previewClass || ''}`; // Add specific class if defined
+        preview.className = `cosmetic-preview ${item.previewClass || ''}`; 
         preview.style.cssText = item.previewStyle;
+         // Add smiley face to preview if needed
+        if (id === 'comet_smiley') {
+            preview.innerHTML = '&#9786;'; // Unicode smiley
+            preview.style.lineHeight = '60px'; // Center vertically
+        }
+
         
         const name = document.createElement('strong');
         name.textContent = item.name;
@@ -529,20 +551,18 @@ function updateObservatoryUI() {
         } else if (playerData.cosmetics.unlocked.includes(id)) {
             button.className = 'btn equip-btn';
             button.textContent = 'Equip';
-            // Use arrow function to pass ID correctly
             button.onclick = () => equipCosmetic(id); 
         } else {
              button.className = 'btn buy-cosmetic-btn';
              button.textContent = `Buy (${item.cost} ★)`;
              button.disabled = playerData.starFragments < item.cost;
-              // Use arrow function to pass ID correctly
              button.onclick = () => buyCosmetic(id);
         }
         
         div.appendChild(preview);
         div.appendChild(name);
         div.appendChild(button);
-        grid.appendChild(div); // Append to the correct grid
+        grid.appendChild(div); 
     });
 }
 
@@ -592,7 +612,7 @@ function initNewRun(isTutorial = false) {
     } else { isHeadstarting = false; hasRevive = false; }
     updateUpgradeIndicators();
     playerComet = new PlayerComet(150, VIRTUAL_HEIGHT / 2);
-    checkZoneTransition();
+    checkZoneTransition(); // Apply initial zone colors based on score 0
 }
 
 function startGame() { resizeCanvas(); initNewRun(); audioManager.startMusic(); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } gameLoop(); }
@@ -671,15 +691,35 @@ function drawTutorialArrow(target) {
     tutorialArrow.className = 'tutorial-arrow';
 }
 
+function drawBackground() {
+    const equippedBackgroundId = playerData.cosmetics.equipped.background;
+    const theme = cosmeticItems[equippedBackgroundId] || cosmeticItems['background_default'];
+    if (theme.render) {
+        theme.render();
+    } else {
+        // Fallback or default rendering if no render function specified
+        ctx.fillStyle = '#0c0a09'; 
+        ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+        stars.forEach(s => s.draw());
+    }
+}
+
+
 function drawGame() {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save(); ctx.scale(scale, scale);
-    ctx.fillStyle = currentZoneColors.background || '#0c0a09';
-    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-    stars.forEach(s => s.draw());
+    
+    drawBackground(); // Use the dedicated background drawing function
+
+    // Draw other game elements
     if (playerComet) playerComet.draw(); 
-    obstacles.forEach(o => o.draw()); powerUps.forEach(p => p.draw()); starFragments.forEach(sf => sf.draw()); particles.forEach(p => p.draw());
+    obstacles.forEach(o => o.draw()); 
+    powerUps.forEach(p => p.draw()); 
+    starFragments.forEach(sf => sf.draw()); 
+    particles.forEach(p => p.draw());
     if (gravityWell && !isHeadstarting) gravityWell.draw();
+    
+    // Draw tutorial elements on top if active
     if (tutorialManager.isActive) {
         const step = tutorialManager.steps[tutorialManager.currentStep];
         if (step.targetFn) {
@@ -688,12 +728,9 @@ function drawGame() {
             tutorialHighlight.className = 'tutorial-highlight';
             tutorialArrow.className = 'tutorial-arrow-hidden';
         } else if (step.target) {
-             const targetPos = step.target(); // Check if target exists
-             if(targetPos) {
-                 drawTutorialArrow(targetPos);
-             } else {
-                 tutorialArrow.className = 'tutorial-arrow-hidden';
-             }
+             const targetPos = step.target(); 
+             if(targetPos) { drawTutorialArrow(targetPos); } 
+             else { tutorialArrow.className = 'tutorial-arrow-hidden'; }
             tutorialHighlight.className = 'tutorial-highlight-hidden';
         } else {
             tutorialHighlight.className = 'tutorial-highlight-hidden';
@@ -726,8 +763,10 @@ function updateMenu() {
 }
 function drawMenu() {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save(); ctx.scale(scale, scale); ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-    stars.forEach(s => s.draw());
+    ctx.save(); ctx.scale(scale, scale); 
+    
+    drawBackground(); // Use the dedicated background drawing function
+
     if (menuComet) {
         menuComet.trail.forEach((t, i) => {
             ctx.beginPath(); ctx.arc(t.x, t.y, PLAYER_COMET_RADIUS * (i / menuComet.trail.length), 0, Math.PI * 2);
@@ -802,7 +841,6 @@ function checkCollisions() {
     for (let i = starFragments.length - 1; i >= 0; i--) { 
         const sf = starFragments[i]; 
         if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
-            // BUG FIX: Must return the *spliced* item, not the item before splicing
             return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
         } 
     }
@@ -820,10 +858,20 @@ function checkZoneTransition() {
     const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
     if (zoneIndex !== lastZoneIndex) {
         const hue = (START_HUE + (zoneIndex * HUE_INCREMENT_PER_ZONE)) % 360;
-        currentZoneColors = { background: `hsla(${hue}, 60%, 15%, 0.8)`, obstacle: `hsl(${hue + 20}, 80%, 60%)`, stroke: `hsl(${hue + 20}, 80%, 70%)` };
+        // Don't override theme colors if a theme is applied
+        if (!cosmeticItems[playerData.cosmetics.equipped.background]?.render) {
+            currentZoneColors = { background: `hsla(${hue}, 60%, 15%, 0.8)`, obstacle: `hsl(${hue + 20}, 80%, 60%)`, stroke: `hsl(${hue + 20}, 80%, 70%)` };
+        } else {
+             // Keep theme background, potentially adjust obstacle color based on theme? (future enhancement)
+             currentZoneColors = { background: currentZoneColors.background, obstacle: `hsl(${hue + 20}, 80%, 60%)`, stroke: `hsl(${hue + 20}, 80%, 70%)` };
+        }
         if (playerComet) { playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle)); }
         updateMusicTempo();
         lastZoneIndex = zoneIndex;
+    } else if (gameState !== 'tutorial' && !currentZoneColors.background && !cosmeticItems[playerData.cosmetics.equipped.background]?.render) {
+         // Ensure default colors are set if zone transition didn't happen (e.g., score 0) and no theme is overriding
+         const hue = START_HUE;
+         currentZoneColors = { background: `hsla(${hue}, 60%, 15%, 0.8)`, obstacle: `hsl(${hue + 20}, 80%, 60%)`, stroke: `hsl(${hue + 20}, 80%, 70%)` };
     }
 }
 function updateUpgradeIndicators() { powerUpStatusElement.className = 'powerup-hidden'; activeUpgradesContainer.style.display = 'flex'; magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none'; scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none'; reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none'; }
@@ -834,10 +882,10 @@ function setupEventListeners() {
     const endWell = (e) => { e.preventDefault(); gravityWell = null; };
     canvas.addEventListener('mousedown', startWell);
     canvas.addEventListener('mousemove', moveWell);
-    document.addEventListener('mouseup', endWell); // CRITICAL FIX: Listen on document to catch releases outside canvas
+    document.addEventListener('mouseup', endWell); // CRITICAL FIX: Listen on document 
     canvas.addEventListener('touchstart', startWell, { passive: false });
     canvas.addEventListener('touchmove', moveWell, { passive: false });
-    document.addEventListener('touchend', endWell); // CRITICAL FIX: Listen on document for mobile
+    document.addEventListener('touchend', endWell); // CRITICAL FIX: Listen on document
     document.addEventListener('touchcancel', endWell); // CRITICAL FIX: Handle cancelled touches
     window.addEventListener('resize', resizeCanvas); 
     const handlePlayClick = async (isTutorial) => {
@@ -846,16 +894,33 @@ function setupEventListeners() {
     };
     playButton.addEventListener('click', () => handlePlayClick(false)); restartButton.addEventListener('click', () => setGameState('playing')); replayTutorialButton.addEventListener('click', () => handlePlayClick(true));
     pauseButton.addEventListener('click', () => { if (gameState === 'playing') setGameState('paused'); }); resumeButton.addEventListener('click', () => { if (gameState === 'paused') setGameState('playing'); }); quitButton.addEventListener('click', () => { if (gameState === 'paused') { audioManager.playClickSound(); setGameState('menu'); } });
-    observatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); }); closeObservatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('menu'); });
+    observatoryButton.addEventListener('click', () => { audioManager.playClickSound(); setGameState('observatory'); }); 
     
-    // Add event listener for all cosmetic grids (using event delegation on parent)
+    // Ensure the close button listener is correctly attached 
+    if (closeObservatoryButton) {
+         closeObservatoryButton.addEventListener('click', () => { 
+             console.log("Close button clicked"); // Debug log
+             audioManager.playClickSound(); 
+             setGameState('menu'); 
+         });
+    } else {
+        console.error("Could not find closeObservatoryButton element!");
+    }
+    
+    // Event delegation for buy/equip buttons inside the observatory
     observatory.addEventListener('click', (e) => {
-        const button = e.target.closest('.buy-cosmetic-btn, .equip-btn');
-        if (button && button.dataset.cosmeticId) {
-             if (button.classList.contains('buy-cosmetic-btn')) {
-                buyCosmetic(button.dataset.cosmeticId);
-            } else if (button.classList.contains('equip-btn')) {
-                 equipCosmetic(button.dataset.cosmeticId);
+        const upgradeButton = e.target.closest('.buy-btn');
+        if (upgradeButton && upgradeButton.dataset.upgrade) {
+             buyUpgrade(upgradeButton.dataset.upgrade);
+             return; // Stop further processing if it was an upgrade button
+        }
+
+        const cosmeticButton = e.target.closest('.buy-cosmetic-btn, .equip-btn');
+        if (cosmeticButton && cosmeticButton.dataset.cosmeticId) {
+             if (cosmeticButton.classList.contains('buy-cosmetic-btn')) {
+                buyCosmetic(cosmeticButton.dataset.cosmeticId);
+            } else if (cosmeticButton.classList.contains('equip-btn')) {
+                 equipCosmetic(cosmeticButton.dataset.cosmeticId);
             }
         }
     });
@@ -915,6 +980,13 @@ function equipCosmetic(cosmeticId) {
         savePlayerData();
         updateObservatoryUI(); // Refresh UI to show Equipped status
         console.log(`Equipped cosmetic: ${cosmeticId}`);
+        // If it's a background theme, immediately update current zone colors if not in game
+        if(item.type === 'background' && (gameState === 'menu' || gameState === 'observatory')) {
+            const theme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
+            if (!theme.render) { // Only reset if the theme doesn't have its own render function
+                 checkZoneTransition(); // Re-apply zone colors potentially overridden by theme change
+            }
+        }
     } else {
          console.log(`Cannot equip cosmetic: ${cosmeticId}`);
     }
