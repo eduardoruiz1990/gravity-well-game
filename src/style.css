@@ -1,6 +1,9 @@
 /**
  * ARCHITECTURAL FIX: Replaced external background images with a pure CSS animated starfield.
  * This is more performant, self-contained, and eliminates the Cross-Origin (CORB) errors.
+ *
+ * CRITICAL BUG FIX (Main Menu): Added `pointer-events` rules to modals and `user-select: none`
+ * to modal content and buttons to fix all click/interaction bugs.
  */
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -188,7 +191,13 @@ body {
 
 .modal-visible {
   opacity: 1;
-  pointer-events: auto;
+  /* CRITICAL FIX: Make the modal background non-interactive */
+  pointer-events: none; 
+}
+
+/* This rule was missing/wrong before, this is the fix */
+.modal-visible .modal-content {
+  pointer-events: all; /* ONLY content inside a VISIBLE modal is clickable */
 }
 
 .modal-content {
@@ -203,6 +212,15 @@ body {
   min-width: 300px;
   max-height: 90vh; /* Prevent modal from being too tall */
   overflow-y: auto;  /* Allow scrolling if content overflows */
+  
+  /* By default, modal content is NOT interactive */
+  pointer-events: none; 
+
+  /* CLICK BUG FIX: Prevent text selection cursor */
+  user-select: none;
+  -webkit-user-select: none; /* Safari */
+  -moz-user-select: none; /* Firefox */
+  -ms-user-select: none; /* IE10+ */
 }
 
 h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
@@ -246,6 +264,11 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
   cursor: pointer;
   transition: background-color 0.2s;
   width: 100%;
+  /* CLICK BUG FIX: Ensure buttons are explicitly not selectable */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .btn:hover {
@@ -583,9 +606,10 @@ p { color: #cbd5e1; margin-bottom: 1.5rem; }
 @keyframes pulse {
     0% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(253, 224, 71, 0.7); }
     70% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 10px 15px rgba(253, 224, 71, 0); }
-    100% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(253, 224, 71, 0); }
+    100% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(253, 255, 255, 0); }
 }
 
+/* Use --arrow-angle CSS variable set by JS for rotation */
 @keyframes arrow-pulse {
     0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(var(--arrow-angle, 0deg)); }
     50% { transform: translate(-50%, -50%) scale(1.15) rotate(var(--arrow-angle, 0deg)); }

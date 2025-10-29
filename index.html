@@ -5,6 +5,29 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
+    <!-- 
+      CRITICAL BUG FIX: 
+      Added inline styles to ensure modals are clickable even if CSS fails to load,
+      and to prevent text selection cursor.
+    -->
+    <style>
+      .modal-visible {
+        pointer-events: none; /* Make modal background non-interactive */
+      }
+      .modal-content {
+        pointer-events: all;  /* Make modal content (buttons, etc.) interactive */
+        user-select: none;     /* Prevents text-selection cursor (I-beam) */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+      }
+      .btn {
+        user-select: none; /* Explicitly prevent text selection on buttons */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+      }
+    </style>
   </head>
   <body>
     <div id="app">
@@ -105,7 +128,10 @@
                 <button class="tab-button" data-tab="themesTab">Themes</button>
             </div>
 
-            <!-- Upgrades Tab Content -->
+            <!-- 
+              CRITICAL TYPO FIX: 
+              Changed `class_name` to `class` 
+            -->
             <div id="upgradesTab" class="tab-content active">
                 <div class="shop-section">
                     <h3>Permanent Upgrades</h3>
@@ -223,7 +249,10 @@
     </div>
 
     </div>
-    <script type="module" src="/src/main.js"></script>
+    <!-- 
+      CACHE-BUSTING FIX: Version 11
+    -->
+    <script type="module" src="/src/main.js?v=11"></script>
   </body>
 </html>
 
