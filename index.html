@@ -522,7 +522,9 @@
       }
 
       /* Tutorial Styles */
-      #tutorialOverlay .modal-content {
+      /* --- THIS IS THE FIX --- */
+      /* The .modal-content only gets pointer-events when the modal is VISIBLE */
+      .modal-visible#tutorialOverlay .modal-content {
           background: none;
           backdrop-filter: none;
           box-shadow: none;
@@ -639,7 +641,7 @@
 
       <canvas id="gameCanvas"></canvas>
 
-      <div class="ui-container">
+      <div class="ui-container" data-ui-screen="inGame">
         <div class="left-ui">
           <div class="score-display">
             <span>Score:</span>
@@ -661,9 +663,9 @@
         </div>
       </div>
       
-      <div id="powerUpStatus" class="powerup-hidden"></div>
+      <div id="powerUpStatus" class="powerup-hidden" data-ui-screen="powerUp"></div>
 
-      <div id="mainMenu" class="modal modal-hidden">
+      <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
         <div class="modal-content">
           <h1>Gravity Well</h1>
           <p>Click and hold to guide the comet. Survive as long as you can.</p>
@@ -683,7 +685,7 @@
         </div>
       </div>
 
-      <div id="gameOverModal" class="modal modal-hidden">
+      <div id="gameOverModal" class="modal modal-hidden" data-ui-screen="gameOver">
         <div class="modal-content">
           <h2>Game Over</h2>
           <div class="stats-display">
@@ -702,7 +704,7 @@
         </div>
       </div>
 
-      <div id="pauseMenu" class="modal modal-hidden">
+      <div id="pauseMenu" class="modal modal-hidden" data-ui-screen="pause">
           <div class="modal-content">
               <h2>Paused</h2>
               <button id="resumeButton" class="btn">Resume</button>
@@ -711,7 +713,7 @@
       </div>
 
       <!-- Observatory Modal -->
-      <div id="observatory" class="modal modal-hidden">
+      <div id="observatory" class="modal modal-hidden" data-ui-screen="observatory">
         <div class="modal-content shop-modal">
             <div class="shop-header">
                 <h2>The Observatory</h2>
@@ -824,7 +826,7 @@
         </div>
       </div>
       
-      <div id="tutorialOverlay" class="modal modal-hidden">
+      <div id="tutorialOverlay" class="modal modal-hidden" data-ui-screen="tutorial">
           <div class="modal-content">
               <div class="tutorial-text-box">
                   <p id="tutorialText"></p>
@@ -833,9 +835,9 @@
           </div>
       </div>
       
-      <div id="tutorialHighlight" class="tutorial-highlight-hidden"></div>
+      <div id="tutorialHighlight" class="tutorial-highlight-hidden" data-ui-screen="tutorial-fx"></div>
 
-      <div id="tutorialArrow" class="tutorial-arrow-hidden">
+      <div id="tutorialArrow" class="tutorial-arrow-hidden" data-ui-screen="tutorial-fx">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
             <defs>
                 <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -920,6 +922,10 @@
           const tutorialHighlight = document.getElementById('tutorialHighlight');
           const tutorialArrow = document.getElementById('tutorialArrow');
           const replayTutorialButton = document.getElementById('replayTutorialButton');
+
+          // --- NEW DYNAMIC UI SELECTION ---
+          // Select all top-level UI screens that need to be managed.
+          const allUiScreens = document.querySelectorAll('[data-ui-screen]');
 
 
           // --- Step 2: Game State and Configuration ---
@@ -1130,7 +1136,16 @@
               },
               end(startNewGame = false) {
                   if (!this.isActive) return;
-                  this.isActive = false; tutorialHighlight.className = 'tutorial-highlight-hidden'; tutorialArrow.className = 'tutorial-arrow-hidden';
+                  this.isActive = false; 
+                  
+                  // --- BUG FIX ---
+                  // Explicitly hide all tutorial UI components here,
+                  // instead of relying on setGameState to do it.
+                  // This fixes the UI overlay bug.
+                  tutorialHighlight.className = 'tutorial-highlight-hidden'; 
+                  tutorialArrow.className = 'tutorial-arrow-hidden';
+                  tutorialOverlay.className = 'modal modal-hidden'; // This was the missing line
+                  
                   playerData.hasPlayedBefore = true; savePlayerData();
                   if (startNewGame) { setGameState('playing'); } else { setGameState('menu'); }
               }
@@ -1487,33 +1502,71 @@
           function setGameState(newState) {
               // console.log(`[DEBUG] setGameState: Changing from '${gameState}' to '${newState}'`);
               const oldState = gameState; gameState = newState;
-              mainMenu.className = gameOverModal.className = pauseMenu.className = observatory.className = tutorialOverlay.className = 'modal modal-hidden';
-              tutorialHighlight.className = 'tutorial-highlight-hidden'; tutorialArrow.className = 'tutorial-arrow-hidden';
-              inGameUi.style.display = 'none'; appContainer.classList.remove('screen-shake');
+
+              // --- NEW DYNAMIC HIDING LOGIC ---
+              // This replaces the long hardcoded line and fixes the overlay bug.
+              allUiScreens.forEach(screen => {
+                const screenType = screen.dataset.uiScreen;
+                
+                // Hide all screens by default, using their specific 'hidden' states
+                switch (screenType) {
+                    case 'inGame':
+                        screen.style.display = 'none';
+                        break;
+                    case 'tutorial-fx':
+                        if (screen.id === 'tutorialHighlight') screen.className = 'tutorial-highlight-hidden';
+                        if (screen.id === 'tutorialArrow') screen.className = 'tutorial-arrow-hidden';
+                        break;
+                    case 'powerUp':
+                        // This one is managed by handleActivePowerUp, but we'll ensure it's hidden on state change
+                        screen.className = 'powerup-hidden'; 
+                        break;
+                    default:
+                        // This handles all modals: menu, gameOver, pause, observatory, tutorial
+                        if (screen.classList.contains('modal')) {
+                            screen.className = 'modal modal-hidden';
+                        }
+                        break;
+                }
+              });
+              // --- END NEW LOGIC ---
+
+              appContainer.classList.remove('screen-shake');
+              
+              // Now, selectively SHOW the elements for the new state
               if (newState === 'menu') {
-                  audioManager.stopMusic(); mainMenu.className = 'modal modal-visible';
+                  audioManager.stopMusic(); 
+                  mainMenu.className = 'modal modal-visible'; // Show menu
                   highScoreDisplay.textContent = playerData.highScore; starFragmentsDisplay.textContent = playerData.starFragments;
                   if (!menuComet) menuComet = { x: VIRTUAL_WIDTH / 2, y: VIRTUAL_HEIGHT / 2, angle: 0, trail: [] };
                   if (oldState !== 'menu' || !animationFrameId) gameLoop();
               } else if (newState === 'playing') {
-                  inGameUi.style.display = 'flex'; runFragmentsContainer.className = '';
+                  inGameUi.style.display = 'flex'; // Show in-game UI
+                  runFragmentsContainer.className = '';
                   if (oldState === 'paused') { audioManager.startMusic(); if (!animationFrameId) gameLoop(); } 
                   else { setTimeout(startGame, 350); }
               } else if (newState === 'paused') {
-                  audioManager.stopMusic(); inGameUi.style.display = 'flex'; pauseMenu.className = 'modal modal-visible';
+                  audioManager.stopMusic(); 
+                  inGameUi.style.display = 'flex'; // Keep in-game UI visible
+                  pauseMenu.className = 'modal modal-visible'; // Show pause menu
               } else if (newState === 'tutorial') {
-                  inGameUi.style.display = 'flex'; tutorialOverlay.className = 'modal modal-visible'; setTimeout(startTutorial, 350);
+                  inGameUi.style.display = 'flex'; // Show in-game UI
+                  tutorialOverlay.className = 'modal modal-visible'; // Show tutorial text
+                  setTimeout(startTutorial, 350);
               } else if (newState === 'game-over') {
                   if (playerComet) createExplosion(playerComet.x, playerComet.y, 10, 'white');
-                  audioManager.stopMusic(); audioManager.playGameOverSound(); inGameUi.style.display = 'flex'; runFragmentsContainer.className = 'run-fragments-hidden';
+                  audioManager.stopMusic(); audioManager.playGameOverSound(); 
+                  inGameUi.style.display = 'flex'; // Keep in-game UI visible
+                  runFragmentsContainer.className = 'run-fragments-hidden';
                   appContainer.classList.add('screen-shake');
                   if (score > playerData.highScore) playerData.highScore = Math.floor(score);
                   playerData.starFragments += fragmentsThisRun;
                   savePlayerData();
                   finalScoreElement.textContent = Math.floor(score); fragmentsEarnedDisplay.textContent = fragmentsThisRun;
-                  gameOverModal.className = 'modal modal-visible';
+                  gameOverModal.className = 'modal modal-visible'; // Show game over modal
               } else if (newState === 'observatory') {
-                  updateObservatoryUI(); observatory.className = 'modal modal-visible';
+                  updateObservatoryUI(); 
+                  observatory.className = 'modal modal-visible'; // Show observatory
               }
           }
 
@@ -2039,3 +2092,5 @@
     </script>
   </body>
 </html>
+
+
