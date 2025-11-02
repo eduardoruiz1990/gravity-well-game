@@ -521,10 +521,8 @@
           display: none; /* Icons hidden by default */
       }
 
-      /* Tutorial Styles */
-      /* --- THIS IS THE FIX --- */
-      /* The .modal-content only gets pointer-events when the modal is VISIBLE */
-      .modal-visible#tutorialOverlay .modal-content {
+      /* --- NEW TUTORIAL STYLES --- */
+      #tutorialOverlay .modal-content {
           background: none;
           backdrop-filter: none;
           box-shadow: none;
@@ -561,71 +559,24 @@
           width: 100%;
       }
 
-      .tutorial-highlight {
-          position: absolute;
-          width: 100px;
-          height: 100px;
-          border: 3px dashed #fde047;
-          border-radius: 50%;
-          transform: translate(-50%, -50%);
-          opacity: 1;
-          transition: opacity 0.3s, left 0.3s, top 0.3s;
-          pointer-events: none;
-          animation: pulse 2s infinite;
-      }
-
-      .tutorial-highlight-hidden {
+      /* New Spotlight Effect */
+      .tutorial-spotlight-hidden {
+          display: none;
           opacity: 0;
       }
 
-      .tutorial-arrow {
+      .tutorial-spotlight {
           position: absolute;
-          width: 80px;  /* Increased size */
-          height: 80px; /* Increased size */
-          z-index: 50;
+          z-index: 45; /* Below tutorial text, above game */
+          border-radius: 50%; /* Default to circle */
+          /* This CSS variable trick creates the "hole" */
+          box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.7);
+          pointer-events: none; /* Doesn't block clicks */
           opacity: 1;
-          transition: opacity 0.3s, left 0.2s, top 0.2s, transform 0.2s;
-          pointer-events: none;
-          filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5)); /* Brighter shadow */
-          animation: arrow-pulse 1.2s infinite ease-in-out; /* Faster pulse */
+          transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition */
       }
 
-      .tutorial-arrow svg {
-          width: 100%;
-          height: 100%;
-          overflow: visible; /* Prevent clipping */
-      }
-
-      .tutorial-arrow .arrow-bg {
-          fill: url(#arrow-gradient);
-          stroke: #fff;
-          stroke-width: 2.5px; /* Thicker stroke */
-          filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.7));
-      }
-
-      .tutorial-arrow .arrow-chevron {
-          fill: #fff;
-          filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
-      }
-
-
-      .tutorial-arrow-hidden {
-          opacity: 0;
-          transform: translate(-50%, -50%) scale(0.5) !important;
-      }
-
-
-      @keyframes pulse {
-          0% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(253, 224, 71, 0.7); }
-          70% { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 0 10px 15px rgba(253, 224, 71, 0); }
-          100% { transform: translate(-50%, -50%) scale(0.95); box-shadow: 0 0 0 0 rgba(253, 255, 255, 0); }
-      }
-
-      /* Use --arrow-angle CSS variable set by JS for rotation */
-      @keyframes arrow-pulse {
-          0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(var(--arrow-angle, 0deg)); }
-          50% { transform: translate(-50%, -50%) scale(1.15) rotate(var(--arrow-angle, 0deg)); }
-      }
+      /* --- END NEW TUTORIAL STYLES --- */
     </style>
   </head>
   <body>
@@ -835,20 +786,11 @@
           </div>
       </div>
       
-      <div id="tutorialHighlight" class="tutorial-highlight-hidden" data-ui-screen="tutorial-fx"></div>
-
-      <div id="tutorialArrow" class="tutorial-arrow-hidden" data-ui-screen="tutorial-fx">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-            <defs>
-                <linearGradient id="arrow-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:#fde047;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#facc15;stop-opacity:1" />
-                </linearGradient>
-            </defs>
-            <path class="arrow-bg" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.41 13.59L12 14.17l1.41 1.42L15.83 12 12 8.17 8.17 12l2.42 2.41.01.01.01-.01z" transform="rotate(90 12 12)"/>
-            <path class="arrow-chevron" d="m12 15.4-3.8-3.8L9.6 10l2.4 2.4L14.4 10l1.4 1.6-3.8 3.8z" transform="rotate(90 12 12)"/>
-        </svg>
-    </div>
+      <!-- REMOVED: #tutorialHighlight -->
+      <!-- REMOVED: #tutorialArrow -->
+      
+      <!-- NEW: Tutorial Spotlight -->
+      <div id="tutorialSpotlight" class="tutorial-spotlight-hidden" data-ui-screen="tutorial-fx"></div>
 
     </div>
 
@@ -919,9 +861,11 @@
           const tutorialOverlay = document.getElementById('tutorialOverlay');
           const tutorialText = document.getElementById('tutorialText');
           const skipTutorialButton = document.getElementById('skipTutorialButton');
-          const tutorialHighlight = document.getElementById('tutorialHighlight');
-          const tutorialArrow = document.getElementById('tutorialArrow');
           const replayTutorialButton = document.getElementById('replayTutorialButton');
+          
+          // --- NEW TUTORIAL ENHANCEMENT ---
+          const tutorialSpotlight = document.getElementById('tutorialSpotlight');
+
 
           // --- NEW DYNAMIC UI SELECTION ---
           // Select all top-level UI screens that need to be managed.
@@ -1076,80 +1020,269 @@
               }
           };
 
+          // --- TUTORIAL REFACTOR ---
+          // New "unlosable" tutorial manager with spotlight effect
           const tutorialManager = {
               isActive: false,
               currentStep: 0,
               isPausedForInstruction: false,
-              checkpoint: null,
+              currentStepConfig: null,
+              spotlightBounds: null, // Stores { x, y, width, height, shape }
+              
+              // --- NEW, REBUILT TUTORIAL STEPS ---
               steps: [
-                  { text: "Welcome to Gravity Well! Let's learn the basics.", isCheckpoint: true, autoAdvance: 2000 },
-                  { text: "Here comes an obstacle. Get ready to dodge it.", isCheckpoint: true, autoAdvance: 2000, setup: () => { obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.7, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')]; }, target: () => (obstacles.length > 0 ? { x: obstacles[0].x, y: obstacles[0].y + obstacles[0].height / 2 } : null) },
-                  { text: "CLICK and HOLD the glowing spot to pull your comet upwards.", targetFn: () => ({ x: playerComet.x + 150, y: playerComet.y - 150 }), condition: () => gravityWell !== null },
-                  { text: "Now release to fly past the obstacle!", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => gravityWell === null },
-                  { text: "Nice one!", isCheckpoint: true, autoAdvance: 1500, condition: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width },
-                  { text: "Let's try another.", isCheckpoint: true, autoAdvance: 2000, setup: (isReset) => { if (!isReset) obstacles = [new Obstacle(playerComet.x + 400, VIRTUAL_HEIGHT * 0.2, 30, 250, 'static')]; }, target: () => (obstacles.length > 0 ? { x: obstacles[0].x, y: obstacles[0].y + obstacles[0].height / 2 } : null) },
-                  { text: "Guide the comet past this one too.", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width },
-                  { text: "See your score? It goes up as you travel forward.", autoAdvance: 3000, target: () => ({ x: 100, y: 30, isUITarget: true }) },
-                  { text: "Now for a pro move. Let's grab that star fragment.", isCheckpoint: true, autoAdvance: 2000, setup: (isReset) => { if (isReset || starFragments.length === 0) { obstacles = []; starFragments = [new StarFragment(playerComet.x - 100, playerComet.y - 100)]; } }, target: () => (starFragments.length > 0 ? { x: starFragments[0].x, y: starFragments[0].y } : null)},
-                  { text: "Place a well BEHIND the comet to pull it backward.", targetFn: () => ({ x: playerComet.x - 150, y: playerComet.y }), condition: () => gravityWell !== null && gravityWell.x < playerComet.x, setup: () => { tutorialManager.isPausedForInstruction = false; } },
-                  { text: "Notice your score stops when moving backward. No cheating!", onComplete: () => { tutorialManager.isPausedForInstruction = false; }, condition: () => starFragments.length === 0 },
-                  { text: "You've got it! Skills Learned:\n✓ Comet Control\n✓ Dodging\n✓ Backtracking\nGet ready for the real run!", autoAdvance: 5000, onComplete: () => { tutorialManager.end(true); } }
+                  { 
+                      text: "Welcome to Gravity Well! Let's learn the basics.", 
+                      blockInput: true, autoAdvance: 2000 
+                      // allowForwardSpeed is false by default
+                  },
+                  {
+                      text: "This is your comet. It's perfectly still.",
+                      blockInput: true, autoAdvance: 2500,
+                      spotlight: () => ({ x: playerComet.x, y: playerComet.y, width: 100, height: 100, shape: 'circle' })
+                  },
+                  { 
+                      text: "CLICK and HOLD anywhere to create a 'Gravity Well'.",
+                      blockInput: false, // Allow input
+                      spotlight: () => ({ x: playerComet.x + 150, y: playerComet.y - 150, width: 150, height: 150, shape: 'circle' }),
+                      isDone: () => gravityWell !== null 
+                  },
+                  {
+                      text: "Great! The comet is pulled towards your well. Let go to release it.",
+                      blockInput: false,
+                      spotlight: () => (gravityWell ? { x: gravityWell.x, y: gravityWell.y, width: 150, height: 150, shape: 'circle' } : null),
+                      isDone: () => gravityWell === null
+                  },
+                  { 
+                      text: "Now the comet will start moving forward. Here comes an obstacle!", 
+                      blockInput: true,
+                      autoAdvance: 2500,
+                      allowForwardSpeed: true, // <-- Comet starts moving here
+                      onStart: () => { 
+                          // --- SCRIPTED ACTION FIX ---
+                          // This is the fix. When this step starts, we
+                          // reset the comet's velocity to a clean forward state,
+                          // overriding any "freefall" from the previous step.
+                          playerComet.vx = calculateCurrentSpeed();
+                          playerComet.vy = 0; 
+                          
+                          obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.8, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')]; 
+                      }
+                  },
+                  { 
+                      text: "Use your Gravity Well to guide the comet past the obstacle!", 
+                      isPausedForInstruction: false,
+                      allowForwardSpeed: true, // Keep comet moving
+                      spotlight: () => {
+                          const obs = obstacles[0];
+                          if (!obs) return null;
+                          return { x: obs.x + obs.width / 2, y: VIRTUAL_HEIGHT / 2, width: obs.width + 300, height: VIRTUAL_HEIGHT, shape: 'rect' }
+                      },
+                      isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width
+                  },
+                  { 
+                      text: "Nice one!", 
+                      blockInput: true, autoAdvance: 1500,
+                      allowForwardSpeed: true 
+                  },
+                  { 
+                      text: "Now for a pro move. Let's grab that star fragment.", 
+                      blockInput: true, autoAdvance: 2000,
+                      // --- BUG FIX (Bug 3) & FLUIDITY ---
+                      // Stop the comet's forward speed. The comet will now freeze
+                      // for the explanation, preventing the star from flying away.
+                      allowForwardSpeed: false,
+                      onStart: () => {
+                          obstacles = []; // Clear obstacles
+                          // Spawn a fragment *behind* the (now stationary) comet
+                          starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)]; 
+                      }
+                  },
+                  { 
+                      text: "Place a well BEHIND the comet to pull it backward.", 
+                      isPausedForInstruction: false,
+                      // Comet's baseSpeed is 0. It will *only* move via the gravity well.
+                      allowForwardSpeed: false, 
+                      spotlight: () => ({
+                          x: playerComet.x - 150, 
+                          y: playerComet.y, 
+                          width: 150, 
+                          height: 150,
+                          shape: 'circle'
+                      }),
+                      isDone: () => gravityWell !== null && gravityWell.x < playerComet.x // Done when well is behind
+                  },
+                  {
+                      text: "Great! Now collect the fragment.",
+                      isPausedForInstruction: false,
+                      // Comet's baseSpeed is still 0.
+                      allowForwardSpeed: false, 
+                      spotlight: () => ({ // Spotlight the action area
+                          x: playerComet.x,
+                          y: playerComet.y,
+                          width: 300,
+                          height: 300,
+                          shape: 'circle'
+                      }),
+                      isDone: () => starFragments.length === 0 // Done when fragment is collected
+                  },
+                  { 
+                      text: "You've got it! Skills Learned:\n✓ Comet Control\n✓ Dodging\n✓ Backtracking\nGet ready for the real run!", 
+                      blockInput: true, autoAdvance: 5000, 
+                      // Re-enable forward speed for the finale
+                      allowForwardSpeed: true, 
+                      onComplete: () => { 
+                          tutorialManager.end(true); // End tutorial and start game
+                      } 
+                  }
               ],
+              // --- END NEW TUTORIAL STEPS ---
 
               start() {
-                  this.isActive = true; this.currentStep = 0;
+                  this.isActive = true; 
+                  this.currentStep = 0;
                   this.runStep();
               },
+              
               advance() {
-                  const currentStepConfig = this.steps[this.currentStep];
-                  if (currentStepConfig && currentStepConfig.onComplete) { currentStepConfig.onComplete(); }
+                  if (this.currentStepConfig && this.currentStepConfig.onComplete) {
+                      this.currentStepConfig.onComplete();
+                  }
                   this.currentStep++;
-                  if (this.currentStep >= this.steps.length) { this.end(true); } else { this.runStep(); }
-              },
-              runStep(isReset = false) {
-                  const step = this.steps[this.currentStep];
-                  tutorialText.innerHTML = step.text.replace(/\n/g, '<br>');
-                  this.isPausedForInstruction = !step.condition && !step.autoAdvance;
-                  if (step.isCheckpoint) { this.checkpoint = { step: this.currentStep, cometX: playerComet.x, cometY: playerComet.y, obstacles: obstacles.map(o => new Obstacle(o.x, o.y, o.width, o.height, o.type)), fragments: starFragments.map(sf => new StarFragment(sf.x, sf.y)) }; }
-                  if (step.setup) step.setup(isReset);
-                  if (step.autoAdvance) {
-                      this.isPausedForInstruction = true;
-                      setTimeout(() => { if (this.isActive && this.currentStep === this.steps.indexOf(step)) { this.advance(); } }, step.autoAdvance);
+                  if (this.currentStep >= this.steps.length) {
+                      this.end(true); // Tutorial finished
+                  } else {
+                      this.runStep();
                   }
               },
-              checkCondition() {
-                  if (!this.isActive || this.isPausedForInstruction) return;
-                  const step = this.steps[this.currentStep];
-                  if (step.condition && step.condition()) { this.advance(); }
+
+              runStep() {
+                  if (!this.isActive) return;
+                  this.currentStepConfig = this.steps[this.currentStep];
+                  const step = this.currentStepConfig;
+
+                  tutorialText.innerHTML = step.text.replace(/\n/g, '<br>');
+                  
+                  // Pause comet physics if step isn't interactive
+                  this.isPausedForInstruction = (step.autoAdvance || step.blockInput || step.isPausedForInstruction === true);
+                  
+                  // This is now handled by calculateCurrentSpeed()
+                  // this.isPausedForInstruction = (step.autoAdvance || step.blockInput || step.isPausedForInstruction === true);
+
+                  if (step.onStart) {
+                      step.onStart();
+                  }
+                  
+                  // Handle auto-advancing steps
+                  if (step.autoAdvance) {
+                      this.updateSpotlight(null); // Hide spotlight
+                      setTimeout(() => {
+                          if (this.isActive && this.steps[this.currentStep] === step) {
+                              this.advance();
+                          }
+                      }, step.autoAdvance);
+                  }
               },
-              resetToCheckpoint(failureMessage) {
-                  if (!this.checkpoint) return;
-                  this.isPausedForInstruction = true;
-                  tutorialText.innerHTML = `${failureMessage}<br><br>Let's try that again.`;
-                  playerComet.x = this.checkpoint.cometX; playerComet.y = this.checkpoint.cometY;
-                  playerComet.vx = 0; playerComet.vy = 0; playerComet.trail = [];
-                  obstacles = this.checkpoint.obstacles.map(o => new Obstacle(o.x, o.y, o.width, o.height, o.type));
-                  // Ensure fragment is respawned from checkpoint data
-                  starFragments = this.checkpoint.fragments.map(sf => new StarFragment(sf.x, sf.y)); 
-                  this.currentStep = this.checkpoint.step;
-                  setTimeout(() => { if (this.isActive) this.runStep(true); }, 2500);
+
+              // This is called every frame by updateTutorial
+              update() {
+                  if (!this.isActive || !this.currentStepConfig) return;
+
+                  const step = this.currentStepConfig;
+
+                  // Update spotlight position
+                  if (step.spotlight) {
+                      this.spotlightBounds = step.spotlight();
+                      this.updateSpotlight(this.spotlightBounds);
+                  } else {
+                      this.spotlightBounds = null;
+                      this.updateSpotlight(null);
+                  }
+
+                  // Check if the step is complete
+                  if (step.isDone && !step.autoAdvance) {
+                      if (step.isDone()) {
+                          this.advance();
+                      }
+                  }
               },
+
               end(startNewGame = false) {
                   if (!this.isActive) return;
                   this.isActive = false; 
                   
-                  // --- BUG FIX ---
-                  // Explicitly hide all tutorial UI components here,
-                  // instead of relying on setGameState to do it.
-                  // This fixes the UI overlay bug.
-                  tutorialHighlight.className = 'tutorial-highlight-hidden'; 
-                  tutorialArrow.className = 'tutorial-arrow-hidden';
-                  tutorialOverlay.className = 'modal modal-hidden'; // This was the missing line
+                  // Explicitly hide all tutorial UI components
+                  this.updateSpotlight(null); // Hide spotlight
+                  tutorialOverlay.className = 'modal modal-hidden';
                   
-                  playerData.hasPlayedBefore = true; savePlayerData();
-                  if (startNewGame) { setGameState('playing'); } else { setGameState('menu'); }
+                  playerData.hasPlayedBefore = true; 
+                  savePlayerData();
+
+                  if (startNewGame) { 
+                      setGameState('playing'); 
+                  } else { 
+                      setGameState('menu'); 
+                  }
+              },
+
+              // Helper to update the HTML spotlight element
+              updateSpotlight(bounds) {
+                  if (bounds) {
+                      const screenX = (bounds.x - cameraX) * scale;
+                      const screenY = bounds.y * scale;
+                      const width = bounds.width * scale;
+                      const height = bounds.height * scale;
+
+                      tutorialSpotlight.className = 'tutorial-spotlight';
+                      tutorialSpotlight.style.left = `${screenX - width / 2}px`;
+                      tutorialSpotlight.style.top = `${screenY - height / 2}px`;
+                      tutorialSpotlight.style.width = `${width}px`;
+                      tutorialSpotlight.style.height = `${height}px`;
+                      tutorialSpotlight.style.borderRadius = (bounds.shape === 'circle') ? '50%' : '10px';
+                  } else {
+                      tutorialSpotlight.className = 'tutorial-spotlight-hidden';
+                  }
+              },
+
+              // Helper to check if input should be blocked
+              isInputBlocked(pos) {
+                  if (!this.isActive || !this.currentStepConfig) {
+                      return false; // Not in tutorial, not blocked
+                  }
+
+                  const step = this.currentStepConfig;
+                  if (step.blockInput) {
+                      return true; // Step explicitly blocks all input
+                  }
+                  
+                  // If a position is provided (from mousedown/touchstart)
+                  if (pos && this.spotlightBounds) {
+                      const bounds = this.spotlightBounds;
+                      // (This is a simple box check, good enough for this)
+                      const halfWidth = bounds.width / 2;
+                      const halfHeight = bounds.height / 2;
+                      
+                      // --- COORDINATE FIX ---
+                      // 'pos' is in SCREEN coordinates from getPos()
+                      // 'this.spotlightBounds' is in WORLD coordinates
+                      // We must convert 'pos' to WORLD coordinates to compare
+                      const worldX = pos.x + cameraX;
+                      const worldY = pos.y; // Y has no camera offset
+                      
+                      // Now check the click (worldX, worldY) against the
+                      // spotlight bounds (bounds.x, bounds.y)
+                      const inX = worldX > (bounds.x - halfWidth) && worldX < (bounds.x + halfWidth);
+                      const inY = worldY > (bounds.y - halfHeight) && worldY < (bounds.y + halfHeight);
+
+                      return !inX || !inY; // Block if *outside* the bounds
+                  }
+                  
+                  // If no position (like mouseup) or no spotlight,
+                  // allow it unless blockInput was true.
+                  return false;
               }
           };
+          // --- END TUTORIAL REFACTOR ---
 
 
           // --- Step 3: Game Classes ---
@@ -1161,14 +1294,32 @@
 
           class PlayerComet {
               constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; }
+              
+              // --- REFACTORED UPDATE FUNCTION ---
               update() {
-                  if (isHeadstarting) { this.baseSpeed = 30; } 
-                  else if (!tutorialManager.isActive || !tutorialManager.isPausedForInstruction) { this.baseSpeed = calculateCurrentSpeed(); }
-                  else { this.baseSpeed = 0; }
+                  if (isHeadstarting) { 
+                      this.baseSpeed = 30; 
+                  } else {
+                      // calculateCurrentSpeed() will return 0 during non-moving tutorial steps
+                      this.baseSpeed = calculateCurrentSpeed(); 
+                  }
 
-                  this.waveAngle += WAVE_FREQUENCY;
+                  // --- BUG FIX ---
+                  // Only apply wave physics if the comet is supposed to be moving forward.
+                  // This stops the "downward drift" at the start of the tutorial.
+                  if (this.baseSpeed > 0) {
+                      this.waveAngle += WAVE_FREQUENCY;
+                      this.vy += (Math.cos(this.waveAngle) * WAVE_AMPLITUDE - this.vy) * (1 - INERTIAL_DAMPING);
+                  } else if (!gravityWell) {
+                      // If no forward speed AND no gravity well, comet is perfectly still.
+                      // This allows gravity well to work, but stops all other drift.
+                      this.vy *= (1 - INERTIAL_DAMPING); // Apply damping to any residual vy
+                      if (Math.abs(this.vy) < 0.01) this.vy = 0;
+                  }
+                  
                   this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
-                  this.vy += (Math.cos(this.waveAngle) * WAVE_AMPLITUDE - this.vy) * (1 - INERTIAL_DAMPING);
+                  
+                  // Gravity well physics ALWAYS apply if the well exists.
                   if (gravityWell && !isHeadstarting) {
                       const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
                       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1177,16 +1328,39 @@
                           this.vy += (dy / dist) * GRAVITY_INFLUENCE;
                       }
                   }
+
+                  // Now, apply speed logic
                   const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                  if (currentSpeed > 0) {
-                      this.vx = (this.vx / currentSpeed) * this.baseSpeed;
-                      this.vy = (this.vy / currentSpeed) * this.baseSpeed;
-                  } else { this.vx = this.baseSpeed; this.vy = 0; }
-                  if (!isHeadstarting && (!tutorialManager.isActive || !tutorialManager.isPausedForInstruction)) { this.x += this.vx; this.y += this.vy; }
+                  
+                  if (this.baseSpeed > 0) {
+                      // We have forward momentum
+                      if (currentSpeed > 0) {
+                          this.vx = (this.vx / currentSpeed) * this.baseSpeed;
+                          this.vy = (this.vy / currentSpeed) * this.baseSpeed;
+                      } else { 
+                          this.vx = this.baseSpeed; 
+                          this.vy = 0; // No vertical drift if just starting
+                      }
+                  } else if (gravityWell) {
+                      // No forward momentum, just gravity
+                      // Dampen movement from gravity well
+                      this.vx *= INERTIAL_DAMPING; 
+                      this.vy *= INERTIAL_DAMPING;
+                  } else {
+                      // No forward speed, no gravity = dead stop
+                      this.vx = 0;
+                      this.vy = 0;
+                  }
+
+                  // Finally, update position (this will only move if vx/vy are non-zero)
+                  this.x += this.vx; 
+                  this.y += this.vy; 
+                  
                   this.trail.push({ x: this.x, y: this.y });
                   if (this.trail.length > 15) this.trail.shift();
                   this.orbiters.forEach(orb => orb.update());
               }
+              // --- END REFACTORED UPDATE ---
               
               // Helper function to get the primary color from a skin's fillStyle
               getPrimarySkinColor(skinStyle) {
@@ -1514,8 +1688,8 @@
                         screen.style.display = 'none';
                         break;
                     case 'tutorial-fx':
-                        if (screen.id === 'tutorialHighlight') screen.className = 'tutorial-highlight-hidden';
-                        if (screen.id === 'tutorialArrow') screen.className = 'tutorial-arrow-hidden';
+                        // Updated for new spotlight
+                        if (screen.id === 'tutorialSpotlight') screen.className = 'tutorial-spotlight-hidden';
                         break;
                     case 'powerUp':
                         // This one is managed by handleActivePowerUp, but we'll ensure it's hidden on state change
@@ -1543,7 +1717,13 @@
               } else if (newState === 'playing') {
                   inGameUi.style.display = 'flex'; // Show in-game UI
                   runFragmentsContainer.className = '';
-                  if (oldState === 'paused') { audioManager.startMusic(); if (!animationFrameId) gameLoop(); } 
+                  if (oldState === 'paused') { 
+                      audioManager.startMusic(); 
+                      // --- RESUME BUG FIX ---
+                      // We must *unconditionally* call gameLoop() to restart the animation frame loop.
+                      // The old check 'if (!animationFrameId)' was preventing this.
+                      gameLoop(); 
+                  } 
                   else { setTimeout(startGame, 350); }
               } else if (newState === 'paused') {
                   audioManager.stopMusic(); 
@@ -1643,33 +1823,6 @@
               checkZoneTransition();
           }
 
-          function drawTutorialArrow(target) {
-              if (!target) {
-                  tutorialArrow.className = 'tutorial-arrow-hidden';
-                  return;
-              }
-              let screenX = (target.x - cameraX) * scale;
-              let screenY = target.y * scale;
-
-              if (target.isUITarget) {
-                  screenX = target.x * scale;
-                  screenY = target.y * scale;
-              }
-              
-              const arrowSize = 60;
-              const angle = Math.atan2(screenY - (canvas.height / 2), screenX - (canvas.width / 2));
-              
-              const radius = Math.min(canvas.width, canvas.height) / 2 - arrowSize * 1.5; // Adjusted radius
-              const arrowX = (canvas.width / 2) + Math.cos(angle) * radius;
-              const arrowY = (canvas.height / 2) + Math.sin(angle) * radius;
-
-              tutorialArrow.style.left = `${arrowX}px`;
-              tutorialArrow.style.top = `${arrowY}px`;
-              // Pass angle as a CSS variable for the animation
-              tutorialArrow.style.setProperty('--arrow-angle', `${angle}rad`);
-              tutorialArrow.className = 'tutorial-arrow';
-          }
-
           function drawBackground() {
               const equippedBackgroundId = playerData.cosmetics.equipped.background;
               const theme = cosmeticItems[equippedBackgroundId] || cosmeticItems['background_default'];
@@ -1706,40 +1859,41 @@
               particles.forEach(p => p.draw());
               if (gravityWell && !isHeadstarting) gravityWell.draw();
               
-              // Draw tutorial elements on top if active
-              if (tutorialManager.isActive) {
-                  const step = tutorialManager.steps[tutorialManager.currentStep];
-                  if (step.targetFn) {
-                      const targetPos = step.targetFn(); const screenX = (targetPos.x - cameraX) * scale; const screenY = targetPos.y * scale;
-                      tutorialHighlight.style.left = `${screenX}px`;
-                      tutorialHighlight.style.top = `${screenY}px`;
-                      tutorialHighlight.className = 'tutorial-highlight';
-                      tutorialArrow.className = 'tutorial-arrow-hidden';
-                  } else if (step.target) {
-                       const targetPos = step.target(); 
-                       if(targetPos) { drawTutorialArrow(targetPos); } 
-                       else { tutorialArrow.className = 'tutorial-arrow-hidden'; }
-                      tutorialHighlight.className = 'tutorial-highlight-hidden';
-                  } else {
-                      tutorialHighlight.className = 'tutorial-highlight-hidden';
-                      tutorialArrow.className = 'tutorial-arrow-hidden';
-                  }
-              }
+              // REMOVED: Old tutorial drawing logic.
+              // The new spotlight is a DOM element, not a canvas drawing.
+              
               ctx.restore();
           }
 
           function updateTutorial() {
               if (!playerComet || !tutorialManager.isActive) return;
+              
+              // Set camera for tutorial
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 4);
+              
               playerComet.update();
               obstacles.forEach(o => o.update());
               manageParticles();
               starFragments.forEach(sf => sf.update());
-              tutorialManager.checkCondition();
-              if (playerComet.vx > 0) { maxDistanceReached = Math.max(maxDistanceReached, playerComet.x); score = (maxDistanceReached - 150) / SCORE_DIVISOR; scoreElement.textContent = Math.floor(score); }
+              
+              // Update the tutorial manager (checks for completion, moves spotlight)
+              tutorialManager.update();
+              
+              // Update score display during tutorial
+              if (playerComet.vx > 0) { 
+                  maxDistanceReached = Math.max(maxDistanceReached, playerComet.x); 
+                  score = Math.max(0, (maxDistanceReached - 150) / SCORE_DIVISOR); 
+                  scoreElement.textContent = Math.floor(score); 
+              }
+
+              // Handle tutorial-specific collisions
               const collisionResult = checkCollisions();
-              if (collisionResult.obstacle) { tutorialManager.resetToCheckpoint("Oops, you hit an obstacle!"); }
-              if (collisionResult.fragment) { audioManager.playFragmentSound(); tutorialManager.advance(); }
+              // Note: Obstacle collision is handled by the "unlosable" design,
+              // but we still need to check for fragment collection.
+              if (collisionResult.fragment) { 
+                  audioManager.playFragmentSound(); 
+                  // The tutorialManager.update() will detect this and advance the step.
+              }
           }
 
           function updateMenu() {
@@ -1834,6 +1988,10 @@
                   } 
               }
               for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
+              
+              // Tutorial collision is handled by the unlosable design
+              if (gameState === 'tutorial') return {};
+
               if (activePowerUp.type !== 'shield' && !isHeadstarting) {
                   if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
                   for (const obs of obstacles) { if (obs.isActive && playerComet.x + playerComet.radius > obs.x && playerComet.x - playerComet.radius < obs.x + obs.width && playerComet.y + playerComet.radius > obs.y && playerComet.y - playerComet.radius < obs.y + obs.height) { return { obstacle: true }; } }
@@ -1841,7 +1999,23 @@
               return {};
           }
           function revivePlayer() { hasRevive = false; updateUpgradeIndicators(); createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9'); activePowerUp.type = 'shield'; activePowerUp.timer = 180; obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH); }
-          function calculateCurrentSpeed() { if(gameState === 'tutorial') return INITIAL_SPEED * 0.8; const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); }
+          
+          // --- REFACTORED SPEED CALCULATION ---
+          function calculateCurrentSpeed() { 
+              if(gameState === 'tutorial') {
+                  // If the tutorial is active, check if the current step *allows* forward speed.
+                  if (tutorialManager.isActive && tutorialManager.currentStepConfig) {
+                      if (tutorialManager.currentStepConfig.allowForwardSpeed) {
+                           return INITIAL_SPEED * 0.8; 
+                      }
+                  }
+                  return 0; // By default, no forward speed in tutorial
+              }
+              const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); 
+              return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); 
+          }
+          // --- END REFACTORED SPEED CALCULATION ---
+
           function updateMusicTempo() { if (!playerComet) return; const speedRatio = Math.max(0, Math.min(1, (calculateCurrentSpeed() - INITIAL_SPEED) / (10 - INITIAL_SPEED))); audioManager.updateTempo(audioManager.baseBPM + (speedRatio * 80)); }
           function checkZoneTransition() {
               const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
@@ -1869,18 +2043,41 @@
 
           function setupEventListeners() {
               // console.log('[DEBUG] setupEventListeners: Attaching listeners...');
-              const getPos = (e) => { const rect = canvas.getBoundingClientRect(); const clientX = e.clientX || e.touches[0].clientX; const clientY = e.clientY || e.touches[0].clientY; return { x: (clientX - rect.left) / scale, y: (clientY - rect.top) / scale }; };
+              const getPos = (e) => { 
+                  const rect = canvas.getBoundingClientRect(); 
+                  const clientX = e.clientX || e.touches[0].clientX; 
+                  const clientY = e.clientY || e.touches[0].clientY; 
+                  // Return screen-space coordinates
+                  return { 
+                      // --- BUG FIX (Bugs 1 & 2) ---
+                      // The cameraX offset was being applied here AND in startWell,
+                      // causing a "double offset" and misaligned clicks.
+                      // getPos should *only* return the click relative to the canvas.
+                      x: (clientX - rect.left) / scale, 
+                      y: (clientY - rect.top) / scale 
+                  }; 
+              };
+
               const startWell = (e) => { 
-                  // console.log(`[DEBUG] startWell: Fired. Game state = ${gameState}`);
+                  const pos = getPos(e); // 'pos' is now in SCREEN space
+                  // TUTORIAL CHECK: Block input if manager says so
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
+
                   if ((gameState !== 'playing' && gameState !== 'tutorial') || isHeadstarting) return; 
+                  
                   e.preventDefault(); 
-                  const pos = getPos(e); 
+                  // This correctly converts SCREEN space to WORLD space
                   gravityWell = new GravityWell(pos.x + cameraX, pos.y); 
               };
+              
               const moveWell = (e) => { 
+                  const pos = getPos(e); // 'pos' is now in SCREEN space
+                  // TUTORIAL CHECK: Block input if manager says so
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
+
                   if (gravityWell && !isHeadstarting) { 
                       e.preventDefault(); 
-                      const pos = getPos(e); 
+                      // This correctly converts SCREEN space to WORLD space
                       gravityWell.x = pos.x + cameraX; 
                       gravityWell.y = pos.y; 
                   } 
@@ -1888,14 +2085,13 @@
               
               // CRITICAL CLICK FIX: This function now *only* runs logic if in a playing state.
               const endWell = (e) => { 
-                  // console.log(`[DEBUG] endWell: Fired. Game state = ${gameState}`);
+                  // TUTORIAL CHECK: Block input if manager says so (no pos needed)
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked()) return;
+
                   if ((gameState === 'playing' || gameState === 'tutorial')) {
-                      // console.log('[DEBUG] endWell: Preventing default action for game click.');
                       e.preventDefault(); 
                       gravityWell = null; 
                   }
-                  // If in 'menu', 'observatory', etc., this function does NOT call e.preventDefault(),
-                  // allowing the 'click' event to fire on the buttons.
               };
               
               // Canvas Listeners
@@ -2092,5 +2288,8 @@
     </script>
   </body>
 </html>
+
+
+
 
 
