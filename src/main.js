@@ -16,10 +16,8 @@ import * as Tone from 'tone';
 
 // CRITICAL FIX: Wait for the HTML document to be fully loaded before running any game code
 document.addEventListener('DOMContentLoaded', () => {
-    // console.log('[DEBUG] DOMContentLoaded event fired. Initializing game...');
 
     // --- Step 1: DOM Element Setup ---
-    // console.log('[DEBUG] Finding DOM elements...');
     const appContainer = document.getElementById('app');
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
@@ -69,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const tutorialHighlight = document.getElementById('tutorialHighlight');
     const tutorialArrow = document.getElementById('tutorialArrow');
     const replayTutorialButton = document.getElementById('replayTutorialButton');
-    // console.log('[DEBUG] DOM elements search complete. Play button found:', playButton ? 'Yes' : 'No');
 
 
     // --- Step 2: Game State and Configuration ---
@@ -804,7 +801,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const step = tutorialManager.steps[tutorialManager.currentStep];
             if (step.targetFn) {
                 const targetPos = step.targetFn(); const screenX = (targetPos.x - cameraX) * scale; const screenY = targetPos.y * scale;
-                tutorialHighlight.style.left = `${screenX}px`; tutorialHighlight.style.top = `${screenY}px`;
+                tutorialHighlight.style.left = `${screenX}px`;
+                tutorialHighlight.style.top = `${screenY}px`;
                 tutorialHighlight.className = 'tutorial-highlight';
                 tutorialArrow.className = 'tutorial-arrow-hidden';
             } else if (step.target) {
@@ -1097,10 +1095,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function buyUpgrade(upgradeId) {
         let cost, canAfford = false;
         if (Array.isArray(upgradeCosts[upgradeId])) {
-            const level = playerData.upgrades[upgradeId] || 0;
-            if (level < upgradeCosts[upgradeId].length) {
-                cost = upgradeCosts[upgradeId][level];
-                if (playerData.starFragments >= cost) { playerData.starFragments -= cost; playerData.upgrades[upgradeId]++; canAfford = true; }
+            const level = playerData.upgrades[id] || 0;
+            if (level < upgradeCosts[id].length) {
+                cost = upgradeCosts[id][level];
+                if (playerData.starFragments >= cost) { playerData.starFragments -= cost; playerData.upgrades[id]++; canAfford = true; }
             }
         } else {
             if (!playerData.upgrades[upgradeId]) { cost = upgradeCosts[upgradeId]; if (playerData.starFragments >= cost) { playerData.starFragments -= cost; playerData.upgrades[upgradeId] = true; canAfford = true; } }
