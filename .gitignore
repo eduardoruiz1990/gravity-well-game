@@ -27,3 +27,5 @@ dist-ssr
 *.bat
 *.pro
 *.jar
+*.java
+*.png
