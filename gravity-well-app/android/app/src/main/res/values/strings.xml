@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gravity Well</string>
+    <string name="title_activity_main">Gravity Well</string>
+    <string name="package_name">com.guayoxgames.gravitywell</string>
+    <string name="custom_url_scheme">com.guayoxgames.gravitywell</string>
+</resources>

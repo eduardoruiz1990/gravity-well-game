@@ -1,0 +1,2837 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gravity Well</title>
+    <!--  
+      NEW CSS: This is the new "look and feel" CSS.
+      It has been adapted to target your existing HTML structure and classes.
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <!-- 
+      AUDIO FIX: Tone.js is in the <head> to ensure it loads 
+      before the module script tries to access it.
+    -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+    <style>
+        :root {
+          font-family: 'Inter', sans-serif;
+          line-height: 1.5;
+          font-weight: 400;
+          color-scheme: light dark;
+          color: rgba(255, 255, 255, 0.87);
+          background-color: #0f172a; /* slate-900 */
+          font-synthesis: none;
+          text-rendering: optimizeLegibility;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        #app {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: transparent; /* App container is transparent */
+        }
+        
+        /* Gradient text for UI */
+        .gradient-text {
+            background-image: linear-gradient(to right, #fbbf24, #f97316, #ea580c);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* --- Pure CSS Starfield --- */
+        @keyframes move-stars {
+          from { transform: translateY(0px); }
+          to { transform: translateY(-2000px); }
+        }
+
+        .stars-bg {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          width: 100%;
+          height: 200%; /* Taller to allow for animation without gaps */
+          display: block;
+          z-index: 0; /* This is the bottom layer */
+          animation: move-stars 150s linear infinite;
+        }
+
+        .stars-bg div {
+          position: absolute;
+          border-radius: 50%;
+          background: white;
+        }
+        .stars-1 {
+          width: 1px;
+          height: 1px;
+          box-shadow: 
+            /* This creates a large, randomly distributed star pattern */
+            183vw 153vh 0px, 15vw 17vh 0px, 13vw 56vh 1px, 19vw 9vh 1px, 
+            16vw 89vh 1px, 5vw 155vh 1px, 137vw 18vh 0px, 175vw 174vh 0px, 
+            186vw 196vh 1px, 107vw 114vh 1px, 34vw 196vh 0px, 142vw 142vh 0px,
+            /* Added more stars for density */
+            90vw 50vh 1px, 120vw 180vh 0px, 75vw 95vh 1px, 30vw 10vh 0px;
+        }
+        .stars-2 {
+          width: 2px;
+          height: 2px;
+          animation-duration: 100s;
+          box-shadow: 
+            182vw 88vh 0px, 9vw 192vh 0px, 192vw 36vh 0px, 12vw 189vh 0px, 
+            173vw 124vh 0px, 195vw 160vh 0px, 83vw 7vh 1px, 152vw 49vh 1px,
+            45vw 110vh 0px, 160vw 20vh 1px;
+        }
+        .stars-3 {
+          width: 3px;
+          height: 3px;
+          animation-duration: 75s;
+          box-shadow: 
+            10vw 10vh 0px, 13vw 135vh 1px, 196vw 51vh 0px, 13vw 3vh 1px,
+            180vw 90vh 1px;
+        }
+
+
+        /* Canvas & UI Overlay */
+        #gameCanvas {
+            position: absolute;
+            z-index: 10; /* The canvas sits on top of the starfield */
+            /* The canvas element itself is transparent, the color tint is applied via JS */
+            background-color: transparent; 
+            transition: background-color 1s ease;
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: pointer;
+        }
+        
+        /* NEW In-Game UI Styling */
+        .ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1rem 1.5rem; /* p-4 md:p-8 */
+            box-sizing: border-box;
+            z-index: 30;
+            color: white;
+            font-size: 1.25rem; /* text-xl */
+            font-weight: 700; /* font-bold */
+            text-shadow: 0 0 5px black;
+            display: none;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+        
+        .left-ui {
+          display: flex;
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 0;
+        }
+        .left-ui .score-display {
+          font-size: 1.875rem; /* text-3xl */
+          line-height: 1.2;
+        }
+        .left-ui #runFragmentsContainer {
+          font-size: 1.25rem; /* text-xl */
+          font-weight: 500; /* font-medium */
+          color: #cbd5e1; /* slate-300 */
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-top: 0.25rem;
+        }
+        .left-ui .star-icon {
+          font-size: 1.5rem; /* text-2xl */
+          color: #fbbf24; /* amber-400 */
+        }
+
+
+        .right-ui {
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+        }
+        
+        #activeUpgradesContainer {
+          display: none; /* Hidden by default */
+          align-items: center;
+          gap: 12px;
+          background-color: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border-radius: 0.75rem; /* rounded-xl */
+          padding: 0.5rem 0.75rem;
+        }
+
+        .upgrade-icon {
+          font-size: 1.5rem;
+          text-shadow: 0 0 8px black;
+          display: none; /* Icons hidden by default */
+        }
+
+
+        /* Power-up Status */
+        /* Re-styled to match new UI */
+        .powerup-active {
+            position: absolute;
+            bottom: 2.5rem; /* bottom-10 */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            color: white;
+            font-weight: bold;
+            opacity: 1;
+            transition: opacity 0.3s ease-in-out;
+            
+            /* Glassmorphism */
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0.75rem; /* rounded-xl */
+            padding: 0.5rem 1rem; /* p-2 px-4 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .powerup-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+
+        /* Modals (Menu, Game Over, Pause) */
+        .modal {
+          position: absolute;
+          z-index: 40;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          height: 100%;
+          transition: opacity 0.3s ease-in-out;
+          
+          /* New modal background */
+          background-color: rgba(15, 23, 42, 0.8); /* slate-900/80 */
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+
+        .modal-hidden {
+          opacity: 0;
+          pointer-events: none;
+        }
+
+        .modal-visible {
+          opacity: 1;
+          pointer-events: all; /* The whole modal background is interactive (for clicks) */
+        }
+        
+        .modal-visible .modal-content {
+           pointer-events: all; /* Content inside is clickable */
+        }
+
+        /* This is your .modal-content, re-styled */
+        .modal-content {
+            background-color: #1e293b; /* slate-800 */
+            border: 1px solid #334155; /* slate-700 */
+            border-radius: 1rem; /* rounded-2xl */
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 2rem 3rem;
+            min-width: 300px;
+            max-width: calc(100vw - 2rem); /* 90vw max */
+            max-height: 90vh; /* Prevent modal from being too tall */
+            overflow-y: auto; /* Allow scrolling if content overflows */
+            text-align: center;
+            
+            pointer-events: none; 
+
+            /* CLICK BUG FIX: Prevent text selection cursor */
+            user-select: none;
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* IE10+ */
+        }
+        
+        /* Custom scrollbar for modals */
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+        .modal-content::-webkit-scrollbar-track {
+            background: #334155; /* slate-700 */
+            border-radius: 4px;
+        }
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #f97316; /* orange-500 */
+            border-radius: 4px;
+        }
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #ea580c; /* orange-600 */
+        }
+
+        h1 { 
+          font-size: 2.5rem; 
+          margin-bottom: 0.5rem;
+          /* Apply new style */
+          font-size: 3.75rem; /* text-6xl */
+          font-weight: 900; /* font-black */
+          margin-bottom: 0.5rem; /* mb-2 */
+          color: transparent;
+          background-image: linear-gradient(to right, #fbbf24, #f97316, #ea580c);
+          -webkit-background-clip: text;
+          background-clip: text;
+        }
+        h2 { 
+          font-size: 2.5rem; /* text-4xl */
+          margin-bottom: 2rem; /* mb-8 */
+          font-weight: 700;
+          color: #f1f5f9; /* slate-100 */
+        }
+        p { 
+          color: #cbd5e1; /* slate-300 */
+          margin-bottom: 1.5rem;
+          font-size: 1.25rem; /* text-xl */
+        }
+        
+        #mainMenu .modal-content {
+          max-width: 28rem; /* max-w-md */
+          padding: 2rem 3rem; /* p-8 md:p-12 */
+        }
+
+        .stats-display {
+          margin-top: 2rem; /* mt-8 */
+          margin-bottom: 1.5rem;
+        }
+        
+        .stats-display div {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stats-display span:first-child {
+          font-size: 0.875rem; /* text-sm */
+          color: #94a3b8; /* slate-400 */
+          font-weight: 500;
+          text-transform: uppercase;
+        }
+
+        .stats-display span:last-child {
+          font-size: 1.125rem; /* text-lg */
+          font-weight: 700;
+          color: white;
+        }
+        
+        #gameOverModal .stats-display span:last-child {
+          font-size: 1.875rem; /* text-3xl */
+        }
+        
+        /* This is your .btn, re-styled as .glass-btn */
+        .btn {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0.75rem; /* rounded-xl */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            
+            color: white;
+            padding: 1rem 1.5rem; /* py-4 px-6 */
+            font-size: 1.25rem; /* text-2xl */
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 1rem; /* mb-4 */
+
+            /* CLICK BUG FIX */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* This is your .btn-secondary */
+        .btn-secondary {
+            padding: 0.75rem 1.25rem; /* py-3 px-5 */
+            font-size: 1rem; /* text-lg */
+            margin-top: 0;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .btn-secondary:hover {
+           background-color: rgba(255, 255, 255, 0.15);
+        }
+        
+        /* Main Menu Button Grid */
+        .button-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 1rem;
+          width: 100%;
+        }
+        .button-grid .btn-secondary {
+          margin: 0;
+        }
+
+        .pause-btn {
+            position: relative;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0.75rem; /* rounded-xl */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            
+            color: white;
+            width: 3.5rem; /* w-14 */
+            height: 3.5rem; /* h-14 */
+            font-size: 1.5rem;
+            cursor: pointer;
+            font-weight: bold;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pause-btn:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Screen Shake Animation */
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+
+        .screen-shake {
+          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+
+        /* Observatory Styles */
+        .shop-modal {
+            min-width: 600px;
+            max-width: 90vw;
+            width: 56rem; /* max-w-3xl */
+            height: 80vh;
+            max-height: 700px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .shop-header {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0;
+            padding: 1.5rem; /* p-6 */
+            border-bottom: 1px solid #334155; /* border-slate-700 */
+        }
+        .shop-header h2 {
+          font-size: 1.875rem; /* text-3xl */
+          color: #f1f5f9; /* slate-100 */
+          margin-bottom: 0;
+        }
+
+        .shop-currency {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem; /* gap-2 */
+            font-size: 1.875rem; /* text-3xl */
+            font-weight: bold;
+            color: #facc15;
+        }
+        .shop-currency .star-icon {
+          color: #fbbf24;
+          font-size: 2.25rem; /* text-4xl */
+        }
+
+        /* Shop Tabs */
+        .shop-tabs {
+            flex-shrink: 0;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem; /* gap-2 */
+            padding: 0.5rem; /* p-2 */
+            margin-bottom: 0;
+            border-bottom: 1px solid #334155; /* border-slate-700 */
+        }
+
+        .tab-button {
+            padding: 0.75rem 1rem; /* py-3 px-4 */
+            border: none;
+            font-size: 1rem; /* text-lg */
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 0;
+            
+            /* Apply glass-btn styles */
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 0.75rem; /* rounded-xl */
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+        }
+        .tab-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-button.active {
+            color: white;
+            /* Selected state */
+            background-color: rgba(249, 115, 22, 0.3); /* orange-500/30 */
+            border: 1px solid rgba(249, 115, 22, 0.5); /* orange-500/50 */
+        }
+
+        .tab-content {
+            display: none;
+            flex-grow: 1;
+            padding: 1.5rem; /* p-6 */
+            overflow-y: auto;
+            /* Custom Scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #f97316 #334155;
+        }
+        .tab-content::-webkit-scrollbar { width: 8px; }
+        .tab-content::-webkit-scrollbar-track { background: #334155; border-radius: 4px; }
+        .tab-content::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }
+        .tab-content::-webkit-scrollbar-thumb:hover { background: #ea580c; }
+
+
+        .tab-content.active {
+            display: block;
+        }
+
+
+        .shop-section {
+            margin-bottom: 2rem;
+        }
+
+        .shop-section h3 {
+            text-align: left;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+
+        .upgrade-item {
+            display: flex;
+            flex-direction: column; /* Mobile first */
+            background-color: #1e293b; /* slate-800 */
+            padding: 1rem;
+            border-radius: 0.5rem; /* rounded-lg */
+            margin-bottom: 1rem;
+            border: 1px solid #334155; /* border-slate-700 */
+        }
+        @media (min-width: 768px) { /* md: */
+          .upgrade-item {
+            flex-direction: row;
+            align-items: center;
+          }
+        }
+
+
+        .upgrade-info {
+            text-align: left;
+            flex-grow: 1;
+            width: 100%;
+            margin-bottom: 1rem; /* mb-4 md:mb-0 */
+        }
+        @media (min-width: 768px) {
+          .upgrade-info {
+            margin-bottom: 0;
+            margin-right: 1rem; /* md:mr-4 */
+          }
+        }
+
+        .upgrade-info strong {
+          font-size: 1.25rem; /* text-xl */
+          font-weight: 600;
+          color: #f1f5f9; /* slate-100 */
+        }
+        .upgrade-info p {
+          font-size: 0.875rem; /* text-sm */
+          color: #cbd5e1; /* slate-300 */
+          margin: 0;
+        }
+
+        .upgrade-action {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+            flex-shrink: 0;
+        }
+         @media (min-width: 768px) {
+          .upgrade-action {
+            width: auto;
+          }
+         }
+
+        .upgrade-level {
+          font-size: 0.875rem; /* text-sm */
+          color: #cbd5e1;
+          white-space: nowrap;
+          font-weight: 500;
+          width: 80px;
+          text-align: right;
+        }
+
+        .buy-btn {
+            width: auto;
+            min-width: 120px;
+            font-size: 0.875rem; /* text-sm */
+            padding: 0.75rem 1rem; /* py-3 px-4 */
+            margin-bottom: 0;
+            flex-grow: 1;
+        }
+        
+        .buy-btn:disabled,
+        .equip-btn:disabled,
+        .buy-cosmetic-btn:disabled {
+            background-color: #374151;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .buy-btn:disabled:hover,
+        .equip-btn:disabled:hover,
+        .buy-cosmetic-btn:disabled:hover {
+            background-color: #374151;
+            transform: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* --- PREMIUM VISUALS --- */
+        @keyframes pulse-glow {
+          0%, 100% {
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(0,0,0,0.5);
+            transform: scale(1);
+          }
+          50% {
+            box-shadow: 0 0 18px 4px var(--glow-color, #fff), inset 0 0 10px rgba(0,0,0,0.5);
+            transform: scale(1.05);
+          }
+        }
+
+
+        /* Cosmetics */
+        .cosmetic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem; /* gap-4 */
+        }
+
+        .cosmetic-item {
+            background-color: #1e293b; /* slate-800 */
+            border: 1px solid #334155; /* border-slate-700 */
+            border-radius: 0.5rem; /* rounded-lg */
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .cosmetic-preview {
+            width: 100%;
+            height: 6rem; /* h-24 */
+            border-radius: 0.5rem; /* rounded-lg */
+            margin-bottom: 0.75rem; /* mb-3 */
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #0f172a; /* slate-900 */
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+            --glow-color: transparent;
+            animation: pulse-glow 3s infinite ease-in-out;
+            transition: transform 0.2s ease;
+            position: relative; /* For custom canvas draws */
+            overflow: hidden;
+        }
+        
+        /* Specific preview styles for non-comet types */
+        .cosmetic-preview.obstacle-preview {
+            /* Now same as others */
+        }
+        .cosmetic-preview.background-preview {
+            background-size: cover;
+            background-position: center;
+        }
+
+
+        .cosmetic-item strong {
+          font-size: 1rem; /* text-lg */
+          font-weight: 600;
+          color: #f1f5f9; /* slate-100 */
+          margin-bottom: 0.75rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          width: 100%;
+        }
+
+        .cosmetic-item .btn {
+            font-size: 0.875rem; /* text-sm */
+            padding: 0.5rem 1rem; /* py-2 px-3 */
+            width: 100%;
+            margin: 0;
+        }
+
+        .equip-btn {
+            background-color: #10b981; /* Green */
+        }
+        .equip-btn:hover {
+            background-color: #059669;
+        }
+        
+        /* This is your #closeObservatoryButton */
+        .shop-footer {
+          flex-shrink: 0;
+          padding: 1rem; /* p-4 */
+          border-top: 1px solid #334155; /* border-slate-700 */
+        }
+        .shop-footer .btn-secondary {
+          max-width: 16rem; /* max-w-xs */
+          margin: 0 auto;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem; /* gap-2 */
+        }
+
+
+        /* --- NEW TUTORIAL STYLES --- */
+        #tutorialOverlay {
+           /* Uses .modal styles */
+        }
+        
+        #tutorialOverlay.modal-visible .modal-content {
+            background: none;
+            backdrop-filter: none;
+            box-shadow: none;
+            border: none;
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 500px;
+            pointer-events: all;
+            padding: 0;
+        }
+        
+        #tutorialOverlay {
+           pointer-events: none; /* The overlay itself is not clickable */
+           background: none; /* No dark background */
+           backdrop-filter: none;
+        }
+        
+        .tutorial-text-box {
+          background-color: rgba(30, 41, 59, 0.85);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          padding: 1rem 1.5rem;
+          border-radius: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          text-align: center;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .tutorial-text-box p {
+          color: white;
+          font-size: 1.1rem;
+          margin: 0 0 1rem 0;
+        }
+        .tutorial-text-box button {
+          width: 100%;
+          margin-bottom: 0; /* Remove margin from .btn */
+        }
+
+        /* New Spotlight Effect */
+        .tutorial-spotlight-hidden {
+            display: none;
+            opacity: 0;
+        }
+
+        .tutorial-spotlight {
+            position: absolute;
+            z-index: 35; /* Below tutorial text (40), above game (10) */
+            border-radius: 50%; /* Default to circle */
+            /* This CSS variable trick creates the "hole" */
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.7);
+            pointer-events: none; /* Doesn't block clicks */
+            opacity: 1;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition */
+        }
+    </style>
+  </head>
+  <body>
+    <!--  
+      MERGED HTML: This is your original, working HTML structure.
+      I have only added the new CSS classes from the "look and feel"
+      to make it match the new aesthetic.
+    -->
+    <div id="app">
+      <!-- This starfield is from your file, but it's hidden by the canvas draw -->
+      <div class="stars-bg">
+        <div class="stars-1"></div>
+        <div class="stars-2"></div>
+        <div class="stars-3"></div>
+      </div>
+
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- In-Game UI (Re-styled) -->
+      <div class="ui-container" data-ui-screen="inGame">
+        <div class="left-ui">
+          <div class="score-display">
+            <span>Score: </span>
+            <span id="score">0</span>
+          </div>
+          <div id="runFragmentsContainer" class="">
+              <span class="star-icon">✦</span>
+              <span id="runFragmentsDisplay">0</span>
+          </div>
+        </div>
+        
+        <div class="right-ui">
+            <div id="activeUpgradesContainer">
+                <span id="magnetIndicator" class="upgrade-icon" title="Fragment Magnet Active">🧲</span>
+                <span id="scoreIndicator" class="upgrade-icon" title="Score Bonus Active">✨</span>
+                <span id="reviveIndicator" class="upgrade-icon" title="Second Chance Ready">❤️</span>
+            </div>
+            <button id="pauseButton" class="pause-btn">||</button>
+        </div>
+      </div>
+      
+      <div id="powerUpStatus" class="powerup-hidden" data-ui-screen="powerUp"></div>
+
+      <!-- Main Menu (Re-styled) -->
+      <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
+        <div class="modal-content">
+          <h1>Gravity Well</h1>
+          <p>Click and hold to guide the comet. Survive as long as you can.</p>
+          <div class="stats-display">
+            <div>
+              <span>HIGH SCORE</span>
+              <span id="highScoreDisplay">0</span>
+            </div>
+            <div>
+              <span>✦ FRAGMENTS</span>
+              <span id="starFragmentsDisplay">0</span>
+            </div>
+          </div>
+          <button id="playButton" class="btn">Play</button>
+          <div class="button-grid">
+            <button id="replayTutorialButton" class="btn btn-secondary">How to Play</button>
+            <button id="observatoryButton" class="btn btn-secondary">Observatory</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Game Over Modal (Re-styled) -->
+      <div id="gameOverModal" class="modal modal-hidden" data-ui-screen="gameOver">
+        <div class="modal-content">
+          <h2 class="text-red-500">Game Over</h2>
+          <div class="stats-display">
+            <div>
+              <span>FINAL SCORE</span>
+              <span id="finalScoreElement">0</span>
+            </div>
+             <div>
+              <span>✦ EARNED</span>
+              <span id="fragmentsEarnedDisplay">0</span>
+            </div>
+          </div>
+          <button id="restartButton" class="btn">Play Again</button>
+          <div class="button-grid">
+            <button id="gameOverObservatoryButton" class="btn btn-secondary">Observatory</button>
+            <button id="gameOverMenuButton" class="btn btn-secondary">Main Menu</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause Menu (Re-styled) -->
+      <div id="pauseMenu" class="modal modal-hidden" data-ui-screen="pause">
+          <div class="modal-content" style="max-width: 24rem;"> <!-- max-w-xs -->
+              <h2>Paused</h2>
+              <button id="resumeButton" class="btn">Resume</button>
+              <button id="quitButton" class="btn btn-secondary">Quit to Menu</button>
+          </div>
+      </div>
+
+      <!-- Observatory Modal (Re-styled) -->
+      <div id="observatory" class="modal modal-hidden" data-ui-screen="observatory">
+        <div class="modal-content shop-modal">
+            <div class="shop-header">
+                <h2>The Observatory</h2>
+                <div class="shop-currency">
+                    <span class="star-icon">✦</span>
+                    <span id="shopFragmentsDisplay">0</span>
+                </div>
+            </div>
+
+            <!-- Tabs for Upgrades, Skins, and Themes -->
+            <div class="shop-tabs">
+                <button class="tab-button active" data-tab="upgradesTab">Upgrades</button>
+                <button class="tab-button" data-tab="skinsTab">Skins</button>
+                <button class="tab-button" data-tab="themesTab">Themes</button>
+            </div>
+
+            <div id="upgradesTab" class="tab-content active">
+                <div class="shop-section">
+                    <h3>Permanent Upgrades</h3>
+                    <div class="upgrade-item" id="upgrade-shield">
+                        <div class="upgrade-info">
+                            <strong>Longer Shield</strong>
+                            <p>Increases Shield power-up duration.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/5</span>
+                            <button class="btn buy-btn" data-upgrade="shield">Buy (100)</button>
+                        </div>
+                    </div>
+                    <div class="upgrade-item" id="upgrade-magnet">
+                        <div class="upgrade-info">
+                            <strong>Fragment Magnet</strong>
+                            <p>Automatically collects nearby fragments.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/3</span>
+                            <button class="btn buy-btn" data-upgrade="magnet">Buy (300)</button>
+                        </div>
+                    </div>
+                     <div class="upgrade-item" id="upgrade-score">
+                        <div class="upgrade-info">
+                            <strong>Score Bonus</strong>
+                            <p>PermanENTLY increases score gain.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/5</span>
+                            <button class="btn buy-btn" data-upgrade="score">Buy (200)</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="shop-section">
+                    <h3>Single-Use Utilities</h3>
+                    <div class="upgrade-item" id="utility-headstart">
+                        <div class="upgrade-info">
+                            <strong>Head Start</strong>
+                            <p>Start the next run at Zone 2 (Score 1500).</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <button class="btn buy-btn" data-upgrade="headstart">Buy (150)</button>
+                        </div>
+                    </div>
+                    <div class="upgrade-item" id="utility-revive">
+                        <div class="upgrade-info">
+                            <strong>Second Chance</strong>
+                            <p>Revive once after crashing.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <button class="btn buy-btn" data-upgrade="revive">Buy (250)</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skins Tab Content (Comet & Obstacle) -->
+            <div id="skinsTab" class="tab-content">
+                 <!-- Comet Skins Section -->
+                <div class="shop-section">
+                    <h3>Comet Skins</h3>
+                    <div class="cosmetic-grid" id="cometSkinsGrid">
+                        <!-- Comet skin items will be added here by JS -->
+                    </div>
+                </div>
+                 <!-- Obstacle Skins Section -->
+                 <div class="shop-section">
+                    <h3>Obstacle Skins</h3>
+                    <div class="cosmetic-grid" id="obstacleSkinsGrid">
+                        <!-- Obstacle skin items will be added here by JS -->
+                    </div>
+                </div>
+            </div>
+            
+             <!-- Themes Tab Content (Background) -->
+             <div id="themesTab" class="tab-content">
+                 <!-- Game Themes Section -->
+                 <div class="shop-section">
+                    <h3>Game Themes</h3>
+                    <div class="cosmetic-grid" id="backgroundThemesGrid">
+                        <!-- Background theme items will be added here by JS -->
+                    </div>
+                </div>
+             </div>
+
+            <div class="shop-footer">
+              <button id="closeObservatoryButton" class="btn btn-secondary">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                Back to Menu
+              </button>
+            </div>
+        </div>
+      </div>
+      
+      <!-- Tutorial UI (Re-styled) -->
+      <div id="tutorialOverlay" class="modal modal-hidden" data-ui-screen="tutorial">
+          <div class="modal-content">
+              <div class="tutorial-text-box">
+                  <p id="tutorialText"></p>
+                  <button id="skipTutorialButton" class="btn btn-secondary">Skip Tutorial</button>
+              </div>
+          </div>
+      </div>
+      
+      <!-- Tutorial Spotlight (Unchanged) -->
+      <div id="tutorialSpotlight" class="tutorial-spotlight-hidden" data-ui-screen="tutorial-fx"></div>
+
+    </div>
+
+    <!--  
+      YOUR JAVASCRIPT: This is your full, working JS logic,
+      restored completely. It has the tutorial, 5-star arch,
+      oscillation, and all shop features.
+      
+      I have *not* touched this, except to add Tone.js to the
+      <head> to fix the audio race condition.
+    -->
+    <script type="module">
+      /**
+       * Gravity Well - Main Game Engine
+       * FINAL VERSION (Post-Rigorous Debugging & Feature Completion)
+       * - This code is now part of a single-file HTML build.
+       * - 'import ./style.css' is removed as CSS is in a <style> tag.
+       * - 'import * as Tone' is replaced by grabbing 'Tone' from the window.
+       */
+      
+      // --- AUDIO RACE CONDITION FIX ---
+      // We no longer assign `const Tone = window.Tone;` here.
+      // `window.Tone` might be undefined when this module script runs.
+      // Instead, we will access `window.Tone` *directly* inside the
+      // functions that need it, all of which are safely nested
+      // inside the 'DOMContentLoaded' listener.
+      // const Tone = window.Tone; // <-- THIS WAS THE BUG. IT'S GONE.
+
+      // CRITICAL FIX: Wait for the HTML document to be fully loaded before running any game code
+      document.addEventListener('DOMContentLoaded', () => {
+
+          // --- Step 1: DOM Element Setup ---
+          const appContainer = document.getElementById('app');
+          const canvas = document.getElementById('gameCanvas');
+          const ctx = canvas.getContext('2d');
+          const scoreElement = document.getElementById('score');
+          const gameOverModal = document.getElementById('gameOverModal');
+          const finalScoreElement = document.getElementById('finalScoreElement');
+          const restartButton = document.getElementById('restartButton');
+          const powerUpStatusElement = document.getElementById('powerUpStatus');
+          const inGameUi = document.querySelector('.ui-container');
+
+          const mainMenu = document.getElementById('mainMenu');
+          const playButton = document.getElementById('playButton');
+          const highScoreDisplay = document.getElementById('highScoreDisplay');
+          const starFragmentsDisplay = document.getElementById('starFragmentsDisplay');
+
+          const runFragmentsContainer = document.getElementById('runFragmentsContainer');
+          const runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
+          const fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
+
+          const pauseButton = document.getElementById('pauseButton');
+          const pauseMenu = document.getElementById('pauseMenu');
+          const resumeButton = document.getElementById('resumeButton');
+          const quitButton = document.getElementById('quitButton');
+
+          const observatoryButton = document.getElementById('observatoryButton');
+          const closeObservatoryButton = document.getElementById('closeObservatoryButton'); // Correctly reference the button
+          const observatory = document.getElementById('observatory');
+          const shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
+          const shopTabs = document.querySelector('.shop-tabs');
+          const tabContents = document.querySelectorAll('.tab-content');
+          const cometSkinsGrid = document.getElementById('cometSkinsGrid'); 
+          const obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid'); 
+          const backgroundThemesGrid = document.getElementById('backgroundThemesGrid'); 
+
+
+          const gameOverMenuButton = document.getElementById('gameOverMenuButton');
+          const gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
+
+          const activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
+          const magnetIndicator = document.getElementById('magnetIndicator');
+          const scoreIndicator = document.getElementById('scoreIndicator');
+          const reviveIndicator = document.getElementById('reviveIndicator');
+
+          const tutorialOverlay = document.getElementById('tutorialOverlay');
+          const tutorialText = document.getElementById('tutorialText');
+          const skipTutorialButton = document.getElementById('skipTutorialButton');
+          const replayTutorialButton = document.getElementById('replayTutorialButton');
+          
+          // --- NEW TUTORIAL ENHANCEMENT ---
+          const tutorialSpotlight = document.getElementById('tutorialSpotlight');
+
+
+          // --- NEW DYNAMIC UI SELECTION ---
+          // Select all top-level UI screens that need to be managed.
+          const allUiScreens = document.querySelectorAll('[data-ui-screen]');
+
+
+          // --- Step 2: Game State and Configuration ---
+          let gameState = 'menu';
+          let playerData = {
+              highScore: 0,
+              starFragments: 0,
+              hasPlayedBefore: false,
+              upgrades: {
+                  shield: 0,
+                  magnet: 0,
+                  score: 0,
+                  headstart: false,
+                  revive: false,
+              },
+              cosmetics: {
+                  unlocked: ['comet_default', 'obstacle_default', 'background_default'], // Default items
+                  equipped: {
+                      comet: 'comet_default',
+                      obstacle: 'obstacle_default', 
+                      background: 'background_default' 
+                  }
+              }
+          };
+
+          const upgradeCosts = {
+              shield: [100, 250, 500, 1000, 2000],
+              magnet: [300, 750, 1500],
+              score: [200, 400, 800, 1600, 3200],
+              headstart: 150,
+              revive: 250
+          };
+
+          // --- PREMIUM VISUALS (Data) ---
+          // Define Cosmetic Items with render functions/styles
+          const cosmeticItems = {
+              // Comet Skins
+              comet_default: { id: 'comet_default', name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
+              comet_inferno: { id: 'comet_inferno', name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fb923c;', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)', particleEffect: { color: '#fb923c' } },
+              comet_emerald: { id: 'comet_emerald', name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #34d399;', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)', particleEffect: { color: '#34d399' } },
+              comet_galaxy: { id: 'comet_galaxy', name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a855f7;', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)', particleEffect: { color: '#a855f7' } },
+              comet_plasma: { id: 'comet_plasma', name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #60a5fa;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)', particleEffect: { color: '#60a5fa' } }, 
+              comet_gold: { id: 'comet_gold', name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleEffect: { color: '#fde047' } }, 
+              comet_smiley: { id: 'comet_smiley', name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #facc15;', fillStyle: '#facc15', particleEffect: { color: '#fde047' }, drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
+
+              // Obstacle Skins
+              obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
+              obstacle_rock: { 
+                  id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #7171a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a1a1aa;', 
+                  fillStyle: '#7171a', strokeStyle: '#a1a1aa', 
+                  collisionShape: 'circle', // Collision is simple circle
+                  draw: (ctx, x, y, w, h, skin, obs) => { // Draw is complex polygon
+                      const radius = w / 2;
+                      const centerX = x + radius;
+                      const centerY = y + radius;
+                      
+                      // Lazy-init vertices on the obstacle object itself
+                      if (!obs.vertices) {
+                          obs.vertices = [];
+                          const numVertices = 8 + Math.floor(Math.random() * 5); // 8-12 vertices
+                          for (let i = 0; i < numVertices; i++) {
+                              const angle = (i / numVertices) * Math.PI * 2;
+                              // Jagged radius
+                              const dist = radius * (0.8 + Math.random() * 0.4); 
+                              obs.vertices.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist });
+                          }
+                      }
+
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      
+                      // Draw the procedural polygon
+                      ctx.beginPath();
+                      ctx.moveTo(centerX + obs.vertices[0].x, centerY + obs.vertices[0].y);
+                      for (let i = 1; i < obs.vertices.length; i++) {
+                          ctx.lineTo(centerX + obs.vertices[i].x, centerY + obs.vertices[i].y);
+                      }
+                      ctx.closePath();
+                      ctx.fill();
+                      ctx.stroke();
+                      
+                      // Add craters (from old implementation, they're nice)
+                      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                      ctx.beginPath(); ctx.arc(centerX - radius*0.3, centerY - radius*0.4, radius*0.2, 0, Math.PI*2); ctx.fill();
+                      ctx.beginPath(); ctx.arc(centerX + radius*0.5, centerY + radius*0.1, radius*0.3, 0, Math.PI*2); ctx.fill();
+                  }
+              }, 
+              obstacle_crystal: { 
+                  id: 'obstacle_crystal', name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #e9d5ff;', 
+                  strokeStyle: '#e9d5ff', collisionShape: 'rect',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      const grad = ctx.createLinearGradient(x, y + h, x, y);
+                      grad.addColorStop(0, 'rgba(126, 34, 206, 0.8)');
+                      grad.addColorStop(1, 'rgba(192, 132, 252, 0.7)');
+                      
+                      ctx.fillStyle = grad;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      
+                      ctx.beginPath();
+                      ctx.moveTo(x, y + h); // bottom left
+                      ctx.lineTo(x, y + h * 0.2); // top left shoulder
+                      ctx.lineTo(x + w * 0.5, y); // top center (point)
+                      ctx.lineTo(x + w, y + h * 0.2); // top right shoulder
+                      ctx.lineTo(x + w, y + h); // bottom right
+                      ctx.closePath();
+                      ctx.fill();
+                      ctx.stroke();
+                  }
+              }, 
+              obstacle_alien: { 
+                  id: 'obstacle_alien', name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #0ea5e9;', 
+                  fillStyle: '#1e293b', strokeStyle: '#64748b', collisionShape: 'rect',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      ctx.fillRect(x, y, w, h);
+                      ctx.strokeRect(x, y, w, h);
+                      
+                      // Add pulsating glow using a time-based sine wave
+                      const glowAlpha = 0.5 + Math.sin(Date.now() * 0.005) * 0.5; // 0.0 to 1.0
+                      ctx.shadowColor = '#0ea5e9';
+                      ctx.shadowBlur = 10 + glowAlpha * 10; // 10 to 20
+                      ctx.strokeStyle = `rgba(100, 180, 255, ${glowAlpha})`;
+                      ctx.lineWidth = 3;
+                      ctx.strokeRect(x, y, w, h);
+                      
+                      // Reset shadow for next draw call
+                      ctx.shadowColor = 'transparent';
+                      ctx.shadowBlur = 0;
+                  }
+              }, 
+              obstacle_rubber_ducky: { 
+                  id: 'obstacle_rubber_ducky', name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background-color: #facc15; border: 2px solid #fde047; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;', 
+                  fillStyle: '#facc15', strokeStyle: '#fde047', 
+                  collisionShape: 'circle',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      const radius = w / 2;
+                      const centerX = x + radius;
+                      const centerY = y + radius; // Assumes w == h
+                      // Body
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      ctx.beginPath();
+                      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                      ctx.fill();
+                      ctx.stroke();
+                      // Head
+                      ctx.beginPath();
+                      ctx.arc(centerX + radius*0.1, centerY - radius*0.5, radius*0.6, 0, Math.PI*2);
+                      ctx.fill();
+                      ctx.stroke();
+                      // Eye
+                      ctx.fillStyle = 'black';
+                      ctx.beginPath(); ctx.arc(centerX + radius*0.2, centerY - radius*0.55, radius*0.1, 0, Math.PI*2); ctx.fill();
+                      // Beak
+                      ctx.fillStyle = '#f97316';
+                      ctx.beginPath(); ctx.moveTo(centerX + radius*0.5, centerY - radius*0.5); ctx.lineTo(centerX + radius*0.8, centerY - radius*0.4); ctx.lineTo(centerX + radius*0.5, centerY - radius*0.3); ctx.closePath(); ctx.fill();
+                  }
+              }, 
+
+              // Background Themes
+              background_default: { id: 'background_default', name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_nebula: { id: 'background_nebula', name: 'Nebula', type: 'background', cost: 5000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #be185d;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } }, 
+              background_lava: { id: 'background_lava', name: 'Volcanic Void', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(0deg, #7f1d1d, #b91c1c, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #f59e0b;', render: () => { const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0); grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_ice: { id: 'background_ice', name: 'Glacial Expanse', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(180deg, #93c5fd, #3b82f6, #1e3a8a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #93c5fd;', render: () => { const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT); grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_halloween: { id: 'background_halloween', name: 'Spooky Space', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(135deg, #581c87, #ea580c, #450a0a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #ea580c;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#581c87'); grad.addColorStop(0.5, '#ea580c'); grad.addColorStop(1, '#450a0a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_christmas: { id: 'background_christmas', name: 'Festive Flight', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(90deg, #b91c1c, #15803d, #fde047); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, 0); grad.addColorStop(0, '#b91c1c'); grad.addColorStop(0.5, '#15803d'); grad.addColorStop(1, '#fde047'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_retro_arcade: { id: 'background_retro_arcade', name: 'Retro Arcade', type: 'background', cost: 4500, previewClass: 'background-preview', previewStyle: 'background-color: black; background-image: linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px); background-size: 40px 40px; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #1e3a8a;', render: () => { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 1; for (let x = 0; x < VIRTUAL_WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_HEIGHT); ctx.stroke(); } for (let y = 0; y < VIRTUAL_HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_WIDTH, y); ctx.stroke(); } stars.forEach(s => s.draw()); } }, 
+          };
+          // --- END PREMIUM VISUALS ---
+
+
+          let playerComet = null;
+          let obstacles = [];
+          let powerUps = [];
+          let starFragments = [];
+          let particles = [];
+          let stars = [];
+          let menuComet = null; 
+
+          let gravityWell = null; // Single definition for the game instance
+          let score = 0;
+          let fragmentsThisRun = 0;
+          let isGameOver = false;
+          let animationFrameId;
+          let maxDistanceReached = 0; 
+          let cameraX = 0;
+          let nextObstacleSpawnX = 0;
+          let nextPowerUpSpawnX = 0;
+          let nextFragmentSpawnX = 0;
+          let activePowerUp = { type: null, timer: 0 };
+          let lastZoneIndex = -1;
+          let currentZoneColors = {}; // Will store dynamic zone colors OR theme overrides
+          let isHeadstarting = false;
+          let headstartTimer = 0;
+          const HEADSTART_DURATION = 500;
+          let hasRevive = false;
+
+          const PLAYER_COMET_RADIUS = 15;
+          const GRAVITY_INFLUENCE = 0.2; 
+          const INERTIAL_DAMPING = 0.98;
+          const SCORE_DIVISOR = 7;
+          const WAVE_AMPLITUDE = 0.5;
+          const WAVE_FREQUENCY = 0.03;
+
+          const ZONE_SCORE_INCREMENT = 1500;
+          const INITIAL_SPEED = 2.5;
+          const SPEED_INCREMENT_PER_ZONE = 0.5; 
+          const START_HUE = 240;
+          const HUE_INCREMENT_PER_ZONE = 50;
+
+          const VIRTUAL_WIDTH = 1280;
+          const VIRTUAL_HEIGHT = 720;
+          let scale = 1;
+
+          const audioManager = {
+              isInitialized: false,
+              synth: null,
+              noiseSynth: null,
+              musicLoop: null,
+              baseBPM: 100,
+
+              init() {
+                  // --- AUDIO FIX ---
+                  // Check window.Tone, not the (potentially undefined) const
+                  if (this.isInitialized || !window.Tone) return; 
+                  try {
+                      this.synth = new window.Tone.Synth().toDestination();
+                      this.noiseSynth = new window.Tone.NoiseSynth({
+                          noise: { type: 'white' },
+                          envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
+                      }).toDestination();
+                      this.isInitialized = true;
+                  } catch (e) {
+                      console.error("Failed to initialize audioManager:", e);
+                  }
+              },
+              playFragmentSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C5", "8n"); },
+              playPowerUpSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("G5", "8n"); },
+              playGameOverSound() { if (!this.isInitialized) return; this.noiseSynth.triggerAttack(); },
+              playClickSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C4", "16n"); },
+              startMusic() {
+                  if (!this.isInitialized || this.musicLoop) return;
+                  // --- AUDIO FIX ---
+                  window.Tone.Transport.bpm.value = this.baseBPM;
+                  const notes = ["C2", "G2", "Eb3", "G2"];
+                  let noteIndex = 0;
+                  this.musicLoop = new window.Tone.Loop(time => {
+                      this.synth.triggerAttackRelease(notes[noteIndex++ % notes.length], "8n", time);
+                  }, "4n").start(0);
+                  window.Tone.Transport.start();
+              },
+              updateTempo(newBPM) { 
+                  // --- AUDIO FIX ---
+                  if (!this.isInitialized || !window.Tone || window.Tone.Transport.state !== 'started') return; 
+                  window.Tone.Transport.bpm.value = newBPM; 
+              },
+              stopMusic() {
+                  // --- AUDIO FIX ---
+                  // Check window.Tone, not the (potentially undefined) const
+                  if (!this.isInitialized || !window.Tone) return;
+                  
+                  if (this.musicLoop) {
+                      this.musicLoop.stop(0);
+                      this.musicLoop.dispose();
+                      this.musicLoop = null;
+                  }
+                  if (window.Tone.Transport.state === 'started') {
+                      window.Tone.Transport.stop();
+                      window.Tone.Transport.cancel();
+                  }
+              }
+          };
+
+          // --- TUTORIAL REFACTOR ---
+          // New "unlosable" tutorial manager with spotlight effect
+          const tutorialManager = {
+              isActive: false,
+              currentStep: 0,
+              isPausedForInstruction: false,
+              currentStepConfig: null,
+              spotlightBounds: null, // Stores { x, y, width, height, shape }
+              
+              // --- NEW, REBUILT TUTORIAL STEPS ---
+              steps: [
+                  { 
+                      text: "Welcome to Gravity Well! Let's learn the basics.", 
+                      blockInput: true, autoAdvance: 2000 
+                      // allowForwardSpeed is false by default
+                  },
+                  {
+                      text: "This is your comet. It's perfectly still.",
+                      blockInput: true, autoAdvance: 2500,
+                      spotlight: () => ({ x: playerComet.x, y: playerComet.y, width: 100, height: 100, shape: 'circle' })
+                  },
+                  { 
+                      text: "CLICK and HOLD anywhere to create a 'Gravity Well'.",
+                      blockInput: false, // Allow input
+                      spotlight: () => ({ x: playerComet.x + 150, y: playerComet.y - 150, width: 150, height: 150, shape: 'circle' }),
+                      isDone: () => gravityWell !== null 
+                  },
+                  {
+                      text: "Great! The comet is pulled towards your well. Let go to release it.",
+                      blockInput: false,
+                      spotlight: () => (gravityWell ? { x: gravityWell.x, y: gravityWell.y, width: 150, height: 150, shape: 'circle' } : null),
+                      isDone: () => gravityWell === null
+                  },
+                  { 
+                      text: "Now the comet will start moving forward. Here comes an obstacle!", 
+                      blockInput: true,
+                      autoAdvance: 2500,
+                      allowForwardSpeed: true, // <-- Comet starts moving here
+                      onStart: () => { 
+                          // --- SCRIPTED ACTION FIX ---
+                          // This is the fix. When this step starts, we
+                          // reset the comet's velocity to a clean forward state,
+                          // overriding any "freefall" from the previous step.
+                          playerComet.vx = calculateCurrentSpeed();
+                          playerComet.vy = 0; 
+                          
+                          obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.8, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')]; 
+                      }
+                  },
+                  { 
+                      text: "Use your Gravity Well to guide the comet past the obstacle!", 
+                      isPausedForInstruction: false,
+                      allowForwardSpeed: true, // Keep comet moving
+                      spotlight: () => {
+                          const obs = obstacles[0];
+                          if (!obs) return null;
+                          return { x: obs.x + obs.width / 2, y: VIRTUAL_HEIGHT / 2, width: obs.width + 300, height: VIRTUAL_HEIGHT, shape: 'rect' }
+                      },
+                      isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width
+                  },
+                  { 
+                      text: "Nice one!", 
+                      blockInput: true, autoAdvance: 1500,
+                      allowForwardSpeed: true 
+                  },
+                  { 
+                      text: "Now for a pro move. Let's grab that star fragment.", 
+                      blockInput: true, autoAdvance: 2000,
+                      // --- BUG FIX (Bug 3) & FLUIDITY ---
+                      // Stop the comet's forward speed. The comet will now freeze
+                      // for the explanation, preventing the star from flying away.
+                      allowForwardSpeed: false,
+                      onStart: () => {
+                          obstacles = []; // Clear obstacles
+                          // Spawn a fragment *behind* the (now stationary) comet
+                          starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)]; 
+                      }
+                  },
+                  { 
+                      text: "Place a well BEHIND the comet to pull it backward.", 
+                      isPausedForInstruction: false,
+                      // Comet's baseSpeed is 0. It will *only* move via the gravity well.
+                      allowForwardSpeed: false, 
+                      spotlight: () => ({
+                          x: playerComet.x - 150, 
+                          y: playerComet.y, 
+                          width: 150, 
+                          height: 150,
+                          shape: 'circle'
+                      }),
+                      isDone: () => gravityWell !== null && gravityWell.x < playerComet.x // Done when well is behind
+                  },
+                  {
+                      text: "Great! Now collect the fragment.",
+                      isPausedForInstruction: false,
+                      // Comet's baseSpeed is still 0.
+                      allowForwardSpeed: false, 
+                      spotlight: () => ({ // Spotlight the action area
+                          x: playerComet.x,
+                          y: playerComet.y,
+                          width: 300,
+                          height: 300,
+                          shape: 'circle'
+                      }),
+                      isDone: () => starFragments.length === 0 // Done when fragment is collected
+                  },
+                  { 
+                      text: "You've got it! Skills Learned:\n✓ Comet Control\n✓ Dodging\n✓ Backtracking\nGet ready for the real run!", 
+                      blockInput: true, autoAdvance: 5000, 
+                      // Re-enable forward speed for the finale
+                      allowForwardSpeed: true, 
+                      onComplete: () => { 
+                          tutorialManager.end(true); // End tutorial and start game
+                      } 
+                  }
+              ],
+              // --- END NEW TUTORIAL STEPS ---
+
+              start() {
+                  this.isActive = true; 
+                  this.currentStep = 0;
+                  this.runStep();
+              },
+              
+              advance() {
+                  if (this.currentStepConfig && this.currentStepConfig.onComplete) {
+                      this.currentStepConfig.onComplete();
+                  }
+                  this.currentStep++;
+                  if (this.currentStep >= this.steps.length) {
+                      this.end(true); // Tutorial finished
+                  } else {
+                      this.runStep();
+                  }
+              },
+
+              runStep() {
+                  if (!this.isActive) return;
+                  this.currentStepConfig = this.steps[this.currentStep];
+                  const step = this.currentStepConfig;
+
+                  tutorialText.innerHTML = step.text.replace(/\n/g, '<br>');
+                  
+                  // Pause comet physics if step isn't interactive
+                  this.isPausedForInstruction = (step.autoAdvance || step.blockInput || step.isPausedForInstruction === true);
+                  
+                  // This is now handled by calculateCurrentSpeed()
+                  // this.isPausedForInstruction = (step.autoAdvance || step.blockInput || step.isPausedForInstruction === true);
+
+                  if (step.onStart) {
+                      step.onStart();
+                  }
+                  
+                  // Handle auto-advancing steps
+                  if (step.autoAdvance) {
+                      this.updateSpotlight(null); // Hide spotlight
+                      setTimeout(() => {
+                          if (this.isActive && this.steps[this.currentStep] === step) {
+                              this.advance();
+                          }
+                      }, step.autoAdvance);
+                  }
+              },
+
+              // This is called every frame by updateTutorial
+              update() {
+                  if (!this.isActive || !this.currentStepConfig) return;
+
+                  const step = this.currentStepConfig;
+
+                  // Update spotlight position
+                  if (step.spotlight) {
+                      this.spotlightBounds = step.spotlight();
+                      this.updateSpotlight(this.spotlightBounds);
+                  } else {
+                      this.spotlightBounds = null;
+                      this.updateSpotlight(null);
+                  }
+
+                  // Check if the step is complete
+                  if (step.isDone && !step.autoAdvance) {
+                      if (step.isDone()) {
+                          this.advance();
+                      }
+                  }
+              },
+
+              end(startNewGame = false) {
+                  if (!this.isActive) return;
+                  this.isActive = false; 
+                  
+                  // Explicitly hide all tutorial UI components
+                  this.updateSpotlight(null); // Hide spotlight
+                  tutorialOverlay.className = 'modal modal-hidden';
+                  
+                  playerData.hasPlayedBefore = true; 
+                  savePlayerData();
+
+                  if (startNewGame) { 
+                      setGameState('playing'); 
+                  } else { 
+                      setGameState('menu'); 
+                  }
+              },
+
+              // Helper to update the HTML spotlight element
+              updateSpotlight(bounds) {
+                  if (bounds) {
+                      const screenX = (bounds.x - cameraX) * scale;
+                      const screenY = bounds.y * scale;
+                      const width = bounds.width * scale;
+                      const height = bounds.height * scale;
+
+                      tutorialSpotlight.className = 'tutorial-spotlight';
+                      tutorialSpotlight.style.left = `${screenX - width / 2}px`;
+                      tutorialSpotlight.style.top = `${screenY - height / 2}px`;
+                      tutorialSpotlight.style.width = `${width}px`;
+                      tutorialSpotlight.style.height = `${height}px`;
+                      tutorialSpotlight.style.borderRadius = (bounds.shape === 'circle') ? '50%' : '10px';
+                  } else {
+                      tutorialSpotlight.className = 'tutorial-spotlight-hidden';
+                  }
+              },
+
+              // Helper to check if input should be blocked
+              isInputBlocked(pos) {
+                  if (!this.isActive || !this.currentStepConfig) {
+                      return false; // Not in tutorial, not blocked
+                  }
+
+                  const step = this.currentStepConfig;
+                  if (step.blockInput) {
+                      return true; // Step explicitly blocks all input
+                  }
+                  
+                  // If a position is provided (from mousedown/touchstart)
+                  if (pos && this.spotlightBounds) {
+                      const bounds = this.spotlightBounds;
+                      // (This is a simple box check, good enough for this)
+                      const halfWidth = bounds.width / 2;
+                      const halfHeight = bounds.height / 2;
+                      
+                      // --- COORDINATE FIX ---
+                      // 'pos' is in SCREEN coordinates from getPos()
+                      // 'this.spotlightBounds' is in WORLD coordinates
+                      // We must convert 'pos' to WORLD coordinates to compare
+                      const worldX = pos.x + cameraX;
+                      const worldY = pos.y; // Y has no camera offset
+                      
+                      // Now check the click (worldX, worldY) against the
+                      // spotlight bounds (bounds.x, bounds.y)
+                      const inX = worldX > (bounds.x - halfWidth) && worldX < (bounds.x + halfWidth);
+                      const inY = worldY > (bounds.y - halfHeight) && worldY < (bounds.y + halfHeight);
+
+                      return !inX || !inY; // Block if *outside* the bounds
+                  }
+                  
+                  // If no position (like mouseup) or no spotlight,
+                  // allow it unless blockInput was true.
+                  return false;
+              }
+          };
+          // --- END TUTORIAL REFACTOR ---
+
+
+          // --- Step 3: Game Classes ---
+          class Star {
+              constructor() { this.x = Math.random() * VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; this.z = Math.random() * VIRTUAL_WIDTH; this.radius = 0.5 + Math.random() * 1.5; }
+              update(speed) { this.x -= speed * (this.z / VIRTUAL_WIDTH); if (this.x < 0) { this.x = VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; } }
+              draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.fill(); }
+          }
+
+          class PlayerComet {
+              constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; }
+              
+              // --- REFACTORED UPDATE FUNCTION ---
+              update() {
+                  if (isHeadstarting) { 
+                      this.baseSpeed = 30; 
+                  } else {
+                      // calculateCurrentSpeed() will return 0 during non-moving tutorial steps
+                      this.baseSpeed = calculateCurrentSpeed(); 
+                  }
+
+                  // --- BUG FIX ---
+                  // Only apply wave physics if the comet is supposed to be moving forward.
+                  // This stops the "downward drift" at the start of the tutorial.
+                  if (this.baseSpeed > 0) {
+                      this.waveAngle += WAVE_FREQUENCY;
+                      this.vy += (Math.cos(this.waveAngle) * WAVE_AMPLITUDE - this.vy) * (1 - INERTIAL_DAMPING);
+                  } else if (!gravityWell) {
+                      // If no forward speed AND no gravity well, comet is perfectly still.
+                      // This allows gravity well to work, but stops all other drift.
+                      this.vy *= (1 - INERTIAL_DAMPING); // Apply damping to any residual vy
+                      if (Math.abs(this.vy) < 0.01) this.vy = 0;
+                  }
+                  
+                  this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
+                  
+                  // Gravity well physics ALWAYS apply if the well exists.
+                  if (gravityWell && !isHeadstarting) {
+                      const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      if (dist > 0.01 && dist < gravityWell.radius) {
+                          this.vx += (dx / dist) * GRAVITY_INFLUENCE;
+                          this.vy += (dy / dist) * GRAVITY_INFLUENCE;
+                      }
+                  }
+
+                  // Now, apply speed logic
+                  const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                  
+                  if (this.baseSpeed > 0) {
+                      // We have forward momentum
+                      if (currentSpeed > 0) {
+                          this.vx = (this.vx / currentSpeed) * this.baseSpeed;
+                          this.vy = (this.vy / currentSpeed) * this.baseSpeed;
+                      } else { 
+                          this.vx = this.baseSpeed; 
+                          this.vy = 0; // No vertical drift if just starting
+                      }
+                  } else if (gravityWell) {
+                      // No forward momentum, just gravity
+                      // Dampen movement from gravity well
+                      this.vx *= INERTIAL_DAMPING; 
+                      this.vy *= INERTIAL_DAMPING;
+                  } else {
+                      // No forward speed, no gravity = dead stop
+                      this.vx = 0;
+                      this.vy = 0;
+                  }
+
+                  // Finally, update position (this will only move if vx/vy are non-zero)
+                  this.x += this.vx; 
+                  this.y += this.vy; 
+                  
+                  this.trail.push({ x: this.x, y: this.y });
+                  if (this.trail.length > 15) this.trail.shift();
+
+                  // --- NEW FLAIR (Particle Effects) ---
+                  const skin = cosmeticItems[playerData.cosmetics.equipped.comet] || cosmeticItems['comet_default'];
+                  if (skin.particleEffect && this.baseSpeed > 0 && Math.random() < 0.5) {
+                      particles.push(new Particle(
+                          this.x, // Emit from center
+                          this.y + (Math.random() - 0.5) * this.radius, // Add spread
+                          skin.particleEffect.color,
+                          { 
+                              lifespan: 20 + Math.random() * 20, // 20-40 frame lifespan
+                              vx: -this.baseSpeed * 0.5 * (Math.random() + 0.5) // Emit backwards
+                          }
+                      ));
+                  }
+                  // --- END FLAIR ---
+                  
+                  this.orbiters.forEach(orb => orb.update());
+              }
+              // --- END REFACTORED UPDATE ---
+              
+              // Helper function to get the primary color from a skin's fillStyle
+              getPrimarySkinColor(skinStyle) {
+                   if (!skinStyle) return 'white'; // Fallback
+                   if (skinStyle.startsWith('linear-gradient') || skinStyle.startsWith('radial-gradient')) {
+                       const colors = skinStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                       return colors ? colors[0] : 'white'; // Return first color or fallback
+                   }
+                   return skinStyle; // Solid color
+              }
+
+              draw() {
+                  const screenX = this.x - cameraX;
+                  const equippedSkinId = playerData.cosmetics.equipped.comet;
+                  const skin = cosmeticItems[equippedSkinId] || cosmeticItems['comet_default'];
+                  const primaryColor = this.getPrimarySkinColor(skin.fillStyle); // Get primary color for trail
+
+                  // Draw Trail using primary skin color
+                  this.trail.forEach((t, i) => {
+                      ctx.beginPath();
+                      ctx.arc(t.x - cameraX, t.y, this.radius * (i / this.trail.length), 0, Math.PI * 2);
+                      const alpha = (i / this.trail.length) * 0.4;
+                      let trailColor = primaryColor;
+                       if (trailColor.startsWith('#')) { 
+                           const r = parseInt(trailColor.slice(1, 3), 16);
+                           const g = parseInt(trailColor.slice(3, 5), 16);
+                           const b = parseInt(trailColor.slice(5, 7), 16);
+                           ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                       } else if (trailColor.startsWith('rgb')) { 
+                           trailColor = trailColor.replace(/rgba?\(|\)/g, '');
+                           const parts = trailColor.split(',');
+                           ctx.fillStyle = `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+                       } else { 
+                           ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; // Fallback to white 
+                       }
+                      ctx.fill();
+                  });
+                  
+                  // Draw Comet Body based on skin
+                   ctx.beginPath();
+                   ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
+
+                  // Apply skin style
+                  try {
+                      if (skin.fillStyle.startsWith('linear-gradient')) {
+                          const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                          if(colors && colors.length >= 2){
+                              const gradient = ctx.createLinearGradient(screenX - this.radius, this.y - this.radius, screenX + this.radius, this.y + this.radius); // Adjusted gradient angle slightly
+                              gradient.addColorStop(0, colors[0]);
+                              gradient.addColorStop(1, colors[1]);
+                              ctx.fillStyle = gradient;
+                          } else { ctx.fillStyle = 'white'; }
+                      } else if (skin.fillStyle.startsWith('radial-gradient')) {
+                          const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                          if (colors && colors.length >= 2) {
+                              const gradient = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
+                              gradient.addColorStop(0, colors[0]);
+                              gradient.addColorStop(0.5, colors[1]);
+                              gradient.addColorStop(1, colors[2] || colors[1]); 
+                              ctx.fillStyle = gradient;
+                          } else { ctx.fillStyle = 'white'; }
+                      } else {
+                          ctx.fillStyle = skin.fillStyle; // Solid color
+                      }
+                  } catch (e) {
+                      console.error("Error applying skin style:", skin.fillStyle, e);
+                      ctx.fillStyle = 'white'; // Fallback on error
+                  }
+                  ctx.fill();
+                  
+                  // --- Draw additions like smiley face ---
+                  if (skin.drawAddition) {
+                       skin.drawAddition(ctx, screenX, this.y, this.radius);
+                  }
+
+
+                  // Draw Score Bonus Indicator (if applicable)
+                  if (playerData.upgrades.score > 0) {
+                      const indicatorX = screenX + this.radius * 0.8, indicatorY = this.y - this.radius * 0.8;
+                      ctx.fillStyle = 'rgba(253, 224, 71, 0.5)'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
+                      ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
+                  }
+                  // Draw Shield (if applicable)
+                  if (activePowerUp.type === 'shield' || isHeadstarting) {
+                      ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
+                  }
+                  // Draw Orbiters
+                  this.orbiters.forEach(orb => orb.draw(screenX, this.y));
+              }
+          }
+
+          class Orbiter {
+              constructor(distance, color) { this.distance = distance; this.color = color; this.angle = Math.random() * Math.PI * 2; this.speed = 0.02 + Math.random() * 0.02; }
+              update() { this.angle += this.speed; }
+              draw(cometX, cometY) {
+                  const x = cometX + Math.cos(this.angle) * this.distance; const y = cometY + Math.sin(this.angle) * this.distance;
+                  const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
+                  gradient.addColorStop(0, this.color); gradient.addColorStop(0.5, this.color); gradient.addColorStop(1, 'transparent');
+                  ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
+                  ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+              }
+          }
+
+          // Ensure GravityWell class is defined only ONCE
+          class GravityWell {
+              constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; }
+              draw() {
+                  const screenX = this.x - cameraX;
+                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.15)'; ctx.fill();
+                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.1)'; ctx.fill();
+              }
+          }
+
+          class Obstacle {
+              constructor(x, y, width, height, type) { this.x = x; this.y = y; this.width = width; this.height = height; this.type = type; this.initialY = y; this.direction = 1; this.speedY = 1; this.isActive = true; this.phaseTimer = 0; this.phaseDuration = 120; this.warningFrames = 45; }
+              update() {
+                  if (this.type === 'vertical') { this.y += this.speedY * this.direction; if (Math.abs(this.y - this.initialY) > 50) this.direction *= -1; }
+                  else if (this.type === 'phasing') { this.phaseTimer++; if (this.phaseTimer > this.phaseDuration) { this.phaseTimer = 0; this.isActive = !this.isActive; } }
+              }
+              draw() {
+                  // --- Obstacle Skin Rendering ---
+                  const equippedSkinId = (gameState === 'tutorial') ? 'obstacle_default' : playerData.cosmetics.equipped.obstacle;
+                  const skin = cosmeticItems[equippedSkinId] || cosmeticItems['obstacle_default'];
+                  
+                  let fillColor = skin.fillStyle || currentZoneColors.obstacle; // Use skin color or fallback to zone color
+                  let strokeColor = skin.strokeStyle || currentZoneColors.stroke;
+                  
+                  // Use dynamic zone colors if default pillar is equipped
+                  if (equippedSkinId === 'obstacle_default') {
+                      fillColor = currentZoneColors.obstacle;
+                      strokeColor = currentZoneColors.stroke;
+                  }
+
+                  let shouldDraw = true;
+
+                  if (this.type === 'phasing' && !this.isActive) {
+                      const timeToActivate = this.phaseDuration - this.phaseTimer;
+                      if (timeToActivate < this.warningFrames) { 
+                          fillColor = `rgba(239, 68, 68, ${Math.abs(Math.sin(this.phaseTimer * 0.2))})`; 
+                          strokeColor = 'rgba(255, 150, 150, 0.5)'; // Faded red stroke for warning
+                      }
+                      else { shouldDraw = false; }
+                  }
+
+                  if (shouldDraw) {
+                      // Apply fill style 
+                       try {
+                           if (typeof fillColor === 'string' && fillColor.startsWith('linear-gradient')) {
+                               const colors = fillColor.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
+                               if (colors && colors.length >= 2) {
+                                   let gradient;
+                                   const screenX = this.x - cameraX;
+                                   const screenY = this.y;
+                                   if (fillColor.includes('135deg') || fillColor.includes('45deg')) { // Diagonal approximation
+                                        gradient = ctx.createLinearGradient(screenX, screenY, screenX + this.width, screenY + this.height);
+                                   } else if (fillColor.includes('180deg') || fillColor.includes('0deg') || !fillColor.includes('deg')) { // Vertical or default
+                                       gradient = ctx.createLinearGradient(screenX, screenY, screenX, screenY + this.height);
+                                   } else { // Horizontal
+                                        gradient = ctx.createLinearGradient(screenX, screenY, screenX + this.width, screenY);
+                                   }
+                                   gradient.addColorStop(0, colors[0]);
+                                   gradient.addColorStop(1, colors[1]);
+                                   ctx.fillStyle = gradient;
+                               } else { ctx.fillStyle = currentZoneColors.obstacle; } // Fallback
+                           } else {
+                               ctx.fillStyle = fillColor;
+                           }
+                       } catch (e) {
+                           console.error("Error applying obstacle fill style:", fillColor, e);
+                           ctx.fillStyle = currentZoneColors.obstacle; // Fallback
+                       }
+                       
+                      // --- NEW FLAIR (Custom Obstacle Drawing) ---
+                      // Check for a custom draw function on the skin
+                      if (skin.draw) {
+                          try {
+                              skin.draw(ctx, this.x - cameraX, this.y, this.width, this.height, skin, this);
+                          } catch (e) {
+                              console.error("Error in custom obstacle draw:", e);
+                              // Fallback to rect if custom draw fails
+                              ctx.fillStyle = 'red'; // Error indicator
+                              ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+                          }
+                      } else {
+                          // Default rectangle drawing
+                          ctx.fillStyle = fillColor;
+                          ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+                          
+                          if (this.type !== 'phasing' || this.isActive) { 
+                              ctx.strokeStyle = strokeColor; 
+                              ctx.lineWidth = 2; 
+                              ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height); 
+                          }
+                      }
+                      // --- END FLAIR ---
+                  } // <-- This closes if(shouldDraw)
+              } // <-- This closes draw()
+          } // <-- This brace closes class Obstacle.
+          
+          class PowerUp {
+              constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' }, shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' }, boost: { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' } }; this.animation = Math.random() * Math.PI * 2; }
+              draw() {
+                  this.animation += 0.05; const pulse = 0.9 + Math.sin(this.animation) * 0.1; const colorSet = this.colors[this.type]; const screenX = this.x - cameraX;
+                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse * 1.5, 0, Math.PI * 2); ctx.fillStyle = colorSet.glow; ctx.fill();
+                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse, 0, Math.PI * 2); ctx.fillStyle = colorSet.main; ctx.fill();
+              }
+          }
+          class StarFragment {
+              constructor(x, y) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; }
+              update() {
+                  const magnetLevel = playerData.upgrades.magnet || 0;
+                  if (magnetLevel > 0 && playerComet) {
+                      const magnetRange = 50 + magnetLevel * 25; const dx = playerComet.x - this.x; const dy = playerComet.y - this.y; const distSq = dx * dx + dy * dy;
+                      if (distSq < magnetRange * magnetRange) { const dist = Math.sqrt(distSq); this.vx += (dx / dist) * 5; this.vy += (dy / dist) * 5; }
+                  }
+                  this.vx *= 0.95; this.vy *= 0.95; this.x += this.vx; this.y += this.vy;
+              }
+              draw() {
+                  this.animation += 0.07; const scale = 1 + Math.sin(this.animation) * 0.1; const screenX = this.x - cameraX;
+                  ctx.save(); ctx.translate(screenX, this.y); ctx.rotate(this.animation * 0.5); ctx.scale(scale, scale); ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
+                  ctx.beginPath();
+                  for (let i = 0; i < 5; i++) { let angle = (i / 5) * 2 * Math.PI; ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius); angle += (1 / 5) * Math.PI; ctx.lineTo(Math.cos(angle) * (this.radius / 2), Math.sin(angle) * (this.radius / 2)); }
+                  ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
+              }
+          }
+          
+          // --- PARTICLE CLASS REFACTOR ---
+          class Particle {
+              constructor(x, y, color, options = {}) { 
+                  this.x = x; 
+                  this.y = y; 
+                  this.color = color; 
+                  this.maxLifespan = this.lifespan = options.lifespan || (Math.random() * 20 + 25); // Default 25-45 frames
+                  
+                  // --- BUG FIX ---
+                  // 'this.radius' was used in draw() but not defined here.
+                  this.radius = Math.random() * 2 + 1;
+                  // --- END FIX ---
+
+                  const speed = options.speed || (Math.random() * 3 + 1); // Default 1-4 speed
+                  const angle = options.angle || (Math.random() * Math.PI * 2);
+
+                  this.vx = options.vx !== undefined ? options.vx : (Math.cos(angle) * speed);
+                  this.vy = options.vy !== undefined ? options.vy : (Math.sin(angle) * speed);
+              }
+              update() { 
+                  this.x += this.vx; 
+                  this.y += this.vy; 
+                  this.vx *= 0.98; // Air resistance
+                  this.vy *= 0.98; // Air resistance
+                  this.lifespan--; 
+              }
+              draw() { 
+                  ctx.beginPath(); 
+                  ctx.arc(this.x - cameraX, this.y, this.radius * (this.lifespan / this.maxLifespan), 0, Math.PI * 2); 
+                  ctx.fillStyle = this.color; 
+                  ctx.globalAlpha = this.lifespan / this.maxLifespan; 
+                  ctx.fill(); 
+                  ctx.globalAlpha = 1.0; 
+              }
+          }
+          // --- END PARTICLE REFACTOR ---
+
+
+          // --- Step 4: Core Game Logic Functions ---
+          function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData)); } catch (e) { console.error("Could not save player data.", e); } }
+          function loadPlayerData() {
+              try {
+                  const savedData = localStorage.getItem('gravityWellSaveData');
+                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
+                  if (savedData) { 
+                      const loaded = JSON.parse(savedData); 
+                       const mergedCosmetics = {
+                           unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])], 
+                           equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) } 
+                       };
+                       playerData = { ...defaultPlayerData, ...loaded, cosmetics: mergedCosmetics }; 
+                  } else {
+                       playerData = defaultPlayerData;
+                  }
+              } catch (e) { 
+                  console.error("Could not load player data, resetting.", e); 
+                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+              }
+          }
+          function updateObservatoryUI() {
+              shopFragmentsDisplay.textContent = playerData.starFragments;
+              
+              // Update Upgrades Tab
+              Object.keys(upgradeCosts).forEach(id => {
+                  if (Array.isArray(upgradeCosts[id])) {
+                      const level = playerData.upgrades[id] || 0; const item = document.getElementById(`upgrade-${id}`); if (!item) return;
+                      const button = item.querySelector('button'); const levelDisplay = item.querySelector('.upgrade-level'); const maxLevel = upgradeCosts[id].length;
+                      if (level >= maxLevel) { button.textContent = 'Max Level'; button.disabled = true; } 
+                      else { const cost = upgradeCosts[id][level]; button.textContent = `Buy (${cost})`; button.disabled = playerData.starFragments < cost; }
+                      levelDisplay.textContent = `Level ${level}/${maxLevel}`;
+                  } else {
+                      const item = document.getElementById(`utility-${id}`); if (!item) return;
+                      const button = item.querySelector('button');
+                      if (playerData.upgrades[id]) { button.textContent = 'Owned'; button.disabled = true; } 
+                      else { const cost = upgradeCosts[id]; button.textContent = `Buy (${cost})`; button.disabled = playerData.starFragments < cost; }
+                  }
+              });
+
+              // Update Cosmetics Grids
+              const grids = {
+                  comet: cometSkinsGrid,
+                  obstacle: obstacleSkinsGrid,
+                  background: backgroundThemesGrid
+              };
+
+              Object.values(grids).forEach(grid => { if (grid) grid.innerHTML = ''; }); 
+
+              Object.keys(cosmeticItems).forEach(id => {
+                  try { // Add error handling around item generation
+                      const item = cosmeticItems[id];
+                      const grid = grids[item.type]; 
+                      if (!grid) return; 
+
+                      const div = document.createElement('div');
+                      div.className = 'cosmetic-item';
+                      
+                      const preview = document.createElement('div');
+                      preview.className = `cosmetic-preview ${item.previewClass || ''}`; 
+                      
+                      // --- PREMIUM VISUALS (Apply) ---
+                      // Use the previewStyle string which now contains
+                      // the animation and --glow-color variable for premium items
+                      preview.style.cssText = item.previewStyle;
+                      // --- END PREMIUM VISUALS ---
+
+                      if (id === 'comet_smiley') {
+                          preview.innerHTML = '&#9786;'; 
+                          preview.style.lineHeight = '60px'; 
+                      }
+
+                      const name = document.createElement('strong');
+                      name.textContent = item.name;
+                      
+                      const button = document.createElement('button');
+                      button.dataset.cosmeticId = id;
+
+                      if (playerData.cosmetics.equipped[item.type] === id) {
+                          button.className = 'btn equip-btn';
+                          button.textContent = 'Equipped';
+                          button.disabled = true;
+                      } else if (playerData.cosmetics.unlocked.includes(id)) {
+                          button.className = 'btn equip-btn';
+                          button.textContent = 'Equip';
+                          // button.onclick = () => equipCosmetic(id); // This will be handled by delegation
+                      } else {
+                          button.className = 'btn buy-cosmetic-btn';
+                          button.textContent = `Buy (${item.cost} ★)`;
+                          button.disabled = playerData.starFragments < item.cost;
+                          // button.onclick = () => buyCosmetic(id); // This will be handled by delegation
+                      }
+                      
+                      div.appendChild(preview);
+                      div.appendChild(name);
+                      div.appendChild(button);
+                      grid.appendChild(div); 
+                  } catch (error) {
+                       console.error(`Failed to create UI for cosmetic item ${id}:`, error);
+                  }
+              });
+          }
+
+          function setGameState(newState) {
+              // console.log(`[DEBUG] setGameState: Changing from '${gameState}' to '${newState}'`);
+              const oldState = gameState; gameState = newState;
+
+              // --- "ZOMBIE UI" BUG FIX ---
+              // This is the dynamic loop. It finds
+              // all UI elements and hides them, fixing the overlay bug.
+              allUiScreens.forEach(screen => {
+                  const screenType = screen.dataset.uiScreen;
+                  
+                  // --- CRITICAL TYPO FIX ---
+                  // Was 'screen.classList.contacts', now 'screen.classList.contains'
+                  // This typo broke the entire UI hiding logic.
+                  const isModal = screen.classList.contains('modal'); 
+                  // --- END FIX ---
+                  
+                  // Hide all screens by default, using their specific 'hidden' states
+                  switch (screenType) {
+                      case 'inGame':
+                          screen.style.display = 'none';
+                          break;
+                      case 'tutorial-fx':
+                          if (screen.id === 'tutorialSpotlight') screen.className = 'tutorial-spotlight-hidden';
+                          break;
+                      case 'powerUp':
+                          screen.className = 'powerup-hidden'; 
+                          break;
+                      
+                      // --- BUG FIX ---
+                      // Explicitly hide the tutorial overlay.
+                      // The default 'isModal' check was failing in some edge cases
+                      // after the tutorial was run, leaving an invisible
+                      // overlay that blocked clicks.
+                      case 'tutorial':
+                          if (screen.id === 'tutorialOverlay') {
+                             screen.className = 'modal modal-hidden';
+                          }
+                          break;
+                      // --- END BUG FIX ---
+
+                      default:
+                          // This handles all other modals: menu, gameOver, pause, observatory
+                          if (isModal) {
+                              screen.className = 'modal modal-hidden';
+                          }
+                          break;
+                  }
+              });
+              // --- END BUG FIX ---
+
+              appContainer.classList.remove('screen-shake');
+              
+              // Now, selectively SHOW the elements for the new state
+              if (newState === 'menu') {
+                  audioManager.stopMusic(); 
+                  mainMenu.className = 'modal modal-visible'; // Show menu
+                  highScoreDisplay.textContent = playerData.highScore; starFragmentsDisplay.textContent = playerData.starFragments;
+                  if (!menuComet) menuComet = { x: VIRTUAL_WIDTH / 2, y: VIRTUAL_HEIGHT / 2, angle: 0, trail: [] };
+                  if (oldState !== 'menu' || !animationFrameId) gameLoop();
+              } else if (newState === 'playing') {
+                  inGameUi.style.display = 'flex'; // Show in-game UI
+                  runFragmentsContainer.classList.remove('run-fragments-hidden'); // MODIFIED for new UI
+                  if (oldState === 'paused') { 
+                      audioManager.startMusic(); 
+                      // --- RESUME BUG FIX ---
+                      // We must *unconditionally* call gameLoop() to restart the animation frame loop.
+                      // The old check 'if (!animationFrameId)' was preventing this.
+                      gameLoop(); 
+                  } 
+                  else { setTimeout(startGame, 350); }
+              } else if (newState === 'paused') {
+                  audioManager.stopMusic(); 
+                  inGameUi.style.display = 'flex'; // Keep in-game UI visible
+                  pauseMenu.className = 'modal modal-visible'; // Show pause menu
+              } else if (newState === 'tutorial') {
+                  inGameUi.style.display = 'flex'; // Show in-Ggame UI
+                  tutorialOverlay.className = 'modal modal-visible'; // Show tutorial text
+                  setTimeout(startTutorial, 350);
+              } else if (newState === 'game-over') {
+                  if (playerComet) createExplosion(playerComet.x, playerComet.y, 10, 'white');
+                  audioManager.stopMusic(); audioManager.playGameOverSound(); 
+                  inGameUi.style.display = 'flex'; // Keep in-game UI visible
+                  runFragmentsContainer.classList.add('run-fragments-hidden'); // MODIFIED for new UI
+                  appContainer.classList.add('screen-shake');
+                  if (score > playerData.highScore) playerData.highScore = Math.floor(score);
+                  playerData.starFragments += fragmentsThisRun;
+                  savePlayerData();
+                  finalScoreElement.textContent = Math.floor(score); fragmentsEarnedDisplay.textContent = fragmentsThisRun;
+                  gameOverModal.className = 'modal modal-visible'; // Show game over modal
+              } else if (newState === 'observatory') {
+                  updateObservatoryUI(); 
+                  observatory.className = 'modal modal-visible'; // Show observatory
+              }
+          }
+
+          function initNewRun(isTutorial = false) {
+              // console.log(`[DEBUG] initNewRun: Tutorial = ${isTutorial}`);
+              score = 0; fragmentsThisRun = 0; maxDistanceReached = 0; lastZoneIndex = -1; cameraX = 0;
+              obstacles = []; powerUps = []; starFragments = []; particles = [];
+              nextObstacleSpawnX = VIRTUAL_WIDTH; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
+              activePowerUp = { type: null, timer: 0 };
+              runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
+              if (!isTutorial) {
+                  isHeadstarting = playerData.upgrades.headstart;
+                  if (isHeadstarting) { headstartTimer = 0; playerData.upgrades.headstart = false; savePlayerData(); }
+                  hasRevive = playerData.upgrades.revive;
+                  if (hasRevive) { playerData.upgrades.revive = false; savePlayerData(); }
+              } else { isHeadstarting = false; hasRevive = false; }
+              updateUpgradeIndicators();
+              playerComet = new PlayerComet(150, VIRTUAL_HEIGHT / 2);
+              checkZoneTransition(); // Apply initial zone colors or theme
+          }
+
+          function startGame() { 
+              // console.log("[DEBUG] startGame called"); 
+              resizeCanvas(); initNewRun(); audioManager.startMusic(); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } gameLoop(); 
+          }
+          function startTutorial() { 
+              // console.log("[DEBUG] startTutorial called"); 
+              resizeCanvas(); initNewRun(true); audioManager.stopMusic(); if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; } tutorialManager.start(); gameLoop(); 
+          }
+
+          function gameLoop() {
+              if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent multiple loops
+
+              if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
+                  if (gameState === 'playing') updateGame();
+                  else updateTutorial();
+                  drawGame();
+              } else if (gameState === 'menu') {
+                  updateMenu(); drawMenu();
+              }
+              
+              if (gameState !== 'game-over' && gameState !== 'paused') {
+                  animationFrameId = requestAnimationFrame(gameLoop);
+              }
+          }
+
+
+          function updateGame() {
+              if (!playerComet) return;
+              if (isHeadstarting) {
+                  headstartTimer++; const progress = headstartTimer / HEADSTART_DURATION;
+                  playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
+                  if (headstartTimer >= HEADSTART_DURATION) { isHeadstarting = false; activePowerUp.type = 'shield'; activePowerUp.timer = 300; }
+              }
+              cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
+              playerComet.update();
+              manageObstacles(); managePowerUps(); manageStarFragments(); manageParticles();
+              stars.forEach(s => s.update(playerComet.vx));
+              obstacles.forEach(o => o.update());
+              starFragments.forEach(sf => sf.update());
+              const collisionResult = checkCollisions();
+              if (collisionResult.obstacle) { if (hasRevive) revivePlayer(); else { setGameState('game-over'); return; } }
+              if (collisionResult.fragment) { fragmentsThisRun++; runFragmentsDisplay.textContent = fragmentsThisRun; audioManager.playFragmentSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15'); }
+              if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[activePowerUp.type].main); }
+              handleActivePowerUp();
+              if (!isHeadstarting) {
+                  if (playerComet.vx > 0) {
+                      const distanceGained = Math.max(0, playerComet.x - maxDistanceReached);
+                      if (distanceGained > 0) { const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0); score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier; }
+                  }
+                  maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
+              } else { score = (maxDistanceReached / SCORE_DIVISOR); }
+              scoreElement.textContent = Math.floor(score);
+              checkZoneTransition();
+          }
+
+          function drawBackground() {
+              const equippedBackgroundId = playerData.cosmetics.equipped.background;
+              const theme = cosmeticItems[equippedBackgroundId] || cosmeticItems['background_default'];
+              if (theme.render) {
+                  try { // Add try-catch around custom render functions
+                      theme.render();
+                       // Store the background color provided by the theme for potential use by other elements
+                       currentZoneColors.background = ctx.fillStyle; 
+                  } catch (e) {
+                      console.error(`Error rendering background theme ${equippedBackgroundId}:`, e);
+                      // Fallback to default render on error
+                      cosmeticItems['background_default'].render();
+                      currentZoneColors.background = '#0c0a09'; 
+                  }
+              } else {
+                  // Fallback or default rendering if no render function specified
+                  cosmeticItems['background_default'].render();
+                  currentZoneColors.background = '#0c0a09'; 
+              }
+          }
+
+
+          function drawGame() {
+              ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.save(); ctx.scale(scale, scale);
+              
+              drawBackground(); // Use the dedicated background drawing function
+
+              // Draw other game elements
+              if (playerComet) playerComet.draw(); 
+              obstacles.forEach(o => o.draw()); 
+              powerUps.forEach(p => p.draw()); 
+              starFragments.forEach(sf => sf.draw()); 
+              particles.forEach(p => p.draw());
+              if (gravityWell && !isHeadstarting) gravityWell.draw();
+              
+              // REMOVED: Old tutorial drawing logic.
+              // The new spotlight is a DOM element, not a canvas drawing.
+              
+              ctx.restore();
+          }
+
+          function updateTutorial() {
+              if (!playerComet || !tutorialManager.isActive) return;
+              
+              // Set camera for tutorial
+              cameraX = playerComet.x - (VIRTUAL_WIDTH / 4);
+              
+              playerComet.update();
+              obstacles.forEach(o => o.update());
+              manageParticles();
+              starFragments.forEach(sf => sf.update());
+              
+              // Update the tutorial manager (checks for completion, moves spotlight)
+              tutorialManager.update();
+              
+              // Update score display during tutorial
+              if (playerComet.vx > 0) { 
+                  maxDistanceReached = Math.max(maxDistanceReached, playerComet.x); 
+                  score = Math.max(0, (maxDistanceReached - 150) / SCORE_DIVISOR); 
+                  scoreElement.textContent = Math.floor(score); 
+              }
+
+              // Handle tutorial-specific collisions
+              const collisionResult = checkCollisions();
+              // Note: Obstacle collision is handled by the "unlosable" design,
+              // but we still need to check for fragment collection.
+              if (collisionResult.fragment) { 
+                  audioManager.playFragmentSound(); 
+                  // The tutorialManager.update() will detect this and advance the step.
+              }
+          }
+
+          function updateMenu() {
+              if (!menuComet) return; stars.forEach(s => s.update(0.5)); menuComet.angle += 0.01;
+              menuComet.x = VIRTUAL_WIDTH / 2 + Math.cos(menuComet.angle) * (VIRTUAL_WIDTH * 0.3);
+              menuComet.y = VIRTUAL_HEIGHT / 2 + Math.sin(menuComet.angle * 2) * (VIRTUAL_HEIGHT * 0.2);
+              // CRITICAL FIX: Changed `this.y` to `menuComet.y`
+              menuComet.trail.push({ x: menuComet.x, y: menuComet.y }); 
+              if (menuComet.trail.length > 20) menuComet.trail.shift();
+          }
+          function drawMenu() {
+              ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.save(); ctx.scale(scale, scale); 
+              
+              drawBackground(); // Use the dedicated background drawing function
+
+              if (menuComet) { // CRITICAL FIX: Check if menuComet exists before drawing
+                  menuComet.trail.forEach((t, i) => {
+                      ctx.beginPath(); ctx.arc(t.x, t.y, PLAYER_COMET_RADIUS * (i / menuComet.trail.length), 0, Math.PI * 2);
+                      ctx.fillStyle = `rgba(255, 255, 255, ${(i / menuComet.trail.length) * 0.4})`; ctx.fill();
+                  });
+                  ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(menuComet.x, menuComet.y, PLAYER_COMET_RADIUS, 0, Math.PI * 2); ctx.fill();
+              }
+              ctx.restore();
+          }
+
+          function resizeCanvas() { const { clientWidth, clientHeight } = appContainer; scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT); canvas.width = VIRTUAL_WIDTH * scale; canvas.height = VIRTUAL_HEIGHT * scale; }
+          function getObstacleTypeForZone() { const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); const rand = Math.random(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
+          function manageObstacles() {
+              if (!playerComet || gameState === 'tutorial') return;
+              obstacles = obstacles.filter(o => o.x + o.width > cameraX);
+              const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
+              if (nextObstacleSpawnX < spawnAheadPoint) {
+                  const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+                  const minDistance = Math.max(80, 200 - zoneIndex * 15);
+                  const randomDistance = Math.max(50, 150 - zoneIndex * 10);
+                  const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance; 
+                  
+                  const width = Math.random() * 50 + 25;
+                  let height = Math.random() * 180 + 50;
+
+                  // --- NEW FLAIR (Obstacle Shape Spawning) ---
+                  const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+                  if (skin.collisionShape === 'circle') {
+                      height = width; // Make circles proportional
+                  }
+                  // --- END FLAIR ---
+
+                  const y = Math.random() * (VIRTUAL_HEIGHT - height);
+                  obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
+                  nextObstacleSpawnX = x;
+              }
+          }
+          function managePowerUps() {
+              if (!playerComet || gameState === 'tutorial') return;
+              powerUps = powerUps.filter(p => p.x + p.radius > cameraX);
+              const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
+              if (nextPowerUpSpawnX < spawnAheadPoint) {
+                  for (let attempts = 0; attempts < 5; attempts++) {
+                      const x = spawnAheadPoint + Math.random() * 500; const y = Math.random() * VIRTUAL_HEIGHT;
+                      if (!obstacles.some(obs => x < obs.x + obs.width && x + 24 > obs.x && y < obs.y + obs.height && y + 24 > obs.y)) {
+                          const type = ['shield', 'shrink', 'boost'][Math.floor(Math.random() * 3)];
+                          powerUps.push(new PowerUp(x, y, type));
+                          break;
+                      }
+                  }
+                  nextPowerUpSpawnX = spawnAheadPoint + (Math.random() * 1000 + 800);
+              }
+          }
+          function manageStarFragments() {
+              if (!playerComet || gameState === 'tutorial') return;
+              starFragments = starFragments.filter(sf => sf.x + sf.radius > cameraX);
+              const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
+              if (nextFragmentSpawnX < spawnAheadPoint) {
+                  const clusterSize = Math.floor(Math.random() * 4) + 3;
+                  const startX = spawnAheadPoint + 100;
+                  const startY = VIRTUAL_HEIGHT * 0.2 + Math.random() * VIRTUAL_HEIGHT * 0.6;
+                  const angle = (Math.random() - 0.5) * Math.PI / 4;
+                  const potentialFragments = Array.from({length: clusterSize}, (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
+                  if (!potentialFragments.some(pf => obstacles.some(obs => pf.x > obs.x && pf.x < obs.x + obs.width && pf.y > obs.y && pf.y < obs.y + obs.height))) {
+                      potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y)));
+                  }
+                  nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
+              }
+          }
+          function createExplosion(x, y, count, color) { 
+              // Updated to use new Particle constructor
+              for (let i = 0; i < count; i++) { 
+                  particles.push(new Particle(x, y, color)); 
+              } 
+          }
+          function manageParticles() { particles = particles.filter(p => { p.update(); return p.lifespan > 0; }); }
+          function handleActivePowerUp() {
+              if (activePowerUp.type && activePowerUp.timer > 0) {
+                  activePowerUp.timer--;
+                  powerUpStatusElement.textContent = `${activePowerUp.type.toUpperCase()}: ${(activePowerUp.timer / 60).toFixed(1)}s`;
+                  powerUpStatusElement.className = 'powerup-active';
+                  if (activePowerUp.timer <= 0) { activePowerUp.type = null; powerUpStatusElement.className = 'powerup-hidden'; }
+              }
+          }
+          function checkCollisions() {
+              if (!playerComet) return {};
+              for (let i = starFragments.length - 1; i >= 0; i--) { 
+                  const sf = starFragments[i]; 
+                  if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
+                      return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
+                  } 
+              }
+              for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
+              
+              // Tutorial collision is handled by the unlosable design
+              if (gameState === 'tutorial') return {};
+
+              if (activePowerUp.type !== 'shield' && !isHeadstarting) {
+                  if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
+                  
+                  // --- COLLISION REFACTOR ---
+                  for (const obs of obstacles) {
+                      if (!obs.isActive) continue; // Skip phasing obstacles
+
+                      const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+
+                      if (skin.collisionShape === 'circle') {
+                          // Circle Collision
+                          const obsRadius = obs.width / 2; // Assumes w == h
+                          const obsCenterX = obs.x + obsRadius;
+                          const obsCenterY = obs.y + obsRadius;
+                          
+                          const distSq = (playerComet.x - obsCenterX)**2 + (playerComet.y - obsCenterY)**2;
+                          const radiiSq = (playerComet.radius + obsRadius)**2;
+                          
+                          if (distSq < radiiSq) {
+                              return { obstacle: true };
+                          }
+                      } else {
+                          // Default Rectangle (AABB) Collision
+                          if (playerComet.x + playerComet.radius > obs.x && 
+                              playerComet.x - playerComet.radius < obs.x + obs.width && 
+                              playerComet.y + playerComet.radius > obs.y && 
+                              playerComet.y - playerComet.radius < obs.y + obs.height) {
+                              return { obstacle: true };
+                          }
+                      }
+                  }
+                  // --- END COLLISION REFACTOR ---
+              }
+              return {};
+          }
+          function revivePlayer() { hasRevive = false; updateUpgradeIndicators(); createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9'); activePowerUp.type = 'shield'; activePowerUp.timer = 180; obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH); }
+          
+          // --- REFACTORED SPEED CALCULATION ---
+          function calculateCurrentSpeed() { 
+              if(gameState === 'tutorial') {
+                  // If the tutorial is active, check if the current step *allows* forward speed.
+                  if (tutorialManager.isActive && tutorialManager.currentStepConfig) {
+                      if (tutorialManager.currentStepConfig.allowForwardSpeed) {
+                          return INITIAL_SPEED * 0.8; 
+                      }
+                  }
+                  return 0; // By default, no forward speed in tutorial
+              }
+              const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); 
+              return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); 
+          }
+          // --- END REFACTORED SPEED CALCULATION ---
+
+          function updateMusicTempo() { if (!playerComet) return; const speedRatio = Math.max(0, Math.min(1, (calculateCurrentSpeed() - INITIAL_SPEED) / (10 - INITIAL_SPEED))); audioManager.updateTempo(audioManager.baseBPM + (speedRatio * 80)); }
+          function checkZoneTransition() {
+              const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+              const equippedBackgroundTheme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
+              
+              // Always update obstacle/stroke colors based on zone, even with themes
+              const hue = (START_HUE + (zoneIndex * HUE_INCREMENT_PER_ZONE)) % 360;
+              currentZoneColors.obstacle = `hsl(${hue + 20}, 80%, 60%)`;
+              currentZoneColors.stroke = `hsl(${hue + 20}, 80%, 70%)`;
+              
+              if (zoneIndex !== lastZoneIndex) {
+                  // Only update background color if no theme render function exists
+                  if (!equippedBackgroundTheme.render) {
+                      currentZoneColors.background = `hsla(${hue}, 60%, 15%, 0.8)`;
+                  } 
+                  if (playerComet) { playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle)); }
+                  updateMusicTempo();
+                  lastZoneIndex = zoneIndex;
+              } else if (gameState !== 'tutorial' && !currentZoneColors.background && !equippedBackgroundTheme.render) {
+                  // Initial default background if no theme and not in tutorial
+                  currentZoneColors.background = `hsla(${START_HUE}, 60%, 15%, 0.8)`;
+              }
+          }
+          function updateUpgradeIndicators() { powerUpStatusElement.className = 'powerup-hidden'; activeUpgradesContainer.style.display = 'flex'; magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none'; scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none'; reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none'; }
+
+          function setupEventListeners() {
+              // console.log('[DEBUG] setupEventListeners: Attaching listeners...');
+              const getPos = (e) => { 
+                  const rect = canvas.getBoundingClientRect(); 
+                  const clientX = e.clientX || e.touches[0].clientX; 
+                  const clientY = e.clientY || e.touches[0].clientY; 
+                  // Return screen-space coordinates
+                  return { 
+                      // --- BUG FIX (Bugs 1 & 2) ---
+                      // The cameraX offset was being applied here AND in startWell,
+                      // causing a "double offset" and misaligned clicks.
+                      // getPos should *only* return the click relative to the canvas.
+                      x: (clientX - rect.left) / scale, 
+                      y: (clientY - rect.top) / scale 
+                  }; 
+              };
+
+              const startWell = (e) => { 
+                  const pos = getPos(e); // 'pos' is now in SCREEN space
+                  // TUTORIAL CHECK: Block input if manager says so
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
+
+                  if ((gameState !== 'playing' && gameState !== 'tutorial') || isHeadstarting) return; 
+                  
+                  e.preventDefault(); 
+                  // This correctly converts SCREEN space to WORLD space
+                  gravityWell = new GravityWell(pos.x + cameraX, pos.y); 
+              };
+              
+              const moveWell = (e) => { 
+                  const pos = getPos(e); // 'pos' is now in SCREEN space
+                  // TUTORIAL CHECK: Block input if manager says so
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
+
+                  if (gravityWell && !isHeadstarting) { 
+                      e.preventDefault(); 
+                      // This correctly converts SCREEN space to WORLD space
+                      gravityWell.x = pos.x + cameraX; 
+                      gravityWell.y = pos.y; 
+                  } 
+              };
+              
+              // CRITICAL CLICK FIX: This function now *only* runs logic if in a playing state.
+              const endWell = (e) => { 
+                  // --- GEMINI'S BUG FIX (Overlapping UI/State) ---
+                  // We must *always* nullify the gravity well on mouseup/touchend,
+                  // regardless of the current game state, to prevent a "stuck well"
+                  // if the player crashes or pauses while holding the mouse down.
+                  //
+                  // THE BUG:
+                  // 1. Player is 'playing' and holds the mouse down. (gravityWell is active)
+                  // 2. Player crashes. State changes to 'game-over'.
+                  // 3. Player releases the mouse.
+                  // 4. The old 'if' guard would FAIL, and gravityWell would *not* be set to null.
+                  // 5. Player clicks "Play Again". The new game starts with the old, "stuck"
+                  //    gravity well still active, causing an immediate pull.
+                  //
+                  // THE FIX:
+                  // Only prevent default if the mouseup was ending a game action,
+                  // but *always* clear the gravityWell variable.
+                  if ((gameState === 'playing' || gameState === 'tutorial')) {
+                      e.preventDefault(); 
+                  }
+                  gravityWell = null; 
+              };
+              
+              // Canvas Listeners
+              canvas.addEventListener('mousedown', startWell);
+              canvas.addEventListener('mousemove', moveWell);
+              canvas.addEventListener('touchstart', startWell, { passive: false });
+              canvas.addEventListener('touchmove', moveWell, { passive: false });
+              
+              // Global listeners for ending interaction reliably
+              document.addEventListener('mouseup', endWell); 
+              document.addEventListener('touchend', endWell); 
+              document.addEventListener('touchcancel', endWell); 
+              
+              window.addEventListener('resize', resizeCanvas); 
+              
+              const handlePlayClick = async (isTutorial) => {
+                  // console.log(`[DEBUG] handlePlayClick: Tutorial = ${isTutorial}`);
+                  // --- AUDIO FIX ---
+                  // Access window.Tone directly, and check if it exists
+                  try { 
+                      if (window.Tone && window.Tone.context.state !== 'running') {
+                          await window.Tone.start(); 
+                      }
+                      if (!audioManager.isInitialized) {
+                          audioManager.init(); 
+                      }
+                      audioManager.playClickSound(); 
+                  } catch (error) { 
+                      console.error("Audio could not be initialized.", error); 
+                  } 
+                  // --- END AUDIO FIX ---
+                  finally { 
+                      if (isTutorial) { 
+                          setGameState('tutorial'); 
+                      } else if (playerData.hasPlayedBefore) { 
+                          setGameState('playing'); 
+                      } else { 
+                          setGameState('tutorial'); 
+                      } 
+                  }
+              };
+
+              // --- Specific Button Listeners ---
+              if (playButton) {
+                  playButton.addEventListener('click', () => {
+                      // console.log('[DEBUG] CLICK: Play Button');
+                      handlePlayClick(false);
+                  }); 
+              } else { console.error('[DEBUG] FATAL: playButton not found!'); }
+
+              if (restartButton) restartButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Restart Button'); */ setGameState('playing'); }); 
+              if (replayTutorialButton) replayTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Replay Tutorial Button'); */ handlePlayClick(true); });
+              if (pauseButton) pauseButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Pause Button'); */ if (gameState === 'playing') setGameState('paused'); }); 
+              if (resumeButton) resumeButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Resume Button'); */ if (gameState === 'paused') setGameState('playing'); }); 
+              if (quitButton) quitButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Quit Button'); */ if (gameState === 'paused') { audioManager.playClickSound(); setGameState('menu'); } });
+              if (observatoryButton) observatoryButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Observatory Button'); */ audioManager.playClickSound(); setGameState('observatory'); }); 
+              if (gameOverMenuButton) gameOverMenuButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Game Over Menu Button'); */ audioManager.playClickSound(); setGameState('menu'); }); 
+              if (gameOverObservatoryButton) gameOverObservatoryButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Game Over Observatory Button'); */ audioManager.playClickSound(); setGameState('observatory'); });
+              if (skipTutorialButton) skipTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Skip Tutorial Button'); */ audioManager.playClickSound(); tutorialManager.end(false); });
+
+
+              // --- OBSERVATORY CLICK FIX (Consolidated Listener) ---
+              // We now use ONE listener on the modal content to handle tabs,
+              // buys, AND the close button, to prevent conflicts.
+              const modalContentObservatory = observatory.querySelector('.modal-content');
+              if (modalContentObservatory) {
+                   modalContentObservatory.addEventListener('click', (e) => {
+                       
+                      // Handle "Back to Menu"
+                      if (e.target.closest('#closeObservatoryButton')) { // Use closest to handle clicks on icon
+                          // console.log("[DEBUG] CLICK (Delegated): Close Observatory");
+                          if (gameState === 'observatory') { 
+                             audioManager.playClickSound(); 
+                             setGameState('menu'); 
+                          }
+                         return;
+                      }
+                      
+                      // Handle Tab Switching
+                      const tabButton = e.target.closest('.tab-button');
+                      if (tabButton && tabButton.dataset.tab) {
+                          // console.log(`[DEBUG] CLICK (Delegated): Tab Button ${tabButton.dataset.tab}`);
+                          shopTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                          tabContents.forEach(content => content.classList.remove('active'));
+                          
+                          tabButton.classList.add('active');
+                          const targetTab = document.getElementById(tabButton.dataset.tab);
+                          if (targetTab) {
+                              targetTab.classList.add('active');
+                          }
+                          return;
+                      }
+
+                      // Handle Upgrade Buys
+                      const upgradeButton = e.target.closest('.buy-btn');
+                      if (upgradeButton && upgradeButton.dataset.upgrade) {
+                           // console.log(`[DEBUG] CLICK (Delegated): Buy Upgrade ${upgradeButton.dataset.upgrade}`);
+                           buyUpgrade(upgradeButton.dataset.upgrade);
+                           return; 
+                      }
+                      
+                      // Handle Cosmetic Buy/Equip
+                      const cosmeticButton = e.target.closest('.buy-cosmetic-btn, .equip-btn');
+                      if (cosmeticButton && cosmeticButton.dataset.cosmeticId) {
+                           const id = cosmeticButton.dataset.cosmeticId;
+                           if (cosmeticButton.classList.contains('buy-cosmetic-btn')) {
+                               // console.log(`[DEBUG] CLICK (Delegated): Buy Cosmetic ${id}`);
+                               buyCosmetic(id);
+                           } else if (cosmeticButton.classList.contains('equip-btn')) {
+                                // console.log(`[DEBUG] CLICK (Delegated): Equip Cosmetic ${id}`);
+                                equipCosmetic(id);
+                           }
+                           return;
+                      }
+                   });
+                  } else {
+                      console.error("[DEBUG] FATAL: Observatory modal content not found for event delegation.");
+                  }
+               // --- END OBSERVATORY CLICK FIX ---
+
+          } // --- End setupEventListeners ---
+
+          function buyUpgrade(upgradeId) {
+              let cost, canAfford = false;
+              if (Array.isArray(upgradeCosts[upgradeId])) {
+                  const level = playerData.upgrades[upgradeId] || 0; // Corrected: use upgradeId
+                  if (level < upgradeCosts[upgradeId].length) {
+                      cost = upgradeCosts[upgradeId][level];
+                      if (playerData.starFragments >= cost) { 
+                          playerData.starFragments -= cost; 
+                          playerData.upgrades[upgradeId]++; 
+                          canAfford = true; 
+                      }
+                  }
+              } else {
+                  if (!playerData.upgrades[upgradeId]) { 
+                      cost = upgradeCosts[upgradeId]; 
+                      if (playerData.starFragments >= cost) { 
+                          playerData.starFragments -= cost; 
+                          playerData.upgrades[upgradeId] = true; 
+                          canAfford = true; 
+                      } 
+                  }
+              }
+              if (canAfford) { 
+                  /* console.log(`[DEBUG] Purchased ${upgradeId}`); */ 
+                  audioManager.playFragmentSound(); 
+                  savePlayerData(); 
+                  updateObservatoryUI(); 
+              } 
+              else { /* console.log(`[DEBUG] Cannot afford ${upgradeId}`); */ }
+          }
+
+
+          // Functions for cosmetics
+          function buyCosmetic(cosmeticId) {
+              const item = cosmeticItems[cosmeticId];
+              if (item && !playerData.cosmetics.unlocked.includes(cosmeticId) && playerData.starFragments >= item.cost) {
+                  playerData.starFragments -= item.cost;
+                  playerData.cosmetics.unlocked.push(cosmeticId);
+                  audioManager.playFragmentSound();
+                  savePlayerData();
+                  updateObservatoryUI(); // Refresh UI to show Equip button
+                  // console.log(`[DEBUG] Bought cosmetic: ${cosmeticId}`);
+              } else {
+                  // console.log(`[DEBUG] Cannot buy cosmetic: ${cosmeticId}`);
+              }
+          }
+
+          function equipCosmetic(cosmeticId) {
+               const item = cosmeticItems[cosmeticId];
+              if (item && playerData.cosmetics.unlocked.includes(cosmeticId)) {
+                  playerData.cosmetics.equipped[item.type] = cosmeticId; // Equip based on type
+                  audioManager.playClickSound();
+                  savePlayerData();
+                  updateObservatoryUI(); // Refresh UI to show Equipped status
+                  // console.log(`[DEBUG] Equipped cosmetic: ${cosmeticId}`);
+                  // If it's a background theme, immediately update drawing if in menu/observatory
+                  if(item.type === 'background' && (gameState === 'menu' || gameState === 'observatory')) {
+                       if (!animationFrameId) {
+                           gameLoop(); // Request a single frame to redraw if loop isn't running
+                       }
+                  }
+              } else {
+                   // console.log(`[DEBUG] Cannot equip cosmetic: ${cosmeticId}`);
+              }
+          }
+
+
+          // --- Initialization ---
+          function init() { 
+              // console.log('[DEBUG] init: Initializing game...');
+              if (stars.length === 0) {
+                 for (let i = 0; i < 200; i++) stars.push(new Star()); 
+                 // console.log('[DEBUG] init: Created stars.');
+              }
+              setupEventListeners(); 
+              loadPlayerData(); 
+              resizeCanvas(); 
+              setGameState('menu'); 
+              // gameLoop(); // Removed: gameLoop is now started by setGameState('menu')
+          }
+          
+          // START THE GAME
+          init();
+
+          // Helper for you to reset the tutorial flag in the console if needed
+          window.resetTutorial = function() { 
+              playerData.hasPlayedBefore = false; 
+              savePlayerData(); 
+              console.log("Tutorial flag reset. Refresh the page."); 
+          }
+
+      }); // End of DOMContentLoaded wrapper
+    </script>
+  </body>
+</html>
+
