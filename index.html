@@ -443,6 +443,22 @@
           cursor: not-allowed;
       }
 
+      /* --- PREMIUM VISUALS --- */
+      /* Pulsating glow animation for premium shop items */
+      @keyframes pulse-glow {
+        0%, 100% {
+          box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(0,0,0,0.5);
+          transform: scale(1);
+        }
+        50% {
+          /* Use CSS variable for glow color, set in JS */
+          box-shadow: 0 0 18px 4px var(--glow-color, #fff), inset 0 0 10px rgba(0,0,0,0.5);
+          transform: scale(1.05);
+        }
+      }
+      /* --- END PREMIUM VISUALS --- */
+
+
       /* Cosmetics */
       .cosmetic-grid {
           display: grid;
@@ -471,6 +487,11 @@
           align-items: center;
           /* Basic comet shape */
           box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+          /* Set a default transparent glow color */
+          --glow-color: transparent;
+          /* Apply animation to all, but it will only glow if --glow-color is set */
+          animation: pulse-glow 3s infinite ease-in-out;
+          transition: transform 0.2s ease;
       }
 
       /* Specific preview styles for non-comet types */
@@ -915,45 +936,112 @@
               revive: 250
           };
 
+          // --- PREMIUM VISUALS (Data) ---
           // Define Cosmetic Items with render functions/styles
           const cosmeticItems = {
               // Comet Skins
-              comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
-              comet_inferno: { name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)', particleEffect: { color: '#fb923c' } },
-              comet_emerald: { name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)', particleEffect: { color: '#34d399' } },
-              comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)', particleEffect: { color: '#a855f7' } },
-              comet_plasma: { name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)', particleEffect: { color: '#60a5fa' } }, 
-              comet_gold: { name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleEffect: { color: '#fde047' } }, 
-              comet_smiley: { name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black;', fillStyle: '#facc15', drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
+              comet_default: { id: 'comet_default', name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
+              comet_inferno: { id: 'comet_inferno', name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fb923c;', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)', particleEffect: { color: '#fb923c' } },
+              comet_emerald: { id: 'comet_emerald', name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #34d399;', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)', particleEffect: { color: '#34d399' } },
+              comet_galaxy: { id: 'comet_galaxy', name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a855f7;', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)', particleEffect: { color: '#a855f7' } },
+              comet_plasma: { id: 'comet_plasma', name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #60a5fa;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)', particleEffect: { color: '#60a5fa' } }, 
+              comet_gold: { id: 'comet_gold', name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleEffect: { color: '#fde047' } }, 
+              comet_smiley: { id: 'comet_smiley', name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #facc15;', fillStyle: '#facc15', particleEffect: { color: '#fde047' }, drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
 
               // Obstacle Skins
-              obstacle_default: { name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
+              obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
               obstacle_rock: { 
-                  name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
-                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #7171a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%;', 
+                  id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #7171a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a1a1aa;', 
                   fillStyle: '#7171a', strokeStyle: '#a1a1aa', 
-                  collisionShape: 'circle',
-                  draw: (ctx, x, y, w, h, skin, obs) => {
+                  collisionShape: 'circle', // Collision is simple circle
+                  draw: (ctx, x, y, w, h, skin, obs) => { // Draw is complex polygon
                       const radius = w / 2;
                       const centerX = x + radius;
-                      const centerY = y + radius; // Assumes w == h
+                      const centerY = y + radius;
+                      
+                      // Lazy-init vertices on the obstacle object itself
+                      if (!obs.vertices) {
+                          obs.vertices = [];
+                          const numVertices = 8 + Math.floor(Math.random() * 5); // 8-12 vertices
+                          for (let i = 0; i < numVertices; i++) {
+                              const angle = (i / numVertices) * Math.PI * 2;
+                              // Jagged radius
+                              const dist = radius * (0.8 + Math.random() * 0.4); 
+                              obs.vertices.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist });
+                          }
+                      }
+
                       ctx.fillStyle = skin.fillStyle;
                       ctx.strokeStyle = skin.strokeStyle;
                       ctx.lineWidth = 2;
+                      
+                      // Draw the procedural polygon
                       ctx.beginPath();
-                      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                      ctx.moveTo(centerX + obs.vertices[0].x, centerY + obs.vertices[0].y);
+                      for (let i = 1; i < obs.vertices.length; i++) {
+                          ctx.lineTo(centerX + obs.vertices[i].x, centerY + obs.vertices[i].y);
+                      }
+                      ctx.closePath();
                       ctx.fill();
                       ctx.stroke();
-                      // Add some craters for flair
+                      
+                      // Add craters (from old implementation, they're nice)
                       ctx.fillStyle = 'rgba(0,0,0,0.2)';
                       ctx.beginPath(); ctx.arc(centerX - radius*0.3, centerY - radius*0.4, radius*0.2, 0, Math.PI*2); ctx.fill();
                       ctx.beginPath(); ctx.arc(centerX + radius*0.5, centerY + radius*0.1, radius*0.3, 0, Math.PI*2); ctx.fill();
                   }
               }, 
-              obstacle_crystal: { name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);', fillStyle: 'linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8))', strokeStyle: '#e9d5ff', collisionShape: 'rect' /* Add custom polygon draw/collision later */ }, 
-              obstacle_alien: { name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9;', fillStyle: '#1e293b', strokeStyle: '#64748b', collisionShape: 'rect' /* Add glow effect later */ }, 
+              obstacle_crystal: { 
+                  id: 'obstacle_crystal', name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #e9d5ff;', 
+                  strokeStyle: '#e9d5ff', collisionShape: 'rect',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      const grad = ctx.createLinearGradient(x, y + h, x, y);
+                      grad.addColorStop(0, 'rgba(126, 34, 206, 0.8)');
+                      grad.addColorStop(1, 'rgba(192, 132, 252, 0.7)');
+                      
+                      ctx.fillStyle = grad;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      
+                      ctx.beginPath();
+                      ctx.moveTo(x, y + h); // bottom left
+                      ctx.lineTo(x, y + h * 0.2); // top left shoulder
+                      ctx.lineTo(x + w * 0.5, y); // top center (point)
+                      ctx.lineTo(x + w, y + h * 0.2); // top right shoulder
+                      ctx.lineTo(x + w, y + h); // bottom right
+                      ctx.closePath();
+                      ctx.fill();
+                      ctx.stroke();
+                  }
+              }, 
+              obstacle_alien: { 
+                  id: 'obstacle_alien', name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #0ea5e9;', 
+                  fillStyle: '#1e293b', strokeStyle: '#64748b', collisionShape: 'rect',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      ctx.fillRect(x, y, w, h);
+                      ctx.strokeRect(x, y, w, h);
+                      
+                      // Add pulsating glow using a time-based sine wave
+                      const glowAlpha = 0.5 + Math.sin(Date.now() * 0.005) * 0.5; // 0.0 to 1.0
+                      ctx.shadowColor = '#0ea5e9';
+                      ctx.shadowBlur = 10 + glowAlpha * 10; // 10 to 20
+                      ctx.strokeStyle = `rgba(100, 180, 255, ${glowAlpha})`;
+                      ctx.lineWidth = 3;
+                      ctx.strokeRect(x, y, w, h);
+                      
+                      // Reset shadow for next draw call
+                      ctx.shadowColor = 'transparent';
+                      ctx.shadowBlur = 0;
+                  }
+              }, 
               obstacle_rubber_ducky: { 
-                  name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', 
+                  id: 'obstacle_rubber_ducky', name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', 
                   previewStyle: 'background-color: #facc15; border: 2px solid #fde047; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;', 
                   fillStyle: '#facc15', strokeStyle: '#fde047', 
                   collisionShape: 'circle',
@@ -984,14 +1072,15 @@
               }, 
 
               // Background Themes
-              background_default: { name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_nebula: { name: 'Nebula', type: 'background', cost: 5000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } }, 
-              background_lava: { name: 'Volcanic Void', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(0deg, #7f1d1d, #b91c1c, #f59e0b);', render: () => { const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0); grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_ice: { name: 'Glacial Expanse', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(180deg, #93c5fd, #3b82f6, #1e3a8a);', render: () => { const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT); grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_halloween: { name: 'Spooky Space', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(135deg, #581c87, #ea580c, #450a0a);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#581c87'); grad.addColorStop(0.5, '#ea580c'); grad.addColorStop(1, '#450a0a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_christmas: { name: 'Festive Flight', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(90deg, #b91c1c, #15803d, #fde047);', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, 0); grad.addColorStop(0, '#b91c1c'); grad.addColorStop(0.5, '#15803d'); grad.addColorStop(1, '#fde047'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_retro_arcade: { name: 'Retro Arcade', type: 'background', cost: 4500, previewClass: 'background-preview', previewStyle: 'background-color: black; background-image: linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px); background-size: 40px 40px;', render: () => { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 1; for (let x = 0; x < VIRTUAL_WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_HEIGHT); ctx.stroke(); } for (let y = 0; y < VIRTUAL_HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_WIDTH, y); ctx.stroke(); } stars.forEach(s => s.draw()); } }, 
+              background_default: { id: 'background_default', name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_nebula: { id: 'background_nebula', name: 'Nebula', type: 'background', cost: 5000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #be185d;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } }, 
+              background_lava: { id: 'background_lava', name: 'Volcanic Void', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(0deg, #7f1d1d, #b91c1c, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #f59e0b;', render: () => { const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0); grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_ice: { id: 'background_ice', name: 'Glacial Expanse', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(180deg, #93c5fd, #3b82f6, #1e3a8a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #93c5fd;', render: () => { const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT); grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_halloween: { id: 'background_halloween', name: 'Spooky Space', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(135deg, #581c87, #ea580c, #450a0a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #ea580c;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#581c87'); grad.addColorStop(0.5, '#ea580c'); grad.addColorStop(1, '#450a0a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_christmas: { id: 'background_christmas', name: 'Festive Flight', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(90deg, #b91c1c, #15803d, #fde047); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, 0); grad.addColorStop(0, '#b91c1c'); grad.addColorStop(0.5, '#15803d'); grad.addColorStop(1, '#fde047'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
+              background_retro_arcade: { id: 'background_retro_arcade', name: 'Retro Arcade', type: 'background', cost: 4500, previewClass: 'background-preview', previewStyle: 'background-color: black; background-image: linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px); background-size: 40px 40px; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #1e3a8a;', render: () => { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 1; for (let x = 0; x < VIRTUAL_WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_HEIGHT); ctx.stroke(); } for (let y = 0; y < VIRTUAL_HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_WIDTH, y); ctx.stroke(); } stars.forEach(s => s.draw()); } }, 
           };
+          // --- END PREMIUM VISUALS ---
 
 
           let playerComet = null;
@@ -1763,7 +1852,13 @@
                       
                       const preview = document.createElement('div');
                       preview.className = `cosmetic-preview ${item.previewClass || ''}`; 
+                      
+                      // --- PREMIUM VISUALS (Apply) ---
+                      // Use the previewStyle string which now contains
+                      // the animation and --glow-color variable for premium items
                       preview.style.cssText = item.previewStyle;
+                      // --- END PREMIUM VISUALS ---
+
                       if (id === 'comet_smiley') {
                           preview.innerHTML = '&#9786;'; 
                           preview.style.lineHeight = '60px'; 
@@ -1955,7 +2050,7 @@
               const collisionResult = checkCollisions();
               if (collisionResult.obstacle) { if (hasRevive) revivePlayer(); else { setGameState('game-over'); return; } }
               if (collisionResult.fragment) { fragmentsThisRun++; runFragmentsDisplay.textContent = fragmentsThisRun; audioManager.playFragmentSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15'); }
-              if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[collisionResult.powerUp].main); }
+              if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[activePowerUp.type].main); }
               handleActivePowerUp();
               if (!isHeadstarting) {
                   if (playerComet.vx > 0) {
