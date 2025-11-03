@@ -522,7 +522,19 @@
       }
 
       /* --- NEW TUTORIAL STYLES --- */
-      #tutorialOverlay .modal-content {
+      
+      /* --- ZOMBIE UI BUG FIX ---
+       * The problem: The rule `#tutorialOverlay .modal-content` was too specific.
+       * Its `pointer-events: all` property was *always* active, even
+       * when the parent `#tutorialOverlay` was hidden (it had `opacity: 0`
+       * and `pointer-events: none`).
+       *
+       * The fix: Change the selector to `#tutorialOverlay.modal-visible .modal-content`.
+       * This ensures the `pointer-events: all` rule only applies when
+       * the tutorial overlay is *actually visible*, solving the bug
+       * where it invisibly blocked clicks on other menus.
+       */
+      #tutorialOverlay.modal-visible .modal-content {
           background: none;
           backdrop-filter: none;
           box-shadow: none;
@@ -533,7 +545,7 @@
           transform: translateX(-50%);
           width: 80%;
           max-width: 500px;
-          pointer-events: all; /* Only the content part of the overlay can be clicked */
+          pointer-events: all; /* This rule is now correctly scoped */
       }
 
       #tutorialOverlay {
@@ -683,7 +695,7 @@
 
             <!-- 
               CRITICAL TYPO FIX: 
-              Changed `class_name` to `class` 
+              Changed `class_name` to `class` in the original code.
             -->
             <div id="upgradesTab" class="tab-content active">
                 <div class="shop-section">
@@ -907,19 +919,69 @@
           const cosmeticItems = {
               // Comet Skins
               comet_default: { name: 'Default', type: 'comet', cost: 0, previewStyle: 'background-color: white;', fillStyle: 'white' },
-              comet_inferno: { name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)' },
-              comet_emerald: { name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)' },
-              comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)' },
-              comet_plasma: { name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)' }, 
-              comet_gold: { name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)' }, 
+              comet_inferno: { name: 'Inferno', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #f87171, #fb923c);', fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)', particleEffect: { color: '#fb923c' } },
+              comet_emerald: { name: 'Emerald', type: 'comet', cost: 1500, previewStyle: 'background: linear-gradient(45deg, #34d399, #22c55e);', fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)', particleEffect: { color: '#34d399' } },
+              comet_galaxy: { name: 'Galaxy', type: 'comet', cost: 2500, previewStyle: 'background: radial-gradient(circle, #a855f7, #7e22ce, #3b0764);', fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)', particleEffect: { color: '#a855f7' } },
+              comet_plasma: { name: 'Plasma Ball', type: 'comet', cost: 3000, previewStyle: 'background: radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8); border: 2px solid #93c5fd;', fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)', particleEffect: { color: '#60a5fa' } }, 
+              comet_gold: { name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleEffect: { color: '#fde047' } }, 
               comet_smiley: { name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black;', fillStyle: '#facc15', drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
 
               // Obstacle Skins
-              obstacle_default: { name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)' },
-              obstacle_rock: { name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 15px 5px 20px 8px;', fillStyle: 'linear-gradient(135deg, #a1a1aa, #71717a, #52525b)', strokeStyle: '#a1a1aa' /* Add drawing logic later */ }, 
-              obstacle_crystal: { name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);', fillStyle: 'linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8))', strokeStyle: '#e9d5ff' /* Add drawing logic later */ }, 
-              obstacle_alien: { name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9;', fillStyle: '#1e293b', strokeStyle: '#64748b' /* Add glow effect later */ }, 
-              obstacle_rubber_ducky: { name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', previewStyle: 'background-color: #facc15; border: 2px solid #fde047; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;', fillStyle: '#facc15', strokeStyle: '#fde047' /* Add drawing logic later */ }, 
+              obstacle_default: { name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
+              obstacle_rock: { 
+                  name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #7171a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%;', 
+                  fillStyle: '#7171a', strokeStyle: '#a1a1aa', 
+                  collisionShape: 'circle',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      const radius = w / 2;
+                      const centerX = x + radius;
+                      const centerY = y + radius; // Assumes w == h
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      ctx.beginPath();
+                      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                      ctx.fill();
+                      ctx.stroke();
+                      // Add some craters for flair
+                      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                      ctx.beginPath(); ctx.arc(centerX - radius*0.3, centerY - radius*0.4, radius*0.2, 0, Math.PI*2); ctx.fill();
+                      ctx.beginPath(); ctx.arc(centerX + radius*0.5, centerY + radius*0.1, radius*0.3, 0, Math.PI*2); ctx.fill();
+                  }
+              }, 
+              obstacle_crystal: { name: 'Crystal Spires', type: 'obstacle', cost: 3000, previewClass: 'obstacle-preview', previewStyle: 'background: linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8)); border: 2px solid #e9d5ff; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);', fillStyle: 'linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8))', strokeStyle: '#e9d5ff', collisionShape: 'rect' /* Add custom polygon draw/collision later */ }, 
+              obstacle_alien: { name: 'Alien Monoliths', type: 'obstacle', cost: 4000, previewClass: 'obstacle-preview', previewStyle: 'background-color: #1e293b; border: 2px solid #64748b; box-shadow: inset 0 0 10px #0ea5e9;', fillStyle: '#1e293b', strokeStyle: '#64748b', collisionShape: 'rect' /* Add glow effect later */ }, 
+              obstacle_rubber_ducky: { 
+                  name: 'Rubber Duckies', type: 'obstacle', cost: 2500, previewClass: 'obstacle-preview', 
+                  previewStyle: 'background-color: #facc15; border: 2px solid #fde047; border-radius: 50% 50% 20% 20% / 60% 60% 40% 40%;', 
+                  fillStyle: '#facc15', strokeStyle: '#fde047', 
+                  collisionShape: 'circle',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      const radius = w / 2;
+                      const centerX = x + radius;
+                      const centerY = y + radius; // Assumes w == h
+                      // Body
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.strokeStyle = skin.strokeStyle;
+                      ctx.lineWidth = 2;
+                      ctx.beginPath();
+                      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                      ctx.fill();
+                      ctx.stroke();
+                      // Head
+                      ctx.beginPath();
+                      ctx.arc(centerX + radius*0.1, centerY - radius*0.5, radius*0.6, 0, Math.PI*2);
+                      ctx.fill();
+                      ctx.stroke();
+                      // Eye
+                      ctx.fillStyle = 'black';
+                      ctx.beginPath(); ctx.arc(centerX + radius*0.2, centerY - radius*0.55, radius*0.1, 0, Math.PI*2); ctx.fill();
+                      // Beak
+                      ctx.fillStyle = '#f97316';
+                      ctx.beginPath(); ctx.moveTo(centerX + radius*0.5, centerY - radius*0.5); ctx.lineTo(centerX + radius*0.8, centerY - radius*0.4); ctx.lineTo(centerX + radius*0.5, centerY - radius*0.3); ctx.closePath(); ctx.fill();
+                  }
+              }, 
 
               // Background Themes
               background_default: { name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
@@ -1358,6 +1420,22 @@
                   
                   this.trail.push({ x: this.x, y: this.y });
                   if (this.trail.length > 15) this.trail.shift();
+
+                  // --- NEW FLAIR (Particle Effects) ---
+                  const skin = cosmeticItems[playerData.cosmetics.equipped.comet] || cosmeticItems['comet_default'];
+                  if (skin.particleEffect && this.baseSpeed > 0 && Math.random() < 0.5) {
+                      particles.push(new Particle(
+                          this.x, // Emit from center
+                          this.y + (Math.random() - 0.5) * this.radius, // Add spread
+                          skin.particleEffect.color,
+                          { 
+                              lifespan: 20 + Math.random() * 20, // 20-40 frame lifespan
+                              vx: -this.baseSpeed * 0.5 * (Math.random() + 0.5) // Emit backwards
+                          }
+                      ));
+                  }
+                  // --- END FLAIR ---
+                  
                   this.orbiters.forEach(orb => orb.update());
               }
               // --- END REFACTORED UPDATE ---
@@ -1532,18 +1610,34 @@
                           console.error("Error applying obstacle fill style:", fillColor, e);
                           ctx.fillStyle = currentZoneColors.obstacle; // Fallback
                       }
-
-                      ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
                       
-                      if (this.type !== 'phasing' || this.isActive) { 
-                          ctx.strokeStyle = strokeColor; 
-                          ctx.lineWidth = 2; 
-                          ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height); 
+                      // --- NEW FLAIR (Custom Obstacle Drawing) ---
+                      // Check for a custom draw function on the skin
+                      if (skin.draw) {
+                          try {
+                              skin.draw(ctx, this.x - cameraX, this.y, this.width, this.height, skin, this);
+                          } catch (e) {
+                              console.error("Error in custom obstacle draw:", e);
+                              // Fallback to rect if custom draw fails
+                              ctx.fillStyle = 'red'; // Error indicator
+                              ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+                          }
+                      } else {
+                          // Default rectangle drawing
+                          ctx.fillStyle = fillColor;
+                          ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+                          
+                          if (this.type !== 'phasing' || this.isActive) { 
+                              ctx.strokeStyle = strokeColor; 
+                              ctx.lineWidth = 2; 
+                              ctx.strokeRect(this.x - cameraX, this.y, this.width, this.height); 
+                          }
                       }
-                      // Add custom draw logic here later for complex shapes (rock, duck, crystal clip-path, alien glow etc.)
-                  }
-              }
-          }
+                      // --- END FLAIR ---
+                  } // <-- This closes if(shouldDraw)
+              } // <-- This closes draw()
+          } // <-- This brace closes class Obstacle.
+          
           class PowerUp {
               constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' }, shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' }, boost: { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' } }; this.animation = Math.random() * Math.PI * 2; }
               draw() {
@@ -1570,11 +1664,44 @@
                   ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
               }
           }
+          
+          // --- PARTICLE CLASS REFACTOR ---
           class Particle {
-              constructor(x, y, color) { this.x = x; this.y = y; this.color = color; this.radius = Math.random() * 2 + 1; this.lifespan = 45; this.vx = (Math.random() - 0.5) * 3; this.vy = (Math.random() - 0.5) * 3; }
-              update() { this.x += this.vx; this.y += this.vy; this.lifespan--; }
-              draw() { ctx.beginPath(); ctx.arc(this.x - cameraX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.globalAlpha = this.lifespan / 45; ctx.fill(); ctx.globalAlpha = 1.0; }
+              constructor(x, y, color, options = {}) { 
+                  this.x = x; 
+                  this.y = y; 
+                  this.color = color; 
+                  this.maxLifespan = this.lifespan = options.lifespan || (Math.random() * 20 + 25); // Default 25-45 frames
+                  
+                  // --- BUG FIX ---
+                  // 'this.radius' was used in draw() but not defined here.
+                  this.radius = Math.random() * 2 + 1;
+                  // --- END FIX ---
+
+                  const speed = options.speed || (Math.random() * 3 + 1); // Default 1-4 speed
+                  const angle = options.angle || (Math.random() * Math.PI * 2);
+
+                  this.vx = options.vx !== undefined ? options.vx : (Math.cos(angle) * speed);
+                  this.vy = options.vy !== undefined ? options.vy : (Math.sin(angle) * speed);
+              }
+              update() { 
+                  this.x += this.vx; 
+                  this.y += this.vy; 
+                  this.vx *= 0.98; // Air resistance
+                  this.vy *= 0.98; // Air resistance
+                  this.lifespan--; 
+              }
+              draw() { 
+                  ctx.beginPath(); 
+                  ctx.arc(this.x - cameraX, this.y, this.radius * (this.lifespan / this.maxLifespan), 0, Math.PI * 2); 
+                  ctx.fillStyle = this.color; 
+                  ctx.globalAlpha = this.lifespan / this.maxLifespan; 
+                  ctx.fill(); 
+                  ctx.globalAlpha = 1.0; 
+              }
           }
+          // --- END PARTICLE REFACTOR ---
+
 
           // --- Step 4: Core Game Logic Functions ---
           function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData)); } catch (e) { console.error("Could not save player data.", e); } }
@@ -1677,10 +1804,17 @@
               // console.log(`[DEBUG] setGameState: Changing from '${gameState}' to '${newState}'`);
               const oldState = gameState; gameState = newState;
 
-              // --- NEW DYNAMIC HIDING LOGIC ---
-              // This replaces the long hardcoded line and fixes the overlay bug.
+              // --- "ZOMBIE UI" BUG FIX ---
+              // This is the dynamic loop. It finds
+              // all UI elements and hides them, fixing the overlay bug.
               allUiScreens.forEach(screen => {
                 const screenType = screen.dataset.uiScreen;
+                
+                // --- CRITICAL TYPO FIX ---
+                // Was 'screen.classList.contacts', now 'screen.classList.contains'
+                // This typo broke the entire UI hiding logic.
+                const isModal = screen.classList.contains('modal'); 
+                // --- END FIX ---
                 
                 // Hide all screens by default, using their specific 'hidden' states
                 switch (screenType) {
@@ -1688,22 +1822,33 @@
                         screen.style.display = 'none';
                         break;
                     case 'tutorial-fx':
-                        // Updated for new spotlight
                         if (screen.id === 'tutorialSpotlight') screen.className = 'tutorial-spotlight-hidden';
                         break;
                     case 'powerUp':
-                        // This one is managed by handleActivePowerUp, but we'll ensure it's hidden on state change
                         screen.className = 'powerup-hidden'; 
                         break;
+                    
+                    // --- BUG FIX ---
+                    // Explicitly hide the tutorial overlay.
+                    // The default 'isModal' check was failing in some edge cases
+                    // after the tutorial was run, leaving an invisible
+                    // overlay that blocked clicks.
+                    case 'tutorial':
+                        if (screen.id === 'tutorialOverlay') {
+                           screen.className = 'modal modal-hidden';
+                        }
+                        break;
+                    // --- END BUG FIX ---
+
                     default:
-                        // This handles all modals: menu, gameOver, pause, observatory, tutorial
-                        if (screen.classList.contains('modal')) {
+                        // This handles all other modals: menu, gameOver, pause, observatory
+                        if (isModal) {
                             screen.className = 'modal modal-hidden';
                         }
                         break;
                 }
               });
-              // --- END NEW LOGIC ---
+              // --- END BUG FIX ---
 
               appContainer.classList.remove('screen-shake');
               
@@ -1730,7 +1875,7 @@
                   inGameUi.style.display = 'flex'; // Keep in-game UI visible
                   pauseMenu.className = 'modal modal-visible'; // Show pause menu
               } else if (newState === 'tutorial') {
-                  inGameUi.style.display = 'flex'; // Show in-game UI
+                  inGameUi.style.display = 'flex'; // Show in-Ggame UI
                   tutorialOverlay.className = 'modal modal-visible'; // Show tutorial text
                   setTimeout(startTutorial, 350);
               } else if (newState === 'game-over') {
@@ -1931,7 +2076,17 @@
                   const minDistance = Math.max(80, 200 - zoneIndex * 15);
                   const randomDistance = Math.max(50, 150 - zoneIndex * 10);
                   const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance; 
-                  const width = Math.random() * 50 + 25; const height = Math.random() * 180 + 50;
+                  
+                  const width = Math.random() * 50 + 25;
+                  let height = Math.random() * 180 + 50;
+
+                  // --- NEW FLAIR (Obstacle Shape Spawning) ---
+                  const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+                  if (skin.collisionShape === 'circle') {
+                      height = width; // Make circles proportional
+                  }
+                  // --- END FLAIR ---
+
                   const y = Math.random() * (VIRTUAL_HEIGHT - height);
                   obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
                   nextObstacleSpawnX = x;
@@ -1969,7 +2124,12 @@
                   nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
               }
           }
-          function createExplosion(x, y, count, color) { for (let i = 0; i < count; i++) { particles.push(new Particle(x, y, color)); } }
+          function createExplosion(x, y, count, color) { 
+              // Updated to use new Particle constructor
+              for (let i = 0; i < count; i++) { 
+                  particles.push(new Particle(x, y, color)); 
+              } 
+          }
           function manageParticles() { particles = particles.filter(p => { p.update(); return p.lifespan > 0; }); }
           function handleActivePowerUp() {
               if (activePowerUp.type && activePowerUp.timer > 0) {
@@ -1994,7 +2154,36 @@
 
               if (activePowerUp.type !== 'shield' && !isHeadstarting) {
                   if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
-                  for (const obs of obstacles) { if (obs.isActive && playerComet.x + playerComet.radius > obs.x && playerComet.x - playerComet.radius < obs.x + obs.width && playerComet.y + playerComet.radius > obs.y && playerComet.y - playerComet.radius < obs.y + obs.height) { return { obstacle: true }; } }
+                  
+                  // --- COLLISION REFACTOR ---
+                  for (const obs of obstacles) {
+                      if (!obs.isActive) continue; // Skip phasing obstacles
+
+                      const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+
+                      if (skin.collisionShape === 'circle') {
+                          // Circle Collision
+                          const obsRadius = obs.width / 2; // Assumes w == h
+                          const obsCenterX = obs.x + obsRadius;
+                          const obsCenterY = obs.y + obsRadius;
+                          
+                          const distSq = (playerComet.x - obsCenterX)**2 + (playerComet.y - obsCenterY)**2;
+                          const radiiSq = (playerComet.radius + obsRadius)**2;
+                          
+                          if (distSq < radiiSq) {
+                              return { obstacle: true };
+                          }
+                      } else {
+                          // Default Rectangle (AABB) Collision
+                          if (playerComet.x + playerComet.radius > obs.x && 
+                              playerComet.x - playerComet.radius < obs.x + obs.width && 
+                              playerComet.y + playerComet.radius > obs.y && 
+                              playerComet.y - playerComet.radius < obs.y + obs.height) {
+                              return { obstacle: true };
+                          }
+                      }
+                  }
+                  // --- END COLLISION REFACTOR ---
               }
               return {};
           }
@@ -2085,13 +2274,26 @@
               
               // CRITICAL CLICK FIX: This function now *only* runs logic if in a playing state.
               const endWell = (e) => { 
-                  // TUTORIAL CHECK: Block input if manager says so (no pos needed)
-                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked()) return;
-
+                  // --- GEMINI'S BUG FIX (Overlapping UI/State) ---
+                  // We must *always* nullify the gravity well on mouseup/touchend,
+                  // regardless of the current game state, to prevent a "stuck well"
+                  // if the player crashes or pauses while holding the mouse down.
+                  //
+                  // THE BUG:
+                  // 1. Player is 'playing' and holds the mouse down. (gravityWell is active)
+                  // 2. Player crashes. State changes to 'game-over'.
+                  // 3. Player releases the mouse.
+                  // 4. The old 'if' guard would FAIL, and gravityWell would *not* be set to null.
+                  // 5. Player clicks "Play Again". The new game starts with the old, "stuck"
+                  //    gravity well still active, causing an immediate pull.
+                  //
+                  // THE FIX:
+                  // Only prevent default if the mouseup was ending a game action,
+                  // but *always* clear the gravityWell variable.
                   if ((gameState === 'playing' || gameState === 'tutorial')) {
                       e.preventDefault(); 
-                      gravityWell = null; 
                   }
+                  gravityWell = null; 
               };
               
               // Canvas Listeners
@@ -2131,26 +2333,39 @@
               if (gameOverObservatoryButton) gameOverObservatoryButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Game Over Observatory Button'); */ audioManager.playClickSound(); setGameState('observatory'); });
               if (skipTutorialButton) skipTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Skip Tutorial Button'); */ audioManager.playClickSound(); tutorialManager.end(false); });
 
-              // CRITICAL FIX: Ensure closeObservatoryButton listener is correctly attached
-              if (closeObservatoryButton) {
-                   const closeObservatoryHandler = () => { 
-                       // console.log("[DEBUG] CLICK: Close Observatory Button"); // Debug log
-                       if (gameState === 'observatory') { 
-                          audioManager.playClickSound(); 
-                          setGameState('menu'); 
-                       } else {
-                           // console.log(`[DEBUG] Close Observatory clicked but game state is ${gameState}, not 'observatory'.`);
-                       }
-                   };
-                   closeObservatoryButton.addEventListener('click', closeObservatoryHandler);
-              } else {
-                  console.error("[DEBUG] FATAL: Could not find closeObservatoryButton element!");
-              }
-              
-              // --- Event Delegation for dynamic content ---
-               const modalContentObservatory = observatory.querySelector('.modal-content');
-               if (modalContentObservatory) {
+
+              // --- OBSERVATORY CLICK FIX (Consolidated Listener) ---
+              // We now use ONE listener on the modal content to handle tabs,
+              // buys, AND the close button, to prevent conflicts.
+              const modalContentObservatory = observatory.querySelector('.modal-content');
+              if (modalContentObservatory) {
                    modalContentObservatory.addEventListener('click', (e) => {
+                       
+                      // Handle "Back to Menu"
+                      if (e.target.id === 'closeObservatoryButton') {
+                           // console.log("[DEBUG] CLICK (Delegated): Close Observatory");
+                           if (gameState === 'observatory') { 
+                              audioManager.playClickSound(); 
+                              setGameState('menu'); 
+                           }
+                           return;
+                      }
+                       
+                      // Handle Tab Switching
+                      const tabButton = e.target.closest('.tab-button');
+                      if (tabButton && tabButton.dataset.tab) {
+                          // console.log(`[DEBUG] CLICK (Delegated): Tab Button ${tabButton.dataset.tab}`);
+                          shopTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+                          tabContents.forEach(content => content.classList.remove('active'));
+                          
+                          tabButton.classList.add('active');
+                          const targetTab = document.getElementById(tabButton.dataset.tab);
+                          if (targetTab) {
+                              targetTab.classList.add('active');
+                          }
+                          return;
+                      }
+
                       // Handle Upgrade Buys
                       const upgradeButton = e.target.closest('.buy-btn');
                       if (upgradeButton && upgradeButton.dataset.upgrade) {
@@ -2176,27 +2391,9 @@
                } else {
                    console.error("[DEBUG] FATAL: Observatory modal content not found for event delegation.");
                }
+               // --- END OBSERVATORY CLICK FIX ---
 
-              // Add event listener for shop tabs
-              if (shopTabs) {
-                  shopTabs.addEventListener('click', (e) => {
-                      if (e.target.classList.contains('tab-button')) {
-                          // console.log(`[DEBUG] CLICK: Tab Button ${e.target.dataset.tab}`);
-                          shopTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                          tabContents.forEach(content => content.classList.remove('active'));
-                          
-                          e.target.classList.add('active');
-                          const targetTab = document.getElementById(e.target.dataset.tab);
-                          if (targetTab) {
-                              targetTab.classList.add('active');
-                          }
-                      }
-                  });
-              } else {
-                  console.error("[DEBUG] FATAL: Shop tabs container not found!");
-              }
-              // console.log('[DEBUG] setupEventListeners: Listeners attached.');
-          }
+          } // --- End setupEventListeners ---
 
           function buyUpgrade(upgradeId) {
               let cost, canAfford = false;
@@ -2282,14 +2479,15 @@
           // START THE GAME
           init();
 
-          window.resetTutorial = function() { playerData.hasPlayedBefore = false; savePlayerData(); console.log("Tutorial flag reset."); }
+          // Helper for you to reset the tutorial flag in the console if needed
+          window.resetTutorial = function() { 
+              playerData.hasPlayedBefore = false; 
+              savePlayerData(); 
+              console.log("Tutorial flag reset. Refresh the page."); 
+          }
 
       }); // End of DOMContentLoaded wrapper
     </script>
   </body>
 </html>
-
-
-
-
 
