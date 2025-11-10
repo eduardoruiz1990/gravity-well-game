@@ -17,15 +17,13 @@
     This file must be placed in the 'www' folder next to index.html.
   -->
   <script src="./Tone.min.js"></script>
-  <!--
-    NATIVE APP FIX (Fix #6):
-    Just like Tone.min.js, the Capacitor App plugin must be bundled
-    locally. The 'capacitor-app.js' file is automatically generated
-    in your 'www' folder when you run 'npx cap sync' after
-    installing the plugin ('npm install @capacitor/app').
-    The script below will now import this local file.
-  -->
   
+  <!-- 
+    SAFE AREA FIX (Fix #1):
+    This style block adds support for viewport-fit=cover,
+    using CSS environment variables to pad the UI away
+    from notches (like the S23's camera) and home bars.
+  -->
   <style>
     :root {
       font-family: 'Inter', sans-serif;
@@ -40,18 +38,16 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    
-    /* STABLE 100VH FIX (Fix #3) */
-    html {
-      height: 100%;
-    }
 
     body {
       margin: 0;
+      /* 100VH FIX (Fix #1): Use 100% height instead of 100vh */
       padding: 0;
-      /* STABLE 100VH FIX (Fix #3) */
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
+      /* Fallback for browsers that don't support dvh */
+      height: 100dvh;
+      /* Use dynamic viewport height */
       overflow: hidden;
       font-family: 'Inter', sans-serif;
       overscroll-behavior: none;
@@ -63,8 +59,7 @@
 
     #app {
       width: 100%;
-      /* STABLE 100VH FIX (Fix #3) */
-      min-height: 100%;
+      height: 100%;
       position: relative;
       display: flex;
       justify-content: center;
@@ -92,15 +87,14 @@
       cursor: pointer;
     }
 
-    /* --- NEW In-Game UI Styling --- */
+    /* --- In-Game UI Styling --- */
     .ui-container {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
-      /* SAFE AREA FIX (Fix #1) */
-      /* Uses CSS env() variables to add padding ONLY if a notch/home bar exists */
-      padding: env(safe-area-inset-top, 1rem) env(safe-area-inset-right, 1.5rem) env(safe-area-inset-bottom, 1rem) env(safe-area-inset-left, 1.5rem);
+      /* SAFE AREA FIX (Fix #1): Use env() variables for padding */
+      padding: env(safe-area-inset-top, 1rem) env(safe-area-inset-right, 1.5rem) 1rem env(safe-area-inset-left, 1.5rem);
       box-sizing: border-box;
       z-index: 30;
       color: white;
@@ -159,9 +153,9 @@
       /* Hidden by default */
       align-items: center;
       gap: 12px;
+      /* PERFORMANCE FIX (Fix #3): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       padding: 0.5rem 0.75rem;
@@ -178,8 +172,8 @@
     /* Power-up Status */
     .powerup-active {
       position: absolute;
-      bottom: 2.5rem;
-      /* bottom-10 */
+      /* SAFE AREA FIX (Fix #1): Use env() for bottom padding */
+      bottom: calc(2.5rem + env(safe-area-inset-bottom, 0rem));
       left: 50%;
       transform: translateX(-50%);
       z-index: 30;
@@ -187,10 +181,9 @@
       font-weight: bold;
       opacity: 1;
       transition: opacity 0.3s ease-in-out;
-      /* Glassmorphism */
+      /* PERFORMANCE FIX (Fix #3): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       padding: 0.5rem 1rem;
@@ -215,10 +208,9 @@
       width: 100%;
       height: 100%;
       transition: opacity 0.3s ease-in-out, visibility 0.3s;
-      /* New modal background */
+      /* PERFORMANCE FIX (Fix #3): Removed backdrop-filter */
       background-color: rgba(15, 23, 42, 0.8);
       /* slate-900/80 */
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
     }
 
     .modal-hidden {
@@ -254,8 +246,8 @@
       /* Use relative width */
       max-width: 28rem;
       /* max-w-md */
-      max-height: 90vh;
-      /* Prevent modal from being too tall */
+      /* SAFE AREA FIX (Fix #1): Use env() for max-height */
+      max-height: calc(90vh - env(safe-area-inset-top, 0rem) - env(safe-area-inset-bottom, 0rem));
       overflow-y: auto;
       /* Allow scrolling if content overflows */
       text-align: center;
@@ -382,9 +374,9 @@
 
     /* This is your .btn, re-styled as .glass-btn */
     .btn {
+      /* PERFORMANCE FIX (Fix #3): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -431,9 +423,9 @@
 
     .pause-btn {
       position: relative;
+      /* PERFORMANCE FIX (Fix #3): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -482,29 +474,32 @@
     }
 
 
-    /* --- OBSERVATORY PORTRAIT/LANDSCAPE FIX (Fix #2) --- */
+    /* --- OBSERVATORY STYLES --- */
+    /* PORTRAIT/LANDSCAPE FIX (Fix #1): 
+       Default to portrait (column) layout 
+    */
     .observatory-modal {
       width: 100%;
       max-width: 64rem;
       /* 1024px */
-      height: 90vh;
-      max-height: 700px;
+      /* SAFE AREA FIX (Fix #1): Use env() for max-height */
+      height: calc(90vh - env(safe-area-inset-top, 0rem) - env(safe-area-inset-bottom, 0rem));
+      max-height: 800px;
       padding: 0;
       display: flex;
-      /* PORTRAIT DEFAULT: Stack vertically */
       flex-direction: column;
+      /* Default to column */
       overflow: hidden;
     }
 
     .observatory-nav {
       flex-shrink: 0;
-      /* PORTRAIT DEFAULT: Full width */
       width: 100%;
+      /* Full width in portrait */
       background-color: #0f172a;
       /* slate-900 */
-      /* PORTRAIT DEFAULT: Bottom border */
       border-bottom: 1px solid #334155;
-      /* slate-700 */
+      /* border-b in portrait */
       padding: 1rem;
       display: flex;
       flex-direction: column;
@@ -521,6 +516,17 @@
       padding-left: 0.5rem;
     }
 
+    /* --- PORTRAIT/LANDSCAPE FIX (Fix #1) --- */
+    .observatory-nav .tab-list {
+      display: flex;
+      flex-direction: row;
+      /* Tabs are horizontal */
+      gap: 0.5rem;
+      overflow-x: auto;
+      /* Allow scrolling tabs */
+      padding-bottom: 0.5rem;
+    }
+
     .tab-button {
       padding: 0.75rem 1rem;
       /* py-3 px-4 */
@@ -532,8 +538,10 @@
       margin-bottom: 0;
       text-align: left;
       /* Align text left */
-      width: 100%;
-      /* Full width */
+      width: auto;
+      /* Auto-width for horizontal tabs */
+      flex-shrink: 0;
+      /* Prevent tabs from shrinking */
       /* Apply glass-btn styles */
       background-color: transparent;
       border: 1px solid transparent;
@@ -559,9 +567,9 @@
     }
 
     .observatory-nav .shop-currency {
-      /* PORTRAIT DEFAULT: No longer pushed to bottom */
-      margin-top: 0.5rem; 
-      padding: 0.5rem;
+      margin-top: 1rem;
+      /* margin-top in portrait */
+      padding: 1rem 0.5rem 0.5rem 0.5rem;
       border-top: 1px solid #334155;
       /* slate-700 */
       display: flex;
@@ -579,6 +587,42 @@
       font-size: 1.5rem;
       /* text-2xl */
     }
+
+    /* --- PORTRAIT/LANDSCAPE FIX (Fix #1) --- */
+    /* Apply landscape layout only when orientation matches */
+    @media (min-width: 768px) and (orientation: landscape) {
+      .observatory-modal {
+        flex-direction: row;
+        /* Back to row */
+        max-height: 700px;
+      }
+
+      .observatory-nav {
+        width: 12rem;
+        /* 192px */
+        border-right: 1px solid #334155;
+        /* border-r */
+        border-bottom: none;
+        /* no border-b */
+      }
+
+      .observatory-nav .tab-list {
+        flex-direction: column;
+        /* Stack tabs vertically */
+        overflow-x: hidden;
+      }
+
+      .tab-button {
+        width: 100%;
+        /* Full width */
+      }
+
+      .observatory-nav .shop-currency {
+        margin-top: auto;
+        /* Push to bottom */
+      }
+    }
+    /* --- END PORTRAIT/LANDSCAPE FIX --- */
 
 
     .observatory-main {
@@ -840,23 +884,6 @@
       margin: 0;
       padding: 0.75rem 1rem;
     }
-    
-    /* OBSERVATORY LANDSCAPE FIX (Fix #2) */
-    /* Only apply side-by-side layout on larger screens in landscape */
-    @media (min-width: 768px) and (orientation: landscape) {
-      .observatory-modal {
-        flex-direction: row; /* Back to side-by-side */
-      }
-      .observatory-nav {
-        width: 12rem; /* Restore fixed width */
-        border-bottom: none; /* Remove bottom border */
-        border-right: 1px solid #334155; /* Add right border back */
-      }
-      .observatory-nav .shop-currency {
-         margin-top: auto; /* Push to bottom again */
-      }
-    }
-    
   </style>
 </head>
 
@@ -890,7 +917,7 @@
     <div id="powerUpStatus" class="powerup-hidden" data-ui-screen="powerUp"></div>
 
     <!-- Main Menu (Re-styled) -->
-    <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
+    <div id="mainMenu" class="modal modal-visible" data-ui-screen="menu">
       <div class="modal-content">
         <h1>Gravity Well</h1>
         <p data-string="menu_subtitle">Tap and hold to guide the comet. Survive as long as you can.</p>
@@ -943,14 +970,14 @@
       </div>
     </div>
 
-    <!-- NEW Observatory Modal (V2 - Portrait/Landscape Fixed) -->
+    <!-- NEW Observatory Modal (V2 - Portrait/Landscape) -->
     <div id="observatory" class="modal modal-hidden" data-ui-screen="observatory">
       <div class="modal-content observatory-modal">
 
-        <!-- Left Nav Column (Stacks on top in Portrait) -->
+        <!-- Left Nav Column (or Top Nav in Portrait) -->
         <nav class="observatory-nav">
           <h2 data-string="observatory">Observatory</h2>
-          <div class="flex flex-col gap-2">
+          <div class="tab-list">
             <button class="tab-button active" data-tab="upgradesTab" data-string="upgrades">Upgrades</button>
             <button class="tab-button" data-tab="cometsTab" data-string="comets">Comets</button>
             <button class="tab-button" data-tab="anomaliesTab" data-string="anomalies">Anomalies</button>
@@ -965,7 +992,7 @@
           </button>
         </nav>
 
-        <!-- Right Content Column (Stacks below in Portrait) -->
+        <!-- Right Content Column (or Bottom Content in Portrait) -->
         <main class="observatory-main">
           <!-- Upgrades Tab -->
           <div id="upgradesTab" class="tab-content active">
@@ -1060,6 +1087,44 @@
   </div>
 
   <script type="module">
+    // Import the functions from the SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  
+    // --- FIREBASE CONFIG INSERTED ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBSWa9-Ss3oyrdLpQzRVAkb1qVZ3D8Ok00",
+      authDomain: "gravity-well-eddfb.firebaseapp.com",
+      projectId: "gravity-well-eddfb",
+      storageBucket: "gravity-well-eddfb.appspot.com",
+      messagingSenderId: "1076833951463",
+      appId: "1:1076833951463:web:550227dc20c245540d4c42"
+    };
+    // ----------------------------------------
+
+    // --- FIREBASE SDK (Fix #7): Initialize Firebase and services ---
+    let app, auth, db, userId;
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      console.log("Firebase initialized.");
+    } catch (e) {
+      console.error("Firebase initialization failed:", e);
+      // Display a friendly error to the user on the menu
+      document.getElementById('mainMenu').innerHTML = `
+        <div class="modal-content">
+          <h2 class="text-red-500">Connection Error</h2>
+          <p>Could not connect to game services. Please check your internet connection and reload.</p>
+          <p style="font-size: 0.8rem; color: #94a3b8;">(Error: ${e.message})</p>
+        </div>
+      `;
+      // Show the menu modal
+      document.getElementById('mainMenu').className = 'modal modal-visible';
+    }
+    // --- END FIREBASE SDK ---
+  
     // --- SOUND FIX (POINT 3) ---
     // Do NOT create a 'const Tone'. We will use 'window.Tone' directly
     // in all functions to ensure it's loaded.
@@ -1071,12 +1136,22 @@
     // In a browser, it will be gracefully ignored.
     async function initCapacitorAppListener() {
       try {
-        // NATIVE FIX (Fix #6): Import the local bundled 'capacitor-app.js'
-        // This file is generated by 'npx cap sync' and placed in your 'www' folder.
+        // NATIVE APP FIX (Fix #6): Import the local bundled file
         const { App } = await import('./capacitor-app.js');
         
         // Store App globally to be used by the exit button
         window.CapacitorApp = App;
+        
+        // NATIVE APP FIX (Fix #5): Add a listener for the back button
+        App.addListener('backButton', ({ canGoBack }) => {
+          if (!canGoBack) {
+            // If we can't go back, exit the app
+            App.exitApp();
+          } else {
+            // Otherwise, let the webview handle it (e.g., go back in history)
+            window.history.back();
+          }
+        });
         
         // Add a listener for when the app state changes (minimized/resumed)
         App.addListener('appStateChange', ({ isActive }) => {
@@ -1085,15 +1160,18 @@
             if (gameState === 'playing') {
               setGameState('paused');
             }
-          }
-          // MUSIC BUG FIX: Resume music when app is brought back
-          if (isActive) {
-            if (gameState === 'playing') {
-              // This ensures music restarts if we were playing and come back
-              audioManager.startMusic();
+          } else {
+            // App is being resumed
+            // MUSIC BUG FIX (Bug #3):
+            // We need to re-unlock the audio context, as iOS Safari
+            // and some Android Webviews will suspend it.
+            // We only do this if the game *wasn't* on the menu.
+            if (gameState !== 'menu') {
+              audioManager.tryInitAudio();
             }
           }
         });
+        console.log("Capacitor App listeners initialized.");
       } catch (e) {
         console.warn("Capacitor App plugin not found. Running in standard browser mode.", e);
       }
@@ -1273,15 +1351,12 @@
     const VIRTUAL_WIDTH = 1280;
     const VIRTUAL_HEIGHT = 720;
     let scale = 1;
-    
-    // ERROR FIX: Added missing SCORE_DIVISOR constant
-    const SCORE_DIVISOR = 10; // 10 pixels = 1 score point
+    const SCORE_DIVISOR = 10;
     
     const PLAYER_COMET_RADIUS = 15;
     const GRAVITY_INFLUENCE = 0.2; 
     const INERTIAL_DAMPING = 0.98; // For gravity well
-    // PHYSICS BUG FIX (Bug #1): Removed VERTICAL_DAMPING
-    // const VERTICAL_DAMPING = 0.95; // For return-to-horizontal
+    const VERTICAL_DAMPING = 0.95; // For return-to-horizontal
     const WAVE_AMPLITUDE = 0.3; // Softer oscillation
     const WAVE_FREQUENCY = 0.03;
     const ZONE_SCORE_INCREMENT = 1500;
@@ -1599,21 +1674,11 @@
         }
       },
 
-      // MUSIC BUG FIX (Bug #3): Made function async
-      async startMusic() {
-        // MUSIC BUG FIX (Bug #3): Ensure audio context is running before starting transport
-        // This is a robust way to ensure we don't have a race condition.
-        await this.tryInitAudio(); 
-        
+      // This function just starts the transport and Zone 0
+      startMusic() {
         if (!this.isAudioUnlocked || this.musicLoops.length > 0) return;
         this.setMusicZone(0); // Start with zone 0
-        
-        // MUSIC BUG FIX (Bug #3): Ensure transport is running
-        if (window.Tone.Transport.state !== 'started') {
-          // This await is redundant if tryInitAudio worked, but is a good safeguard
-          await window.Tone.start(); 
-          window.Tone.Transport.start();
-        }
+        window.Tone.Transport.start();
       },
 
       setMusicZone(zoneIndex) {
@@ -1848,7 +1913,38 @@
         ctx.globalAlpha = 1.0;
       }
     }
-    // --- END BACKGROUND VISUALS ---
+    
+    // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
+    class NebulaCloud extends BackgroundObject {
+      constructor(x, y, z) {
+        super(x, y, z); // z will be very low (far away)
+        this.radius = Math.random() * 200 + 400; // 400-600px radius
+        this.color = `hsla(${Math.random() * 360}, 70%, 50%, ${Math.random() * 0.1 + 0.05})`;
+        this.vx = -0.1; // Almost stationary
+      }
+      
+      update(currentSpeed) {
+        // Use its own tiny speed + a tiny bit of parallax
+        this.x += this.vx - (currentSpeed * this.z * 0.1);
+      }
+      
+      draw(ctx) {
+        const screenX = this.x - cameraX * this.z;
+        
+        const grad = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
+        // --- SYNTAX ERROR FIX ---
+        // Removed the stray backticks (`) at the end of the replace() calls.
+        grad.addColorStop(0, this.color.replace(/, [0-9.]+\)/, ', 0.2)')); // More opaque center
+        grad.addColorStop(1, this.color.replace(/, [0-9.]+\)/, ', 0)')); // Fades to transparent
+        // --- END SYNTAX ERROR FIX ---
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // --- END VISUAL ENHANCEMENT ---
 
     class PlayerComet {
       constructor(x, y) {
@@ -1870,8 +1966,10 @@
       update() {
         const baseSpeed = calculateCurrentSpeed();
         
-        // --- NEW PHYSICS (POINT 2) ---
-        // This is the new "hybrid" model
+        // --- PHYSICS BUG FIX ("Grinding Halt"): Part 1 ---
+        // We now track if the well is *actually* affecting the comet.
+        let wellIsActive = false;
+        // --- END BUG FIX ---
         
         if (gravityWell && !isHeadstarting) {
           // --- WELL IS ACTIVE ---
@@ -1881,43 +1979,57 @@
           const dy = gravityWell.y - this.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
+          // --- PHYSICS BUG FIX ("Grinding Halt"): Part 2 ---
+          // This check is now the *only* thing that happens in this block.
           if (dist > 0.01 && dist < gravityWell.radius) {
+            
+            // --- The bug fix flag is set ---
+            wellIsActive = true; 
+            
             // --- PHYSICS ACCELERATION FIX (Bug #2) ---
-            // Calculate the gravity influence vector
-            const gVx = (dx / dist) * GRAVITY_INFLUENCE;
-            const gVy = (dy / dist) * GRAVITY_INFLUENCE;
+            // Calculate direction, then apply baseSpeed
+            // 1. Calculate the velocity from gravity influence
+            let influencedVx = this.vx + (dx / dist) * GRAVITY_INFLUENCE;
+            let influencedVy = this.vy + (dy / dist) * GRAVITY_INFLUENCE;
+            
+            // 2. Dampen the influenced velocity
+            influencedVx *= INERTIAL_DAMPING;
+            influencedVy *= INERTIAL_DAMPING;
 
-            // Apply the influence to the current velocity
-            let newVx = this.vx + gVx;
-            let newVy = this.vy + gVy;
+            // 3. Find the magnitude (current speed) of this new vector
+            const currentSpeed = Math.sqrt(influencedVx * influencedVx + influencedVy * influencedVy);
 
-            // Calculate the new speed (magnitude)
-            const newSpeed = Math.sqrt(newVx * newVx + newVy * newVy);
-
-            // Normalize the new velocity vector and rescale it to baseSpeed
-            // This ensures the well only *directs* the comet, it doesn't *accelerate* it.
-            if (newSpeed > 0) {
-              this.vx = (newVx / newSpeed) * baseSpeed;
-              this.vy = (newVy / newSpeed) * baseSpeed;
+            // 4. Cap the speed
+            // If the influenced speed is *faster* than baseSpeed, scale it down.
+            if (currentSpeed > baseSpeed) {
+              const scaleDown = baseSpeed / currentSpeed;
+              this.vx = influencedVx * scaleDown;
+              this.vy = influencedVy * scaleDown;
             } else {
-              // Failsafe in case speed becomes 0
+              // Otherwise, just use the influenced speed
+              this.vx = influencedVx;
+              this.vy = influencedVy;
+            }
+            
+            // 5. Override horizontal speed to *always* be at least the base speed
+            // This prevents the "grinding to a halt" feeling.
+            if (this.vx < baseSpeed) {
               this.vx = baseSpeed;
-              this.vy = 0;
             }
             // --- END PHYSICS ACCELERATION FIX ---
 
-          } else {
-            // --- PHYSICS ACCELERATION FIX (Bug #2) ---
-            // If well is active but out of range, just dampen
-            this.vx *= INERTIAL_DAMPING;
-            this.vy *= INERTIAL_DAMPING;
-          }
+          } 
+          // --- PHYSICS BUG FIX ("Grinding Halt"): Part 3 ---
+          // The old "else" block that applied damping is REMOVED.
+          // Now, if the well exists but the comet is out of range,
+          // "wellIsActive" stays false, and the "idle" logic below runs.
+          // --- END BUG FIX ---
           
-          // Dampen velocity to prevent infinite acceleration
-          // this.vx *= INERTIAL_DAMPING; // <-- REPLACED by the logic above
-          // this.vy *= INERTIAL_DAMPING; // <-- REPLACED by the logic above
-          
-        } else {
+        }
+        
+        // --- PHYSICS BUG FIX ("Grinding Halt"): Part 4 ---
+        // We run the "idle" logic if the well is NOT active.
+        if (!wellIsActive) {
           // --- NO WELL IS ACTIVE ---
           
           // PHYSICS REFINEMENT (Bug #4): "Angle Correction" not "Center Correction"
@@ -2153,6 +2265,40 @@
         if (this.type === 'vertical') { this.y += this.speedY * this.direction; if (Math.abs(this.y - this.initialY) > 50) this.direction *= -1; }
         else if (this.type === 'phasing') { this.phaseTimer++; if (this.phaseTimer > this.phaseDuration) { this.phaseTimer = 0; this.isActive = !this.isActive; } }
       }
+      
+      // --- NEW OBSTACLE TYPE ---
+      // Added a generic collision check for subclasses to use
+      collidesWith(comet) {
+        if (!this.isActive) return false;
+
+        const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+
+        if (skin.collisionShape === 'circle') {
+          const obsRadius = this.width / 2;
+          const obsCenterX = this.x + obsRadius;
+          const obsCenterY = this.y + obsRadius;
+          
+          const distSq = (comet.x - obsCenterX)**2 + (comet.y - obsCenterY)**2;
+          const radiiSq = (comet.radius + obsRadius)**2;
+          
+          if (distSq < radiiSq) {
+            audioManager.playObstacleSound(skin.id); // Play sound on collision
+            return true;
+          }
+        } else {
+          // Default Rectangle (AABB) Collision
+          if (comet.x + comet.radius > this.x && 
+              comet.x - comet.radius < this.x + this.width && 
+              comet.y + comet.radius > this.y && 
+              comet.y - comet.radius < this.y + this.height) {
+            audioManager.playObstacleSound(skin.id); // Play sound on collision
+            return true;
+          }
+        }
+        return false;
+      }
+      // --- END NEW OBSTACLE TYPE ---
+
       draw(ctx) {
         const equippedSkinId = playerData.cosmetics.equipped.obstacle;
         const skin = cosmeticItems[equippedSkinId] || cosmeticItems['obstacle_default'];
@@ -2247,6 +2393,139 @@
         ctx.shadowBlur = 0;
       }
     }
+    
+    // --- NEW OBSTACLE TYPE ---
+    class LaserGate extends Obstacle {
+      constructor(x, y, width, height, type) {
+        // 'type' will be 'laser-v' (vertical) or 'laser-h' (horizontal)
+        super(x, y, width, height, type); 
+        this.phaseDuration = 90; // Faster phasing
+        this.warningFrames = 30; // Shorter warning
+      }
+      
+      draw(ctx) {
+        const screenX = this.x - cameraX;
+        let laserColor = `rgba(239, 68, 68, 0.2)`; // Faint red 'off' state
+        let strokeColor = `rgba(255, 150, 150, 0.3)`;
+        let glowColor = 'transparent';
+        let isLethal = false;
+
+        if (this.isActive) {
+          // --- LETHAL "ON" STATE ---
+          isLethal = true;
+          const pulse = 0.7 + Math.sin(Date.now() * 0.05) * 0.3;
+          laserColor = `rgba(239, 68, 68, ${pulse})`; // Pulsing red
+          strokeColor = `rgba(255, 255, 255, ${pulse})`; // White-hot core
+          glowColor = 'red';
+        } else {
+          // --- "OFF" STATE / WARNING ---
+          isLethal = false;
+          const timeToActivate = this.phaseDuration - this.phaseTimer;
+          if (timeToActivate < this.warningFrames) { 
+            const alpha = Math.abs(Math.sin(this.phaseTimer * 0.3));
+            laserColor = `rgba(255, 200, 0, ${alpha * 0.5})`; // Pulsing yellow warning
+            strokeColor = `rgba(255, 255, 255, ${alpha * 0.8})`;
+            glowColor = `rgba(255, 200, 0, ${alpha})`;
+          }
+        }
+        
+        ctx.shadowColor = glowColor;
+        ctx.shadowBlur = 15;
+        
+        // Draw the main beam
+        ctx.fillStyle = laserColor;
+        ctx.fillRect(screenX, this.y, this.width, this.height);
+        
+        // Draw the "core"
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(screenX, this.y, this.width, this.height);
+        
+        // Temporarily set isActive for collision check
+        this.isLethal = isLethal; 
+        
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+      }
+      
+      // Override checkCollisions logic
+      collidesWith(comet) {
+        if (!this.isLethal) return false;
+        // Use standard AABB collision
+        return (comet.x + comet.radius > this.x && 
+                comet.x - comet.radius < this.x + this.width && 
+                comet.y + comet.radius > this.y && 
+                comet.y - comet.radius < this.y + this.height);
+      }
+    }
+    
+    // --- NEW OBSTACLE TYPE ---
+    class Pulsar extends Obstacle {
+      constructor(x, y, width, height, type) {
+        super(x, y, width, width, 'pulsar'); // Force width=height
+        this.baseRadius = width / 2;
+        this.currentRadius = this.baseRadius;
+        this.pulseAngle = 0;
+        
+        // --- LOGIC BUG FIX ---
+        // Pre-calculate the center point, which is constant
+        this.centerX = x + this.baseRadius;
+        this.centerY = y + this.baseRadius;
+        // --- END LOGIC BUG FIX ---
+      }
+      
+      update() {
+        this.pulseAngle += 0.02;
+        // Pulse between 50% and 100% of base radius
+        this.currentRadius = this.baseRadius * (0.75 + Math.sin(this.pulseAngle) * 0.25);
+        
+        // Update dimensions for collision (centered)
+        this.width = this.currentRadius * 2;
+        this.height = this.currentRadius * 2;
+        // We need to adjust x/y to keep it centered
+        this.drawX = this.centerX - this.currentRadius;
+        this.drawY = this.centerY - this.currentRadius;
+      }
+      
+      draw(ctx) {
+        // --- LOGIC BUG FIX ---
+        // Draw from the calculated center
+        const screenX = this.centerX - cameraX;
+        const screenY = this.centerY;
+        // --- END LOGIC BUG FIX ---
+        
+        const pulse = 0.7 + Math.sin(this.pulseAngle) * 0.3;
+        const color = `hsl(190, 100%, ${pulse * 70 + 30}%)`; // Pulses blue/white
+        
+        ctx.shadowColor = 'cyan';
+        ctx.shadowBlur = 20;
+        
+        const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, this.currentRadius);
+        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.5, color);
+        grad.addColorStop(1, 'rgba(0, 200, 255, 0.3)');
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, this.currentRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+      }
+      
+      collidesWith(comet) {
+        // --- LOGIC BUG FIX ---
+        // Use the constant center point for collision
+        const distSq = (comet.x - this.centerX)**2 + (comet.y - this.centerY)**2;
+        // --- END LOGIC BUG FIX ---
+        const radiiSq = (comet.radius + this.currentRadius)**2;
+        
+        return (distSq < radiiSq);
+      }
+    }
+    // --- END NEW OBSTACLE TYPES ---
+
 
     class PowerUp {
       constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: '#38bdf8' }, shrink: { main: '#16a34a', glow: '#22c55e' }, boost: { main: '#facc15', glow: '#fde047' } }; this.animation = Math.random() * Math.PI * 2; }
@@ -2369,11 +2648,21 @@
       };
     }
     
-    function loadPlayerData() {
+    // --- FIREBASE SDK (Fix #7): Re-write loadPlayerData to use Firestore ---
+    async function loadPlayerData() {
+      if (!db || !userId) {
+        console.warn("Firestore/User not ready, loading default data.");
+        playerData = getDefaultPlayerData();
+        return;
+      }
+      
+      const playerDocRef = doc(db, "players", userId);
+      
       try {
-        const savedData = localStorage.getItem('gravityWellSaveData');
-        if (savedData) {
-          const loaded = JSON.parse(savedData);
+        const docSnap = await getDoc(playerDocRef);
+        if (docSnap.exists()) {
+          console.log("Loaded player data from Firestore.");
+          const loaded = docSnap.data();
           // Merge with default to ensure new features/items are present
           const defaults = getDefaultPlayerData();
           playerData = {
@@ -2386,17 +2675,30 @@
             }
           };
         } else {
+          console.log("No player data in Firestore, creating new save.");
           playerData = getDefaultPlayerData();
+          // Save this new default data to Firestore
+          await savePlayerData();
         }
       } catch (e) {
-        console.error("Could not load player data, resetting.", e);
+        console.error("Could not load player data, using defaults.", e);
         playerData = getDefaultPlayerData();
       }
     }
 
-    function savePlayerData() {
+    // --- FIREBASE SDK (Fix #7): Re-write savePlayerData to use Firestore ---
+    async function savePlayerData() {
+      if (!db || !userId) {
+        console.warn("Firestore/User not ready, cannot save.");
+        return;
+      }
+
+      const playerDocRef = doc(db, "players", userId);
       try {
-        localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData));
+        // We use setDoc with merge: true to avoid overwriting fields
+        // if the cloud data is newer (though for this simple app, it's fine)
+        await setDoc(playerDocRef, playerData, { merge: true });
+        console.log("Player data saved to Firestore.");
       } catch (e) {
         console.error("Could not save player data.", e);
       }
@@ -2413,9 +2715,9 @@
       Object.keys(upgradeCosts).forEach(id => {
         if (Array.isArray(upgradeCosts[id])) {
           // Permanent upgrade
-          const level = playerData.upgrades[id] || 0;
           const item = document.getElementById(`upgrade-${id}`);
           if (!item) return;
+          const level = playerData.upgrades[id] || 0;
           const button = item.querySelector('button');
           const levelDisplay = item.querySelector('.upgrade-level');
           const maxLevel = upgradeCosts[id].length;
@@ -2556,16 +2858,16 @@
       });
     }
 
-    // MUSIC BUG FIX (Bug #3): Made function async
-    async function setGameState(newState) {
-      const oldState = gameState;
-      gameState = newState;
-      
-      // STUCK WELL FIX (Fix #4)
-      // Explicitly destroy the gravity well when pausing.
+    function setGameState(newState) {
+      // PAUSE BUG FIX (Fix #4):
+      // Explicitly destroy the gravity well when pausing to prevent
+      // a "stuck" well when resuming.
       if (newState === 'paused') {
         gravityWell = null;
       }
+      
+      const oldState = gameState;
+      gameState = newState;
 
       allUiScreens.forEach(screen => {
         const screenType = screen.dataset.uiScreen;
@@ -2584,6 +2886,7 @@
       
       // Now, selectively SHOW the elements for the new state
       if (newState === 'menu') {
+        // MUSIC BUG FIX (Bug #3): Stop music *before* re-enabling menu loop
         audioManager.stopMusic(); 
         mainMenu.className = 'modal modal-visible';
         highScoreDisplay.textContent = playerData.highScore;
@@ -2597,15 +2900,16 @@
         inGameUi.style.display = 'flex';
         runFragmentsContainer.classList.remove('run-fragments-hidden');
         if (oldState === 'paused') { 
-          // MUSIC BUG FIX (Bug #3): await music start
-          await audioManager.startMusic(); // Resuming from pause
+          // MUSIC BUG FIX (Bug #3):
+          // We must re-unlock audio context *before* starting music,
+          // as the context may have been suspended.
+          audioManager.tryInitAudio();
+          audioManager.startMusic(); 
           gameLoop(); 
         }
-        else { 
-          // MUSIC BUG FIX (Bug #3): await start game
-          setTimeout(async () => await startGame(), 350); 
-        }
+        else { setTimeout(startGame, 350); }
       } else if (newState === 'paused') {
+        // MUSIC BUG FIX (Bug #3): Stop music when pausing
         audioManager.stopMusic(); 
         inGameUi.style.display = 'flex';
         pauseMenu.className = 'modal modal-visible';
@@ -2619,7 +2923,7 @@
         // --- LOCALSTORAGE (POINT 5) ---
         if (score > playerData.highScore) playerData.highScore = Math.floor(score);
         playerData.starFragments += fragmentsThisRun;
-        savePlayerData(); // Save to localStorage
+        savePlayerData(); // Save to Firestore
         // --- END LOCALSTORAGE ---
         
         finalScoreElement.textContent = Math.floor(score);
@@ -2672,12 +2976,12 @@
       checkZoneTransition();
     }
 
-    // MUSIC BUG FIX (Bug #3): Made function async
-    async function startGame() { 
+    function startGame() { 
       resizeCanvas(); 
       initNewRun(); 
-      // MUSIC BUG FIX (Bug #3): await music start
-      await audioManager.startMusic(); 
+      // MUSIC BUG FIX (Bug #3): Unlock audio before starting music
+      audioManager.tryInitAudio();
+      audioManager.startMusic(); 
       if (animationFrameId) { 
         cancelAnimationFrame(animationFrameId); 
         animationFrameId = null; 
@@ -2796,7 +3100,7 @@
       
       // Draw stars if the theme wants them
       if (renderConfig.stars) {
-        const starColor = renderConfig.custom ? 'rgba(255, 255, 255, 0.7)' : currentZoneColors.star;
+        const starColor = renderConfig.custom ? '255, 255, 255' : currentZoneColors.star;
         stars.forEach(s => s.draw(ctx, starColor));
       }
     }
@@ -2860,7 +3164,20 @@
       const rand = Math.random();
       if (zoneIndex < 1) return 'static';
       if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical';
-      return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing');
+      // --- NEW OBSTACLE TYPE ---
+      // Zones 3+ can now spawn phasing, lasers, and pulsars
+      if (zoneIndex < 5) {
+        if (rand < 0.4) return 'static';
+        if (rand < 0.7) return 'vertical';
+        return 'phasing';
+      }
+      // Zones 5+ get wild
+      if (rand < 0.2) return 'static';
+      if (rand < 0.4) return 'vertical';
+      if (rand < 0.6) return 'phasing';
+      if (rand < 0.8) return Math.random() < 0.5 ? 'laser-v' : 'laser-h';
+      return 'pulsar';
+      // --- END NEW OBSTACLE TYPE ---
     }
 
     function manageObstacles() {
@@ -2875,16 +3192,32 @@
         const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance;
         
         const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+        // --- NEW OBSTACLE TYPE ---
+        const obstacleType = getObstacleTypeForZone();
         
-        let width = Math.random() * 50 + 25;
-        let height = Math.random() * 180 + 50;
+        if (obstacleType === 'laser-v') {
+          // Full-height vertical laser
+          obstacles.push(new LaserGate(x + 10, 0, 5, VIRTUAL_HEIGHT, obstacleType));
+        } else if (obstacleType === 'laser-h') {
+          // Horizontal laser (at random height)
+          const y = Math.random() * (VIRTUAL_HEIGHT - 20) + 10;
+          obstacles.push(new LaserGate(x, y, 100, 5, obstacleType));
+        } else if (obstacleType === 'pulsar') {
+          // Pulsing obstacle
+          const y = Math.random() * (VIRTUAL_HEIGHT - 100) + 50;
+          obstacles.push(new Pulsar(x, y, 100, 100, obstacleType));
+        } else {
+          // --- END NEW OBSTACLE TYPE ---
+          let width = Math.random() * 50 + 25;
+          let height = Math.random() * 180 + 50;
 
-        if (skin.collisionShape === 'circle') {
-          width = height = Math.random() * 30 + 30; // 30-60 radius
+          if (skin.collisionShape === 'circle') {
+            width = height = Math.random() * 30 + 30; // 30-60 radius
+          }
+
+          const y = Math.random() * (VIRTUAL_HEIGHT - height);
+          obstacles.push(new Obstacle(x, y, width, height, obstacleType)); // <-- Pass new type
         }
-
-        const y = Math.random() * (VIRTUAL_HEIGHT - height);
-        obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
         nextObstacleSpawnX = x;
       }
     }
@@ -2942,11 +3275,13 @@
       const spawnRootX = (gameState === 'menu') ? 0 : cameraX;
       const spawnAheadPoint = spawnRootX + VIRTUAL_WIDTH;
 
-      // --- POINT 4 FIX: Simplified filter ---
-      // All objects are now only filtered by their position, not lifespan
+      // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
+      // Need to account for large nebula radius
       backgroundDecorations = backgroundDecorations.filter(bg => {
-        return (bg.x + (bg.radius || 50)) > spawnRootX;
+        const width = bg.radius ? bg.radius * 2 : (bg.width || 50);
+        return (bg.x + width) > spawnRootX;
       });
+      // --- END VISUAL ENHANCEMENT ---
 
       if (nextBgObjectSpawnX < spawnAheadPoint) {
         const rand = Math.random();
@@ -2962,6 +3297,37 @@
           // Shooting stars are special, they spawn at top
           backgroundDecorations.push(new ShootingStar(x, Math.random() * VIRTUAL_HEIGHT * 0.2, 0));
         }
+        // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
+        else if (rand < 0.5) {
+          // Add a nebula cloud, very far away
+          backgroundDecorations.push(new NebulaCloud(x, y, Math.random() * 0.05 + 0.01));
+        } else if (rand < 0.6) {
+          // Add a "foreground" asteroid field (z > 1.0)
+          const fieldX = spawnAheadPoint + Math.random() * 200;
+          const fieldY = Math.random() * VIRTUAL_HEIGHT;
+          const fieldZ = 1.0 + Math.random(); // Faster than the player
+          for(let i = 0; i < 5; i++) {
+            const rock = new DistantPlanet( // Re-using DistantPlanet as a "rock"
+              fieldX + (Math.random() - 0.5) * 200,
+              fieldY + (Math.random() - 0.5) * 200,
+              fieldZ
+            );
+            rock.radius = Math.random() * 5 + 2; // small rocks
+            rock.color1 = '#52525b'; // zinc-600
+            rock.color2 = '#3f3f46'; // zinc-700
+            rock.draw = function(ctx) { // Simple draw
+              const screenX = this.x - cameraX * this.z;
+              ctx.fillStyle = this.color1;
+              ctx.globalAlpha = 0.8;
+              ctx.beginPath();
+              ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.globalAlpha = 1.0;
+            }
+            backgroundDecorations.push(rock);
+          }
+        }
+        // --- END VISUAL ENHANCEMENT ---
         
         nextBgObjectSpawnX = spawnAheadPoint + Math.random() * 400 + 100; // 100-500px gap
       }
@@ -3001,32 +3367,13 @@
         if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
         
         for (const obs of obstacles) {
-          if (!obs.isActive) continue;
-
-          const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
-
-          if (skin.collisionShape === 'circle') {
-            const obsRadius = obs.width / 2;
-            const obsCenterX = obs.x + obsRadius;
-            const obsCenterY = obs.y + obsRadius;
-            
-            const distSq = (playerComet.x - obsCenterX)**2 + (playerComet.y - obsCenterY)**2;
-            const radiiSq = (playerComet.radius + obsRadius)**2;
-            
-            if (distSq < radiiSq) {
-              audioManager.playObstacleSound(skin.id); // Play sound on collision
-              return { obstacle: true };
-            }
-          } else {
-            // Default Rectangle (AABB) Collision
-            if (playerComet.x + playerComet.radius > obs.x && 
-                playerComet.x - playerComet.radius < obs.x + obs.width && 
-                playerComet.y + playerComet.radius > obs.y && 
-                playerComet.y - playerComet.radius < obs.y + obs.height) {
-              audioManager.playObstacleSound(skin.id); // Play sound on collision
-              return { obstacle: true };
-            }
+          // --- NEW OBSTACLE TYPE ---
+          // Use the obstacle's own collision logic
+          if (obs.collidesWith(playerComet)) {
+            // Note: audio is played inside the collidesWith method
+            return { obstacle: true };
           }
+          // --- END NEW OBSTACLE TYPE ---
         }
       }
       return {};
@@ -3172,11 +3519,9 @@
         else if (target.closest('#exitButton')) {
           audioManager.playClickSound();
           if (window.CapacitorApp) {
-            console.log("Attempting to exit app via Capacitor...");
             window.CapacitorApp.exitApp();
           } else {
-            console.log("Exit button clicked, but window.CapacitorApp is not defined. (This is normal in a browser).");
-            console.log("If this is a NATIVE build, make sure you ran 'npx cap sync' to create './capacitor-app.js'");
+            console.log("Exit button clicked (App.exitApp() only works in native app)");
           }
         }
       });
@@ -3282,15 +3627,64 @@
        }
     }
 
+    // --- FIREBASE SDK (Fix #7): Create a new function to handle auth ---
+    function initFirebase() {
+      return new Promise((resolve, reject) => {
+        if (!auth) {
+          console.error("Auth is not initialized.");
+          return reject("Auth is not initialized.");
+        }
+        
+        onAuthStateChanged(auth, async (user) => {
+          if (user) {
+            // User is signed in
+            userId = user.uid;
+            console.log("User is signed in with UID:", userId);
+            resolve(user);
+          } else {
+            // User is signed out, so sign them in anonymously
+            console.log("No user found, signing in anonymously...");
+            try {
+              const userCredential = await signInAnonymously(auth);
+              userId = userCredential.user.uid;
+              console.log("Signed in anonymously with UID:", userId);
+              resolve(userCredential.user);
+            } catch (e) {
+              console.error("Anonymous sign-in failed:", e);
+              reject(e);
+            }
+          }
+        });
+      });
+    }
+
     // --- Initialization ---
-    function init() { 
+    // --- FIREBASE SDK (Fix #7): Make init() async to wait for auth ---
+    async function init() { 
       // Select all UI screens
       allUiScreens = document.querySelectorAll('[data-ui-screen]');
       
       for (let i = 0; i < 200; i++) stars.push(new Star()); 
       
       setupEventListeners(); 
-      loadPlayerData(); // Load from localStorage
+      
+      try {
+        // We MUST sign in and get a userId *before* loading player data
+        await initFirebase();
+      } catch(e) {
+        // --- RESILIENCY FIX (Bug #8) ---
+        // If auth fails (like 'auth/configuration-not-found'),
+        // don't just stop. Log the error and continue.
+        // The game will be playable, but saving will not work
+        // until the Firebase issue is fixed.
+        console.error("Firebase auth failed. Game will run in offline mode.", e);
+        // We will proceed without a userId.
+        // 'loadPlayerData' and 'savePlayerData' will see userId is null
+        // and use default/local data without crashing.
+        // --- END RESILIENCY FIX ---
+      }
+      
+      await loadPlayerData(); // Load from Firestore (or defaults if userId is null)
       resizeCanvas(); 
       setGameState('menu');
       initCapacitorAppListener(); // Start listening for app minimize/resume
