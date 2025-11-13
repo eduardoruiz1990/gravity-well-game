@@ -28,12 +28,6 @@
   -->
   <script src="./capacitor-app.js" type="module"></script>
   
-  <!-- 
-    SCRIPT BLOCK MOVED FROM HEAD TO END OF BODY
-    This fixes the "Cannot read properties of null" error by ensuring
-    the DOM is fully loaded before the script runs.
-  -->
-  
   <style>
     :root {
       font-family: 'Inter', sans-serif;
@@ -53,8 +47,8 @@
       margin: 0;
       padding: 0;
       width: 100vw;
-      /* RESIZE BUG FIX (Fix #5): Changed height to 100% for stable sizing */
-      height: 100%;
+      /* MOBILE VIEWPORT FIX (Fix #1): Use 100dvh for dynamic viewport */
+      height: 100dvh;
       overflow: hidden;
       font-family: 'Inter', sans-serif;
       overscroll-behavior: none;
@@ -62,11 +56,6 @@
       -webkit-tap-highlight-color: transparent;
       /* Removes blue tap highlight on mobile */
       text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    /* RESIZE BUG FIX (Fix #5): Added html, #app height */
-    html {
-      height: 100%;
     }
 
     #app {
@@ -105,7 +94,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      /* MOBILE SAFE AREA FIX (Fix #1) */
+      /* MOBILE VIEWPORT FIX (Fix #1): Use env() for safe-area insets */
       padding: env(safe-area-inset-top, 1rem) env(safe-area-inset-right, 1.5rem) 1rem env(safe-area-inset-left, 1.5rem);
       box-sizing: border-box;
       z-index: 30;
@@ -145,7 +134,15 @@
       align-items: center;
       gap: 0.5rem;
       margin-top: 0.25rem;
+      /* --- GAME OVER BUG FIX --- */
+      transition: opacity 0.3s ease-in-out;
+      opacity: 1;
     }
+    
+    .left-ui #runFragmentsContainer.run-fragments-hidden {
+      opacity: 0;
+    }
+    /* --- END GAME OVER BUG FIX --- */
 
     .left-ui .star-icon {
       font-size: 1.5rem;
@@ -165,9 +162,9 @@
       /* Hidden by default */
       align-items: center;
       gap: 12px;
+      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       padding: 0.5rem 0.75rem;
@@ -184,8 +181,8 @@
     /* Power-up Status */
     .powerup-active {
       position: absolute;
-      /* MOBILE SAFE AREA FIX (Fix #1) */
-      bottom: calc(env(safe-area-inset-bottom, 0rem) + 2.5rem);
+      /* MOBILE VIEWPORT FIX (Fix #1): Use env() for bottom safe-area */
+      bottom: calc(2.5rem + env(safe-area-inset-bottom, 0rem));
       left: 50%;
       transform: translateX(-50%);
       z-index: 30;
@@ -194,9 +191,9 @@
       opacity: 1;
       transition: opacity 0.3s ease-in-out;
       /* Glassmorphism */
+      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       padding: 0.5rem 1rem;
@@ -222,9 +219,9 @@
       height: 100%;
       transition: opacity 0.3s ease-in-out, visibility 0.3s;
       /* New modal background */
+      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       background-color: rgba(15, 23, 42, 0.8);
       /* slate-900/80 */
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
     }
 
     .modal-hidden {
@@ -345,6 +342,11 @@
     #mainMenu .stats-display {
       margin-top: 1rem;
       margin-bottom: 1rem;
+      /* --- DEV MODE (Fix #9) --- */
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      /* --- END DEV MODE --- */
     }
     #mainMenu .btn {
       padding: 0.75rem 1.5rem; /* Smaller buttons */
@@ -379,18 +381,17 @@
       /* text-lg */
       font-weight: 700;
       color: white;
+      /* --- DEV MODE (Fix #9) --- */
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      /* --- END DEV MODE --- */
     }
-
-    /* --- DEV MODE (Fix #9): User ID Display --- */
-    .user-id-display {
-      font-size: 0.75rem;
-      color: #64748b; /* slate-500 */
-      margin-top: 0.5rem;
-      word-break: break-all;
-    }
-    .user-id-display span {
-      font-weight: 600;
-      color: #94a3b8; /* slate-400 */
+    
+    /* --- DEV MODE (Fix #9) --- */
+    #highScoreDisplayContainer {
+      cursor: pointer;
     }
     /* --- END DEV MODE --- */
 
@@ -401,9 +402,9 @@
 
     /* This is your .btn, re-styled as .glass-btn */
     .btn {
+      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -450,9 +451,9 @@
 
     .pause-btn {
       position: relative;
+      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       background-color: rgba(255, 255, 255, 0.1);
       border: 1px solid rgba(255, 255, 255, 0.2);
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
       border-radius: 0.75rem;
       /* rounded-xl */
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -503,7 +504,7 @@
 
     /* --- NEW OBSERVATORY V2 STYLES (LANDSCAPE) --- */
     .observatory-modal {
-      /* MOBILE RESPONSIVE FIX (Fix #3): Use 100% width and a max-width */
+      /* MOBILE RESPONSIVE FIX (Fix #2): Use 100% width and a max-width */
       width: 100%;
       max-width: 64rem;
       /* 1024px */
@@ -512,27 +513,47 @@
       padding: 0;
       /* Remove padding to allow flex to fill */
       display: flex;
-      /* MOBILE RESPONSIVE FIX (Fix #3): Default to column, use media query for row */
+      /* MOBILE RESPONSIVE FIX (Fix #2): Portrait-first (column) */
       flex-direction: column;
       overflow: hidden;
       /* Prevent modal from scrolling */
     }
 
+    /* MOBILE RESPONSIVE FIX (Fix #2): Apply row layout only in landscape */
+    @media (min-width: 640px) and (orientation: landscape) {
+      .observatory-modal {
+        flex-direction: row;
+      }
+    }
+
     .observatory-nav {
       flex-shrink: 0;
-      /* MOBILE RESPONSIVE FIX (Fix #3): Full width by default */
+      /* MOBILE RESPONSIVE FIX (Fix #2): Full width, auto height in portrait */
       width: 100%;
+      height: auto;
       background-color: #0f172a;
       /* slate-900 */
-      /* MOBILE RESPONSIVE FIX (Fix #3): Border on bottom */
-      border-bottom: 1px solid #334155;
-      /* slate-700 */
+      /* MOBILE RESPONSIVE FIX (Fix #2): Bottom border in portrait */
+      border-bottom: 1px solid #334155; /* slate-700 */
+      border-right: 0;
       padding: 1rem;
       display: flex;
-      /* MOBILE RESPONSIVE FIX (Fix #3): Row for nav items */
+      /* MOBILE RESPONSIVE FIX (Fix #2): Row for tabs in portrait */
       flex-direction: row;
+      flex-wrap: wrap; /* Allow wrapping */
       gap: 0.5rem;
       align-items: center;
+    }
+    
+    /* MOBILE RESPONSIVE FIX (Fix #2): Apply column layout only in landscape */
+    @media (min-width: 640px) and (orientation: landscape) {
+      .observatory-nav {
+        flex-direction: column;
+        width: 12rem; /* 192px */
+        border-right: 1px solid #334155; /* slate-700 */
+        border-bottom: 0;
+        align-items: flex-start;
+      }
     }
 
     .observatory-nav h2 {
@@ -541,17 +562,31 @@
       font-weight: 700;
       color: #f1f5f9;
       /* slate-100 */
-      margin-bottom: 0;
+      margin-bottom: 0.5rem;
       padding-left: 0.5rem;
-      /* MOBILE RESPONSIVE FIX (Fix #3): Hide on small screens */
-      display: none;
+      /* MOBILE RESPONSIVE FIX (Fix #2): Take full width in portrait */
+      width: 100%;
     }
-
-    /* --- MOBILE RESPONSIVE FIX (Fix #3): Container for tab buttons --- */
-    .observatory-nav .tab-buttons {
+    
+    /* MOBILE RESPONSIVE FIX (Fix #2): Hide title in landscape */
+    @media (min-width: 640px) and (orientation: landscape) {
+      .observatory-nav h2 {
+        display: block;
+      }
+    }
+    
+    /* Tab container */
+    .tab-container {
       display: flex;
-      flex-direction: row;
       gap: 0.5rem;
+      flex-grow: 1;
+    }
+    
+    @media (min-width: 640px) and (orientation: landscape) {
+      .tab-container {
+        flex-direction: column;
+        width: 100%;
+      }
     }
 
 
@@ -566,8 +601,8 @@
       margin-bottom: 0;
       text-align: left;
       /* Align text left */
-      width: auto;
-      /* Fit content */
+      width: auto; /* Auto width in portrait */
+      flex-grow: 1; /* Grow to fill space */
       /* Apply glass-btn styles */
       background-color: transparent;
       border: 1px solid transparent;
@@ -576,6 +611,12 @@
       transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       color: #cbd5e1;
       /* slate-300 */
+    }
+    
+    @media (min-width: 640px) and (orientation: landscape) {
+      .tab-button {
+        width: 100%;
+      }
     }
 
     .tab-button:hover {
@@ -593,11 +634,10 @@
     }
 
     .observatory-nav .shop-currency {
-      /* MOBILE RESPONSIVE FIX (Fix #3): Push to right */
-      margin-left: auto;
+      /* MOBILE RESPONSIVE FIX (Fix #2): Don't push to bottom in portrait */
       margin-top: 0;
       padding: 0.5rem;
-      border-top: none;
+      border-top: 0;
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -607,67 +647,20 @@
       font-weight: bold;
       color: #facc15;
     }
+    
+    @media (min-width: 640px) and (orientation: landscape) {
+      .observatory-nav .shop-currency {
+        margin-top: auto; /* Push to bottom */
+        padding: 1rem 0.5rem 0.5rem 0.5rem;
+        border-top: 1px solid #334155; /* slate-700 */
+      }
+    }
 
     .observatory-nav .star-icon {
       color: #fbbf24;
       font-size: 1.5rem;
       /* text-2xl */
     }
-    
-    /* --- MOBILE RESPONSIVE FIX (Fix #3): Hide close button in nav --- */
-    #closeObservatoryButton {
-      display: none;
-    }
-
-
-    /* --- MEDIA QUERY FOR LANDSCAPE (Fix #3) --- */
-    @media (min-width: 640px) and (orientation: landscape) {
-      .observatory-modal {
-        flex-direction: row;
-      }
-
-      .observatory-nav {
-        flex-direction: column;
-        width: 12rem;
-        /* 192px */
-        border-right: 1px solid #334155;
-        /* slate-700 */
-        border-bottom: none;
-        align-items: stretch;
-      }
-
-      .observatory-nav h2 {
-        display: block;
-        /* Show title */
-        margin-bottom: 0.5rem;
-      }
-      
-      .observatory-nav .tab-buttons {
-        flex-direction: column;
-      }
-      
-      .tab-button {
-        width: 100%; /* Full width in column */
-      }
-
-      .observatory-nav .shop-currency {
-        margin-left: 0;
-        margin-top: auto;
-        /* Push to bottom */
-        padding: 1rem 0.5rem 0.5rem 0.5rem;
-        border-top: 1px solid #334155;
-        /* slate-700 */
-      }
-      
-      #closeObservatoryButton {
-        display: flex; /* Show close button in nav */
-      }
-      
-      .shop-footer {
-        display: none; /* Hide footer close button */
-      }
-    }
-    /* --- END MEDIA QUERY --- */
 
 
     .observatory-main {
@@ -730,9 +723,9 @@
 
     .upgrade-item {
       display: flex;
-      flex-direction: row;
-      /* Always horizontal now */
-      align-items: center;
+      /* MOBILE RESPONSIVE FIX (Fix #2): Stack in portrait */
+      flex-direction: column;
+      align-items: flex-start;
       background-color: #0f172a;
       /* slate-900 */
       padding: 1rem;
@@ -742,15 +735,29 @@
       border: 1px solid #334155;
       /* border-slate-700 */
     }
+    
+    @media (min-width: 640px) {
+      .upgrade-item {
+        flex-direction: row;
+        align-items: center;
+      }
+    }
+
 
     .upgrade-info {
       text-align: left;
       flex-grow: 1;
       width: 100%;
       margin-bottom: 0;
-      margin-right: 1rem;
-      /* md:mr-4 */
+      margin-right: 0;
     }
+    
+    @media (min-width: 640px) {
+      .upgrade-info {
+        margin-right: 1rem; /* md:mr-4 */
+      }
+    }
+
 
     .upgrade-info strong {
       font-size: 1.125rem;
@@ -772,8 +779,17 @@
       display: flex;
       align-items: center;
       gap: 1rem;
-      width: auto;
+      /* MOBILE RESPONSIVE FIX (Fix #2): Full width in portrait */
+      width: 100%;
       flex-shrink: 0;
+      margin-top: 1rem; /* Add space in portrait */
+    }
+    
+    @media (min-width: 640px) {
+      .upgrade-action {
+        width: auto;
+        margin-top: 0;
+      }
     }
 
     .upgrade-level {
@@ -910,8 +926,6 @@
       /* p-4 */
       border-top: 1px solid #334155;
       /* border-slate-700 */
-      /* MOBILE RESPONSIVE FIX (Fix #3): Show in portrait */
-      display: block;
     }
 
     .shop-footer .btn-secondary {
@@ -930,7 +944,28 @@
       width: 100%;
       margin: 0;
       padding: 0.75rem 1rem;
+      /* MOBILE RESPONSIVE FIX (Fix #2): Hide in portrait */
+      display: none;
     }
+    
+    @media (min-width: 640px) and (orientation: landscape) {
+      #closeObservatoryButton {
+        display: block;
+      }
+    }
+    
+    /* MOBILE RESPONSIVE FIX (Fix #2): Show a 'Back' button in main content for portrait */
+    .back-button-portrait {
+      display: block;
+      margin-bottom: 1rem;
+    }
+    
+    @media (min-width: 640px) and (orientation: landscape) {
+      .back-button-portrait {
+        display: none;
+      }
+    }
+    
   </style>
 </head>
 
@@ -969,7 +1004,8 @@
         <h1>Gravity Well</h1>
         <p data-string="menu_subtitle">Tap and hold to guide the comet. Survive as long as you can.</p>
         <div class="stats-display">
-          <div>
+          <!-- DEV MODE (Fix #9): Added container for click event -->
+          <div id="highScoreDisplayContainer">
             <span data-string="high_score">HIGH SCORE</span>
             <span id="highScoreDisplay">0</span>
           </div>
@@ -977,16 +1013,17 @@
             <span>✦ <span data-string="fragments">FRAGMENTS</span></span>
             <span id="starFragmentsDisplay">0</span>
           </div>
+          <!-- DEV MODE (Fix #9): Added User ID display -->
+          <div style="grid-column: 1 / -1;">
+            <span data-string="user_id">User ID</span>
+            <span id="userIdDisplay">Offline</span>
+          </div>
+          <!-- END DEV MODE -->
         </div>
         <button id="playButton" class="btn" data-string="play_button">Start Game</button>
         <button id="observatoryButton" class="btn btn-secondary" data-string="observatory">Observatory</button>
         <!-- EXIT BUTTON (POINT 2) -->
         <button id="exitButton" class="btn btn-secondary" data-string="exit_game">Exit Game</button>
-        <!-- DEV MODE (Fix #9): User ID Display -->
-        <div class="user-id-display">
-          <span data-string="user_id">User ID</span>: <span id="userIdDisplay">loading...</span>
-        </div>
-        <!-- END DEV MODE -->
       </div>
     </div>
 
@@ -1018,7 +1055,7 @@
         <!-- max-w-xs -->
         <h2 data-string="paused">Paused</h2>
         <button id="resumeButton" class="btn" data-string="resume">Resume</button>
-        <button id="quitButton" class="btn btn-secondary" data-string="quit_menu">Quit to Menu</button>
+        <button id="quitButton" classs="btn btn-secondary" data-string="quit_menu">Quit to Menu</button>
       </div>
     </div>
 
@@ -1029,8 +1066,8 @@
         <!-- Left Nav Column -->
         <nav class="observatory-nav">
           <h2 data-string="observatory">Observatory</h2>
-          <!-- MOBILE RESPONSIVE FIX (Fix #3): Tab buttons container -->
-          <div class="tab-buttons">
+          <!-- MOBILE RESPONSIVE FIX (Fix #2): Tab container -->
+          <div class="tab-container">
             <button class="tab-button active" data-tab="upgradesTab" data-string="upgrades">Upgrades</button>
             <button class="tab-button" data-tab="cometsTab" data-string="comets">Comets</button>
             <button class="tab-button" data-tab="anomaliesTab" data-string="anomalies">Anomalies</button>
@@ -1047,6 +1084,11 @@
 
         <!-- Right Content Column -->
         <main class="observatory-main">
+          <!-- MOBILE RESPONSIVE FIX (Fix #2): Back button for portrait -->
+          <button id="observatoryBackButtonPortrait" class="btn btn-secondary back-button-portrait" data-string="back_menu">
+            Back to Menu
+          </button>
+        
           <!-- Upgrades Tab -->
           <div id="upgradesTab" class="tab-content active">
             <div class="shop-section">
@@ -1092,19 +1134,6 @@
                 </div>
                 <div class="upgrade-action">
                   <button class="btn buy-btn" data-upgrade="headstart" data-string="buy_button" data-cost="150">Buy (150)</button>
-                </div>
-              </div>
-              <div class="upgrade-item" id="utility-revive">
-                <div class="upgrade-info">
-                  <strong data-string="revive_name">Second Chance</strong>
-                  <p data-string="revive_desc">Revive once after crashing.</p>
-                </div>
-                <div class="upgrade-action">
-                  <button class="btn buy-btn" data-upgrade="revive" data-string="buy_button" data-cost="250">Buy (250)</button>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <!-- Comets Tab Content -->
           <div id="cometsTab" class="tab-content">
@@ -1131,13 +1160,6 @@
               </div>
             </div>
           </div>
-          
-          <!-- MOBILE RESPONSIVE FIX (Fix #3): Footer with close button for portrait -->
-          <footer class="shop-footer">
-            <button id="closeObservatoryButtonFooter" class="btn btn-secondary" data-string="back_menu">
-              Back to Menu
-            </button>
-          </footer>
         </main>
 
       </div>
@@ -1146,8 +1168,9 @@
 
   </div>
 
-  <!-- SCRIPT MOVED TO END OF BODY -->
+  <!-- DOM READY FIX (Bug #9): Move the script to the end of the body -->
   <script type="module">
+    // --- FIREBASE SDK (Fix #7): Import SDKs ---
     // Import the functions from the SDKs
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -1174,7 +1197,7 @@
       console.log("Firebase initialized.");
     } catch (e) {
       console.error("Firebase initialization failed:", e);
-      // --- DOM FIX: No longer need DOMContentLoaded wrapper ---
+      // Display a friendly error to the user on the menu
       const mainMenu = document.getElementById('mainMenu');
       if (mainMenu) {
         mainMenu.innerHTML = `
@@ -1187,7 +1210,6 @@
         // Show the menu modal
         mainMenu.className = 'modal modal-visible';
       }
-      // --- END DOM FIX ---
     }
     // --- END FIREBASE SDK ---
   
@@ -1325,12 +1347,12 @@
 
 
     // --- GAME CODE ---
-    
-    // --- DOM FIX: Declare all DOM-dependent variables with 'let' ---
+    // --- DOM READY FIX (Bug #9) ---
+    // Declare all DOM-related variables here, but *assign* them inside init()
     let canvas, ctx, appContainer;
     
     // UI elements
-    let allUiScreens = []; // This one was already correct
+    let allUiScreens = []; // CORRECTLY DECLARED
     let scoreElement, gameOverModal, finalScoreElement, restartButton,
         powerUpStatusElement, inGameUi, mainMenu, playButton,
         highScoreDisplay, starFragmentsDisplay, userIdDisplay,
@@ -1339,9 +1361,10 @@
         observatoryButton, closeObservatoryButton, observatory,
         shopFragmentsDisplay, observatoryNav, tabContents,
         cometSkinsGrid, obstacleSkinsGrid, backgroundThemesGrid,
-        gameOverMenuButton, gameOverObservatoryButton, activeUpgradesContainer,
-        magnetIndicator, scoreIndicator, reviveIndicator;
-    // --- END DOM FIX ---
+        gameOverMenuButton, gameOverObservatoryButton,
+        activeUpgradesContainer, magnetIndicator, scoreIndicator,
+        reviveIndicator, observatoryBackButtonPortrait;
+    // --- END DOM READY FIX ---
 
     // Game state
     let gameState = 'menu';
@@ -1373,49 +1396,6 @@
     const HEADSTART_DURATION = 500;
     let hasRevive = false;
 
-    // --- DOM FIX: Create a function to assign DOM elements ---
-    function initializeDOM() {
-      canvas = document.getElementById('gameCanvas');
-      ctx = canvas.getContext('2d');
-      appContainer = document.getElementById('app');
-      
-      allUiScreens = document.querySelectorAll('[data-ui-screen]');
-      scoreElement = document.getElementById('score');
-      gameOverModal = document.getElementById('gameOverModal');
-      finalScoreElement = document.getElementById('finalScoreElement');
-      restartButton = document.getElementById('restartButton');
-      powerUpStatusElement = document.getElementById('powerUpStatus');
-      inGameUi = document.querySelector('.ui-container');
-      mainMenu = document.getElementById('mainMenu');
-      playButton = document.getElementById('playButton');
-      highScoreDisplay = document.getElementById('highScoreDisplay');
-      starFragmentsDisplay = document.getElementById('starFragmentsDisplay');
-      userIdDisplay = document.getElementById('userIdDisplay');
-      runFragmentsContainer = document.getElementById('runFragmentsContainer');
-      runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
-      fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
-      pauseButton = document.getElementById('pauseButton');
-      pauseMenu = document.getElementById('pauseMenu');
-      resumeButton = document.getElementById('resumeButton');
-      quitButton = document.getElementById('quitButton');
-      observatoryButton = document.getElementById('observatoryButton');
-      closeObservatoryButton = document.getElementById('closeObservatoryButton');
-      observatory = document.getElementById('observatory');
-      shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
-      observatoryNav = document.querySelector('.observatory-nav');
-      tabContents = document.querySelectorAll('.tab-content');
-      cometSkinsGrid = document.getElementById('cometSkinsGrid');
-      obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid');
-      backgroundThemesGrid = document.getElementById('backgroundThemesGrid');
-      gameOverMenuButton = document.getElementById('gameOverMenuButton');
-      gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
-      activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
-      magnetIndicator = document.getElementById('magnetIndicator');
-      scoreIndicator = document.getElementById('scoreIndicator');
-      reviveIndicator = document.getElementById('reviveIndicator');
-    }
-    // --- END DOM FIX ---
-
     // Game constants
     const VIRTUAL_WIDTH = 1280;
     const VIRTUAL_HEIGHT = 720;
@@ -1423,7 +1403,9 @@
     const SCORE_DIVISOR = 10; // <-- MISSING VARIABLE FIX
     
     const PLAYER_COMET_RADIUS = 15;
-    const GRAVITY_INFLUENCE = 0.2; 
+    // --- MODIFICATION #1: Increased gravity pull ---
+    const GRAVITY_INFLUENCE = 0.4; // Was 0.2
+    // --- END MODIFICATION #1 ---
     const INERTIAL_DAMPING = 0.98; // For gravity well
     const VERTICAL_DAMPING = 0.95; // For return-to-horizontal
     const WAVE_AMPLITUDE = 0.3; // Softer oscillation
@@ -1628,30 +1610,64 @@
       musicLoops: [],
       currentZone: -1,
 
-      // --- VOLUME LEVELS ---
-      // We define all volumes here to easily balance them.
-      // 0dB is "full" volume. Negative numbers are quieter.
+      // --- DYNAMIC AUDIO (Fix #10): New Audio Mix ---
+      // Re-balanced all volumes for a 4-layer system
       volumes: {
-        music: -20,     // Music is much quieter now
-        fragment: -8,  // SFX are brought down
-        powerUp: -6,
-        gameOver: -6,
-        click: -12,
-        obstacle: -4
+        music: -10,     // Lead/Melody
+        pad: -16,       // Ambient Atmosphere
+        bass: -8,       // Rhythmic Bass
+        perc: -12,      // Kick & Hat
+        
+        fragment: -20,  // SFX are much quieter
+        powerUp: -18,
+        gameOver: -16,
+        click: -22,
+        obstacle: -18
       },
+      // --- END DYNAMIC AUDIO ---
 
-      musicZonePatterns: [
-        // Zone 0
-        { bpm: 150, bass: ['C2', 'C2', 'C2', 'C2', 'G1', 'G1', 'G1', 'G1', 'F1', 'F1', 'F1', 'F1', 'F1', 'F1', 'F1', 'F1'], lead: ['C4', 'E4', 'G4', 'C5', 'G4', 'E4', 'C4'], leadInterval: '8n' },
-        // Zone 1
-        { bpm: 155, bass: ['C2', 'C2', 'C2', 'C2', 'G1', 'G1', 'G1', 'G1', 'F1', 'F1', 'F1', 'F1', 'A1', 'A1', 'A1', 'A1'], lead: ['C4', 'E4', 'G4', 'C5', 'A4', 'G4', 'E4'], leadInterval: '8n' },
-        // Zone 2
-        { bpm: 160, bass: ['C2', 'C2', 'D2', 'C2', 'G1', 'G1', 'A1', 'G1', 'F1', 'F1', 'G1', 'F1', 'A1', 'A1', 'G1', 'A1'], lead: ['C5', 'E5', 'G5', 'C6', 'A5', 'G5', 'E5'], leadInterval: '16n' },
-        // Zone 3
-        { bpm: 165, bass: ['C2', 'D2', 'E2', 'D2', 'G1', 'A1', 'B1', 'A1', 'F1', 'G1', 'A1', 'G1', 'A1', 'B1', 'C2', 'B1'], lead: ['C5', 'E5', 'G5', 'A5', 'C6', 'A5', 'G5', 'E5'], leadInterval: '16n' },
-        // Zone 4 (Max)
-        { bpm: 170, bass: ['C2', 'D2', 'E2', 'D2', 'G1', 'A1', 'B1', 'A1', 'F1', 'G1', 'A1', 'G1', 'A1', 'B1', 'C2', 'B1'], lead: ['C6', 'E6', 'G6', 'A6', 'C7', 'A6', 'G6', 'E6'], leadInterval: '16n' }
+      // --- DYNAMIC AUDIO (Fix #10): New Music Patterns ---
+      // Renamed to 'gameMusicPatterns'
+      gameMusicPatterns: [
+        // Zone 0-1 (Atmosphere, Bass, Lead)
+        { bpm: 150, 
+          pad: ['C2', 'G2'], padInterval: '1m',
+          bass: ['C2', null, 'C2', null, 'G1', null, 'G1', null, 'F1', null, 'F1', null, 'F1', null, 'F1', null],
+          lead: ['C4', null, 'E4', 'G4', null, 'E4', 'C4', null, 'D4', 'E4', null, 'D4', null, null, null, null], 
+          leadInterval: '16n',
+          kick: null, // No percussion
+          hat: null
+        },
+        // Zone 2-3 (Percussion Fades In)
+        { bpm: 160, 
+          pad: ['C2', 'G2', 'F2'], padInterval: '1m',
+          bass: ['C2', 'C2', 'D2', 'C2', 'G1', 'G1', 'A1', 'G1', 'F1', 'F1', 'G1', 'F1', 'A1', 'A1', 'G1', 'A1'],
+          lead: ['C5', 'E5', 'G5', 'C6', 'A5', 'G5', 'E5', null, 'C5', 'E5', 'G5', 'A5', 'G5', 'E5', 'D5', null], 
+          leadInterval: '16n',
+          kick: ['C1', null, 'C1', null, 'C1', null, 'C1', null], // Simple kick
+          hat: [null, 'C7', null, 'C7'], // 8th note hi-hats
+          hatInterval: '8n'
+        },
+        // Zone 4+ (Frantic)
+        { bpm: 170, 
+          pad: ['C2', 'G2', 'F2', 'A2'], padInterval: '1m',
+          bass: ['C2', 'D2', 'E2', 'D2', 'G1', 'A1', 'B1', 'A1', 'F1', 'G1', 'A1', 'G1', 'A1', 'B1', 'C2', 'B1'],
+          lead: ['C6', 'E6', 'G6', 'A6', 'C7', 'A6', 'G6', 'E6', 'A6', 'C7', 'A6', 'G6', 'E6', 'D6', 'E6', 'D6'], 
+          leadInterval: '16n',
+          kick: ['C1', null, 'C1', 'C1', 'C1', null, 'C1', null], // More complex kick
+          hat: ['C7', 'C7', 'C7', 'C7', 'C7', 'C7', 'C7', 'C7'], // 16th note hi-hats
+          hatInterval: '16n'
+        }
       ],
+      
+      // New pattern for the main menu (Chill)
+      menuMusicPattern: {
+        bpm: 100,
+        pad: ['C2', 'F2', 'G2'], padInterval: '1m',
+        lead: [null, null, null, 'C4', null, 'E4', null, 'G4', null, null, 'F4', null, 'D4', null, null, null],
+        leadInterval: '8n'
+      },
+      // --- END DYNAMIC AUDIO ---
 
       async init() {
         // SOUND FIX (POINT 3) - Check for window.Tone object
@@ -1701,23 +1717,44 @@
               oscillator: { type: 'sine' },
               envelope: { attack: 0.02, decay: 0.1, sustain: 0.2, release: 0.1 },
               volume: obsVol - 5 // Ducks are quieter
-            }).toDestination(),
+            }).toDestination() // <-- SYNTAX ERROR FIX: Removed trailing comma
           };
 
+          // --- DYNAMIC AUDIO (Fix #10): Add new synths ---
+          this.synths.musicPad = new Tone.FMSynth({
+            envelope: { attack: 2.0, decay: 1.0, sustain: 1.0, release: 2.0 }, // Long, soft attack/release
+            volume: this.volumes.pad
+          }).connect(this.effects.reverb); // Connect to reverb for spacey feel
+
+          this.synths.musicKick = new Tone.MembraneSynth({
+            pitchDecay: 0.05,
+            octaves: 10,
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 },
+            volume: this.volumes.perc
+          }).toDestination();
+          
+          this.synths.musicHat = new Tone.NoiseSynth({
+            noise: { type: 'pink' },
+            envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 }, // Very short
+            volume: this.volumes.perc
+          }).toDestination();
+          // --- END DYNAMIC AUDIO ---
+
           // Music Synths
-          this.synths.musicLead = new window.Tone.FMSynth({
+          this.synths.musicLead = new Tone.FMSynth({
             harmonicity: 1.2, modulationIndex: 5,
             envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.3 },
             modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 },
             volume: this.volumes.music // Apply balanced volume
           }).connect(this.effects.delay);
 
-          this.synths.musicBass = new window.Tone.MonoSynth({
+          this.synths.musicBass = new Tone.MonoSynth({
             oscillator: { type: 'sawtooth' },
             envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 },
             filter: { type: 'lowpass', Q: 2, frequency: 400 },
             filterEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1, baseFrequency: 100, octaves: 3 },
-            volume: this.volumes.music // Apply balanced volume
+            volume: this.volumes.bass // Apply balanced volume
           }).connect(this.effects.bassFilter);
 
           this.isInitialized = true;
@@ -1747,8 +1784,40 @@
       startMusic() {
         if (!this.isAudioUnlocked || this.musicLoops.length > 0) return;
         this.setMusicZone(0); // Start with zone 0
-        window.Tone.Transport.start();
+        if (window.Tone.Transport.state !== 'started') {
+          window.Tone.Transport.start();
+        }
       },
+      
+      // --- DYNAMIC AUDIO (Fix #10): New function for menu music ---
+      startMenuMusic() {
+        if (!this.isAudioUnlocked) return;
+        
+        // Stop any old loops
+        this.stopMusic();
+        this.currentZone = -1; // Not in a game zone
+        
+        const pattern = this.menuMusicPattern;
+        window.Tone.Transport.bpm.value = pattern.bpm;
+        
+        // Create new loops
+        const padPattern = new Tone.Sequence((time, note) => {
+          this.synths.musicPad.triggerAttackRelease(note, "2m", time);
+        }, pattern.pad, "randomWalk").start(0);
+        padPattern.interval = pattern.padInterval;
+        
+        const melodyPattern = new Tone.Pattern((time, note) => {
+          if (note) this.synths.musicLead.triggerAttackRelease(note, "8n", time);
+        }, pattern.lead, "randomWalk").start(0);
+        melodyPattern.interval = pattern.leadInterval;
+
+        this.musicLoops = [padPattern, melodyPattern];
+        
+        if (window.Tone.Transport.state !== 'started') {
+          window.Tone.Transport.start();
+        }
+      },
+      // --- END DYNAMIC AUDIO ---
 
       setMusicZone(zoneIndex) {
         if (!this.isAudioUnlocked) return;
@@ -1760,25 +1829,48 @@
         });
         this.musicLoops = [];
 
-        const pattern = this.musicZonePatterns[Math.min(zoneIndex, this.musicZonePatterns.length - 1)];
+        // --- DYNAMIC AUDIO (Fix #10): Use gameMusicPatterns ---
+        const pattern = this.gameMusicPatterns[Math.min(zoneIndex, this.gameMusicPatterns.length - 1)];
         this.currentZone = zoneIndex;
 
         window.Tone.Transport.bpm.value = pattern.bpm;
 
-        // Create new loops
-        // --- HORSE TROT FIX (POINT 1) ---
-        // Changed the bass loop from "16n" to "8n". This creates a
-        // smoother "driving" pulse instead of the fast "trot" rhythm.
-        const bassPattern = new window.Tone.Sequence((time, note) => {
-          this.synths.musicBass.triggerAttackRelease(note, "8n", time);
-        }, pattern.bass, "8n").start(0); // <-- This was "16n"
+        // --- DYNAMIC AUDIO (Fix #10): Create all 4 layers ---
+        
+        // 1. Pad (Atmosphere)
+        const padPattern = new Tone.Sequence((time, note) => {
+          this.synths.musicPad.triggerAttackRelease(note, "2m", time);
+        }, pattern.pad, "randomWalk").start(0);
+        padPattern.interval = pattern.padInterval;
 
-        const melodyPattern = new window.Tone.Pattern((time, note) => {
-          this.synths.musicLead.triggerAttackRelease(note, "8n", time);
+        // 2. Bass (Rhythm)
+        const bassPattern = new Tone.Sequence((time, note) => {
+          if (note) this.synths.musicBass.triggerAttackRelease(note, "8n", time);
+        }, pattern.bass, "8n").start(0);
+
+        // 3. Lead (Melody)
+        const melodyPattern = new Tone.Pattern((time, note) => {
+          if (note) this.synths.musicLead.triggerAttackRelease(note, "8n", time);
         }, pattern.lead, "randomWalk").start(0);
         melodyPattern.interval = pattern.leadInterval;
-
-        this.musicLoops = [bassPattern, melodyPattern];
+        
+        this.musicLoops = [padPattern, bassPattern, melodyPattern];
+        
+        // 4. Percussion (Urgency) - Only if it exists
+        if (pattern.kick) {
+          const kickPattern = new Tone.Sequence((time, note) => {
+            if (note) this.synths.musicKick.triggerAttackRelease(note, "4n", time);
+          }, pattern.kick, "4n").start(0);
+          this.musicLoops.push(kickPattern);
+        }
+        
+        if (pattern.hat) {
+          const hatPattern = new Tone.Sequence((time, note) => {
+            if (note) this.synths.musicHat.triggerAttackRelease("8n", time);
+          }, pattern.hat, pattern.hatInterval).start(0);
+          this.musicLoops.push(hatPattern);
+        }
+        // --- END DYNAMIC AUDIO ---
       },
 
       stopMusic() {
@@ -2082,9 +2174,18 @@
             
             // 5. Override horizontal speed to *always* be at least the base speed
             // This prevents the "grinding to a halt" feeling.
+            
+            // --- MODIFICATION #2 (Physics): Allow "curving" ---
+            // This line was forcing horizontal speed and preventing curves.
+            // By removing it, 'this.vx' can now decrease, allowing the
+            // comet to slow down horizontally as it's pulled vertically.
+            /*
             if (this.vx < baseSpeed) {
               this.vx = baseSpeed;
             }
+            */
+            // --- END MODIFICATION #2 ---
+            
             // --- END PHYSICS ACCELERATION FIX ---
 
           } 
@@ -2927,7 +3028,7 @@
       });
     }
 
-    function setGameState(newState) {
+    async function setGameState(newState) { // <-- Made this function async
       // PAUSE BUG FIX (Fix #4):
       // Explicitly destroy the gravity well when pausing to prevent
       // a "stuck" well when resuming.
@@ -2937,6 +3038,14 @@
       
       const oldState = gameState;
       gameState = newState;
+      
+      // --- GAME OVER BUG FIX (Fix #11) ---
+      // Stop any existing game loop *before* setting the new state
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      // --- END GAME OVER BUG FIX ---
 
       allUiScreens.forEach(screen => {
         const screenType = screen.dataset.uiScreen;
@@ -2955,21 +3064,19 @@
       
       // Now, selectively SHOW the elements for the new state
       if (newState === 'menu') {
-        // MUSIC BUG FIX (Bug #3): Stop music *before* re-enabling menu loop
-        audioManager.stopMusic(); 
+        // --- DYNAMIC AUDIO (Fix #10): Call new menu music function ---
+        await audioManager.tryInitAudio(); // Ensure audio is unlocked
+        audioManager.startMenuMusic(); 
+        // --- END DYNAMIC AUDIO ---
         mainMenu.className = 'modal modal-visible';
         highScoreDisplay.textContent = playerData.highScore;
         starFragmentsDisplay.textContent = playerData.starFragments;
-        // --- DEV MODE (Fix #9): Display UserID ---
-        if(userIdDisplay && userId) {
-            userIdDisplay.textContent = userId;
-        }
-        // --- END DEV MODE ---
+        userIdDisplay.textContent = userId ? `${userId.substring(0, 10)}...` : 'Offline'; // <-- DEV MODE (Fix #9)
         if (!menuComet) {
             menuComet = new PlayerComet(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2);
             menuComet.startDelay = 0; // Menu comet can oscillate
         }
-        if (oldState !== 'menu' || !animationFrameId) gameLoop();
+        gameLoop(); // Start the new menu loop
       } else if (newState === 'playing') {
         inGameUi.style.display = 'flex';
         runFragmentsContainer.classList.remove('run-fragments-hidden');
@@ -2977,7 +3084,7 @@
           // MUSIC BUG FIX (Bug #3):
           // We must re-unlock audio context *before* starting music,
           // as the context may have been suspended.
-          audioManager.tryInitAudio();
+          await audioManager.tryInitAudio(); // <-- Added 'await'
           audioManager.startMusic(); 
           gameLoop(); 
         }
@@ -3004,6 +3111,10 @@
         fragmentsEarnedDisplay.textContent = fragmentsThisRun;
         gameOverModal.className = 'modal modal-visible';
       } else if (newState === 'observatory') {
+        // --- DYNAMIC AUDIO (Fix #10): Play menu music in observatory ---
+        await audioManager.tryInitAudio(); // Ensure audio is unlocked
+        audioManager.startMenuMusic();
+        // --- END DYNAMIC AUDIO ---
         updateObservatoryUI(); 
         observatory.className = 'modal modal-visible';
       }
@@ -3050,11 +3161,11 @@
       checkZoneTransition();
     }
 
-    function startGame() { 
+    async function startGame() { // <-- Made this function async
       resizeCanvas(); 
       initNewRun(); 
       // MUSIC BUG FIX (Bug #3): Unlock audio before starting music
-      audioManager.tryInitAudio();
+      await audioManager.tryInitAudio(); // <-- Added 'await'
       audioManager.startMusic(); 
       if (animationFrameId) { 
         cancelAnimationFrame(animationFrameId); 
@@ -3174,7 +3285,7 @@
       
       // Draw stars if the theme wants them
       if (renderConfig.stars) {
-        const starColor = renderConfig.custom ? '255, 255, 255' : currentZoneColors.star;
+        const starColor = renderConfig.custom ? 'rgba(255, 255, 255, 0.7)' : currentZoneColors.star;
         stars.forEach(s => s.draw(ctx, starColor));
       }
     }
@@ -3227,19 +3338,14 @@
     }
 
     function resizeCanvas() {
-      // RESIZE BUG FIX (Fix #5):
-      // Use window.innerWidth/Height for a stable viewport size
-      // that isn't affected by browser UI (like the URL bar).
-      // This prevents the "jump" when the URL bar hides on mobile.
-      const { innerWidth, innerHeight } = window;
-      scale = Math.min(innerWidth / VIRTUAL_WIDTH, innerHeight / VIRTUAL_HEIGHT);
+      const { clientWidth, clientHeight } = appContainer;
+      // MOBILE VIEWPORT FIX (Fix #1): Use innerWidth/innerHeight for Webview
+      const w = clientWidth || window.innerWidth;
+      const h = clientHeight || window.innerHeight;
       
+      scale = Math.min(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
       canvas.width = VIRTUAL_WIDTH * scale;
       canvas.height = VIRTUAL_HEIGHT * scale;
-      
-      // Also apply the stable size to the app container
-      appContainer.style.width = `${innerWidth}px`;
-      appContainer.style.height = `${innerHeight}px`;
     }
 
     function getObstacleTypeForZone() {
@@ -3265,7 +3371,7 @@
 
     function manageObstacles() {
       if (!playerComet) return;
-      obstacles = obstacles.filter(o => o.x + (o.width || o.currentRadius * 2) > cameraX);
+      obstacles = obstacles.filter(o => o.x + o.width > cameraX);
       const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
 
       if (nextObstacleSpawnX < spawnAheadPoint) {
@@ -3456,40 +3562,12 @@
           // Use the obstacle's own collision logic if it has one
           if (obs.collidesWith) {
             if (obs.collidesWith(playerComet)) {
-              // audioManager.playObstacleSound(playerData.cosmetics.equipped.obstacle); // Sound is played in .collidesWith()
+              // audioManager.playObstacleSound(playerData.cosmetics.equipped.obstacle); // Sound is now played in the collidesWith method
               return { obstacle: true };
             }
             continue; // Skip to next obstacle
           }
           // --- END NEW OBSTACLE TYPE ---
-          
-          // Fallback for old obstacle types (if any)
-          if (!obs.isActive) continue;
-
-          const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
-
-          if (skin.collisionShape === 'circle') {
-            const obsRadius = obs.width / 2;
-            const obsCenterX = obs.x + obsRadius;
-            const obsCenterY = obs.y + obsRadius;
-            
-            const distSq = (comet.x - obsCenterX)**2 + (comet.y - obsCenterY)**2;
-            const radiiSq = (comet.radius + obsRadius)**2;
-            
-            if (distSq < radiiSq) {
-              audioManager.playObstacleSound(skin.id); // Play sound on collision
-              return { obstacle: true };
-            }
-          } else {
-            // Default Rectangle (AABB) Collision
-            if (playerComet.x + playerComet.radius > obs.x && 
-                playerComet.x - playerComet.radius < obs.x + obs.width && 
-                playerComet.y + playerComet.radius > obs.y && 
-                playerComet.y - playerComet.radius < obs.y + obs.height) {
-              audioManager.playObstacleSound(skin.id); // Play sound on collision
-              return { obstacle: true };
-            }
-          }
         }
       }
       return {};
@@ -3506,7 +3584,11 @@
     
     function calculateCurrentSpeed() { 
       const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); 
-      return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); 
+      // --- MODIFICATION #2: Exponential speed increase ---
+      // The old formula was linear: INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
+      // This new formula is exponential, making the game get much faster over time.
+      return INITIAL_SPEED * Math.pow(1.15, zoneIndex);
+      // --- END MODIFICATION #2 ---
     }
 
     function checkZoneTransition() {
@@ -3602,39 +3684,37 @@
         // Any click on the body will attempt to unlock the audio
         await audioManager.tryInitAudio();
         
-        const target = e.target.closest('button') || e.target.closest('[data-string="high_score"]'); // <-- DEV MODE (Fix #9)
-        if (!target) return; // Click was not on a button or our dev mode target
+        const target = e.target;
         
         // --- BUTTON CLICKS ---
         // Use .closest() to catch clicks on icons inside buttons
         
-        if (target.id === 'playButton') {
+        if (target.closest('#playButton')) {
           setGameState('playing');
         } 
-        else if (target.id === 'restartButton') {
+        else if (target.closest('#restartButton')) {
           setGameState('playing');
         }
-        else if (target.id === 'pauseButton') {
+        else if (target.closest('#pauseButton')) {
           if (gameState === 'playing') setGameState('paused');
         }
-        else if (target.id === 'resumeButton') {
+        else if (target.closest('#resumeButton')) {
           if (gameState === 'paused') setGameState('playing');
         }
-        else if (target.id === 'quitButton') {
+        else if (target.closest('#quitButton')) {
           if (gameState === 'paused') setGameState('menu');
         }
-        else if (target.id === 'observatoryButton' || target.id === 'gameOverObservatoryButton') {
+        else if (target.closest('#observatoryButton') || target.closest('#gameOverObservatoryButton') || target.closest('#observatoryBackButtonPortrait')) {
           setGameState('observatory');
         }
-        else if (target.id === 'gameOverMenuButton') {
+        else if (target.closest('#gameOverMenuButton')) {
           setGameState('menu');
         }
-        // --- MOBILE RESPONSIVE FIX (Fix #3): Handle footer close button ---
-        else if (target.id === 'closeObservatoryButton' || target.id === 'closeObservatoryButtonFooter') {
+        else if (target.closest('#closeObservatoryButton')) {
           setGameState('menu');
         }
         // --- EXIT BUTTON (POINT 2) ---
-        else if (target.id === 'exitButton') {
+        else if (target.closest('#exitButton')) {
           audioManager.playClickSound();
           if (window.CapacitorApp) {
             window.CapacitorApp.exitApp();
@@ -3642,24 +3722,26 @@
             console.log("Exit button clicked (App.exitApp() only works in native app)");
           }
         }
-        // --- DEV MODE (Fix #9): Secret click handler ---
-        else if (target.dataset.string === 'high_score') {
+        
+        // --- DEV MODE (Fix #9): Secret cheat code ---
+        else if (target.closest('#highScoreDisplayContainer')) {
           devModeClickCount++;
           if (devModeClickCount >= 5) {
             devModeClickCount = 0;
             if (db && userId) {
-              console.log("DEV MODE: Adding 10,000 fragments.");
               const playerDocRef = doc(db, "players", userId);
               await updateDoc(playerDocRef, {
                 starFragments: increment(10000)
               });
-              playerData.starFragments += 10000;
+              // Reload player data to reflect change immediately
+              await loadPlayerData();
+              // Update UI
               starFragmentsDisplay.textContent = playerData.starFragments;
-              audioManager.playPowerUpSound();
-            } else {
-              console.warn("DEV MODE: Cannot add fragments, user/db not ready.");
+              console.log("DEV: Added 10,000 fragments.");
             }
           }
+        } else if (!target.closest('.modal-content')) {
+          devModeClickCount = 0; // Reset count if clicking elsewhere
         }
         // --- END DEV MODE ---
       });
@@ -3799,9 +3881,48 @@
     // --- Initialization ---
     // --- FIREBASE SDK (Fix #7): Make init() async to wait for auth ---
     async function init() { 
-      // --- DOM FIX: Call the DOM initializer ---
-      initializeDOM();
-      // --- END DOM FIX ---
+      // --- DOM READY FIX (Bug #9) ---
+      // Assign DOM elements *inside* init, after the DOM is loaded.
+      canvas = document.getElementById('gameCanvas');
+      ctx = canvas.getContext('2d');
+      appContainer = document.getElementById('app');
+      
+      allUiScreens = document.querySelectorAll('[data-ui-screen]');
+      scoreElement = document.getElementById('score');
+      gameOverModal = document.getElementById('gameOverModal');
+      finalScoreElement = document.getElementById('finalScoreElement');
+      restartButton = document.getElementById('restartButton');
+      powerUpStatusElement = document.getElementById('powerUpStatus');
+      inGameUi = document.querySelector('.ui-container');
+      mainMenu = document.getElementById('mainMenu');
+      playButton = document.getElementById('playButton');
+      highScoreDisplay = document.getElementById('highScoreDisplay');
+      starFragmentsDisplay = document.getElementById('starFragmentsDisplay');
+      userIdDisplay = document.getElementById('userIdDisplay'); // <-- DEV MODE (Fix #9)
+      runFragmentsContainer = document.getElementById('runFragmentsContainer');
+      runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
+      fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
+      pauseButton = document.getElementById('pauseButton');
+      pauseMenu = document.getElementById('pauseMenu');
+      resumeButton = document.getElementById('resumeButton');
+      quitButton = document.getElementById('quitButton');
+      observatoryButton = document.getElementById('observatoryButton');
+      closeObservatoryButton = document.getElementById('closeObservatoryButton');
+      observatory = document.getElementById('observatory');
+      shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
+      observatoryNav = document.querySelector('.observatory-nav');
+      tabContents = document.querySelectorAll('.tab-content');
+      cometSkinsGrid = document.getElementById('cometSkinsGrid');
+      obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid');
+      backgroundThemesGrid = document.getElementById('backgroundThemesGrid');
+      gameOverMenuButton = document.getElementById('gameOverMenuButton');
+      gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
+      activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
+      magnetIndicator = document.getElementById('magnetIndicator');
+      scoreIndicator = document.getElementById('scoreIndicator');
+      reviveIndicator = document.getElementById('reviveIndicator');
+      observatoryBackButtonPortrait = document.getElementById('observatoryBackButtonPortrait');
+      // --- END DOM READY FIX ---
       
       for (let i = 0; i < 200; i++) stars.push(new Star()); 
       
@@ -3830,9 +3951,12 @@
     }
     
     // START THE GAME
-    // --- DOM FIX: Call init() directly, no listener needed ---
-    init();
-    // --- END DOM FIX ---
+    // --- DOM READY FIX (Bug #9) ---
+    // Wait for the DOM to be loaded before finding elements
+    window.addEventListener('DOMContentLoaded', (event) => {
+        init();
+    });
+    // --- END DOM READY FIX ---
 
   </script>
 </body>
