@@ -1,3964 +1,704 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8" />
-  <!-- MOBILE VIEWPORT FIX (Fix #1) -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
-  <title>Gravity Well</title>
-  
-  <!--  
-    OFFLINE FIX: Switched from CDN to local files for native app bundling.
-    These files must be placed in the 'www' folder next to index.html.
-  -->
-  <script src="./tailwindcss.js"></script>
-  <link href="./inter-font.css" rel="stylesheet">
-  <!-- 
-    AUDIO FIX: Switched from CDN to a local file for native app (Capacitor) bundling.
-    This file must be placed in the 'www' folder next to index.html.
-  -->
-  <script src="./Tone.min.js"></script>
-  
-  <!--
-    NATIVE APP FIX (Fix #6):
-    We will load the Capacitor App plugin (capacitor-app.js) locally.
-    This file is *automatically* generated in your 'www' folder
-    when you run 'npx cap sync' after installing the plugin
-    ('npm install @capacitor/app').
-  -->
-  <script src="./capacitor-app.js" type="module"></script>
-  
-  <style>
-    :root {
-      font-family: 'Inter', sans-serif;
-      line-height: 1.5;
-      font-weight: 400;
-      color-scheme: dark;
-      color: rgba(255, 255, 255, 0.87);
-      background-color: #020617;
-      /* slate-950 */
-      font-synthesis: none;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      width: 100vw;
-      /* MOBILE VIEWPORT FIX (Fix #1): Use 100dvh for dynamic viewport */
-      height: 100dvh;
-      overflow: hidden;
-      font-family: 'Inter', sans-serif;
-      overscroll-behavior: none;
-      /* Prevents pull-to-refresh on mobile */
-      -webkit-tap-highlight-color: transparent;
-      /* Removes blue tap highlight on mobile */
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    #app {
-      width: 100%;
-      height: 100%;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #020617;
-      /* slate-950 */
-    }
-
-    /* Gradient text for UI */
-    .gradient-text {
-      background-image: linear-gradient(to right, #fbbf24, #f97316, #ea580c);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-
-    /* --- Canvas & UI Overlay --- */
-    #gameCanvas {
-      position: absolute;
-      z-index: 10;
-      background-color: transparent;
-      width: 100%;
-      height: 100%;
-      display: block;
-      cursor: pointer;
-    }
-
-    /* --- NEW In-Game UI Styling --- */
-    .ui-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      /* MOBILE VIEWPORT FIX (Fix #1): Use env() for safe-area insets */
-      padding: env(safe-area-inset-top, 1rem) env(safe-area-inset-right, 1.5rem) 1rem env(safe-area-inset-left, 1.5rem);
-      box-sizing: border-box;
-      z-index: 30;
-      color: white;
-      font-size: 1.25rem;
-      /* text-xl */
-      font-weight: 700;
-      /* font-bold */
-      text-shadow: 0 0 5px black;
-      display: none;
-      justify-content: space-between;
-      align-items: flex-start;
-      pointer-events: none;
-    }
-
-    .left-ui {
-      display: flex;
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 0;
-    }
-
-    .left-ui .score-display {
-      font-size: 1.875rem;
-      /* text-3xl */
-      line-height: 1.2;
-    }
-
-    .left-ui #runFragmentsContainer {
-      font-size: 1.25rem;
-      /* text-xl */
-      font-weight: 500;
-      /* font-medium */
-      color: #cbd5e1;
-      /* slate-300 */
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-top: 0.25rem;
-      /* --- GAME OVER BUG FIX --- */
-      transition: opacity 0.3s ease-in-out;
-      opacity: 1;
-    }
-    
-    .left-ui #runFragmentsContainer.run-fragments-hidden {
-      opacity: 0;
-    }
-    /* --- END GAME OVER BUG FIX --- */
-
-    .left-ui .star-icon {
-      font-size: 1.5rem;
-      /* text-2xl */
-      color: #fbbf24;
-      /* amber-400 */
-    }
-
-    .right-ui {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    #activeUpgradesContainer {
-      display: none;
-      /* Hidden by default */
-      align-items: center;
-      gap: 12px;
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
-      background-color: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      /* rounded-xl */
-      padding: 0.5rem 0.75rem;
-    }
-
-    .upgrade-icon {
-      font-size: 1.5rem;
-      text-shadow: 0 0 8px black;
-      display: none;
-      /* Icons hidden by default */
-    }
-
-
-    /* Power-up Status */
-    .powerup-active {
-      position: absolute;
-      /* MOBILE VIEWPORT FIX (Fix #1): Use env() for bottom safe-area */
-      bottom: calc(2.5rem + env(safe-area-inset-bottom, 0rem));
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 30;
-      color: white;
-      font-weight: bold;
-      opacity: 1;
-      transition: opacity 0.3s ease-in-out;
-      /* Glassmorphism */
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
-      background-color: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      /* rounded-xl */
-      padding: 0.5rem 1rem;
-      /* p-2 px-4 */
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-    }
-
-    .powerup-hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-
-    /* --- Modals (Menu, Game Over, Pause) --- */
-    .modal {
-      position: absolute;
-      z-index: 40;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-      height: 100%;
-      transition: opacity 0.3s ease-in-out, visibility 0.3s;
-      /* New modal background */
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
-      background-color: rgba(15, 23, 42, 0.8);
-      /* slate-900/80 */
-    }
-
-    .modal-hidden {
-      opacity: 0;
-      pointer-events: none;
-      visibility: hidden;
-    }
-
-    .modal-visible {
-      opacity: 1;
-      pointer-events: all;
-      /* The whole modal background is interactive (for clicks) */
-      visibility: visible;
-    }
-
-    .modal-visible .modal-content {
-      pointer-events: all;
-      /* Content inside is clickable */
-    }
-
-    /* This is your .modal-content, re-styled */
-    .modal-content {
-      background-color: #1e293b;
-      /* slate-800 */
-      border: 1px solid #334155;
-      /* slate-700 */
-      border-radius: 1rem;
-      /* rounded-2xl */
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      padding: 2rem 3rem;
-      min-width: 300px;
-      width: 90vw;
-      /* Use relative width */
-      max-width: 28rem;
-      /* max-w-md */
-      max-height: 90vh;
-      /* Prevent modal from being too tall */
-      overflow-y: auto;
-      /* Allow scrolling if content overflows */
-      text-align: center;
-      pointer-events: none;
-      /* CLICK BUG FIX: Prevent text selection cursor */
-      user-select: none;
-      -webkit-user-select: none;
-      /* Safari */
-    }
-
-    /* Custom scrollbar for modals */
-    .modal-content::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .modal-content::-webkit-scrollbar-track {
-      background: #334155;
-      /* slate-700 */
-      border-radius: 4px;
-    }
-
-    .modal-content::-webkit-scrollbar-thumb {
-      background: #f97316;
-      /* orange-500 */
-      border-radius: 4px;
-    }
-
-    .modal-content::-webkit-scrollbar-thumb:hover {
-      background: #ea580c;
-      /* orange-600 */
-    }
-
-    h1 {
-      font-size: 2.5rem;
-      margin-bottom: 0.5rem;
-      /* Apply new style */
-      font-size: 3.75rem;
-      /* text-6xl */
-      font-weight: 900;
-      /* font-black */
-      margin-bottom: 0.5rem;
-      /* mb-2 */
-      color: transparent;
-      background-image: linear-gradient(to right, #fbbf24, #f97316, #ea580c);
-      -webkit-background-clip: text;
-      background-clip: text;
-    }
-
-    h2 {
-      font-size: 2.5rem;
-      /* text-4xl */
-      margin-bottom: 2rem;
-      /* mb-8 */
-      font-weight: 700;
-      color: #f1f5f9;
-      /* slate-100 */
-    }
-
-    p {
-      color: #cbd5e1;
-      /* slate-300 */
-      margin-bottom: 1.5rem;
-      font-size: 1.125rem;
-      /* text-lg */
-    }
-
-    /* --- MAIN MENU UI FIX (POINT 1) --- */
-    /* Tighter spacing for main menu to fit on mobile */
-    #mainMenu .modal-content {
-      padding: 1rem 1.5rem; /* Reduced padding */
-      overflow-y: auto; /* Allow scrolling ONLY if needed */
-    }
-    #mainMenu h1 {
-      font-size: 3rem; /* Slightly smaller title */
-      margin-bottom: 0.25rem;
-    }
-    #mainMenu p {
-      margin-bottom: 1rem;
-      font-size: 1rem;
-    }
-    #mainMenu .stats-display {
-      margin-top: 1rem;
-      margin-bottom: 1rem;
-      /* --- DEV MODE (Fix #9) --- */
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      /* --- END DEV MODE --- */
-    }
-    #mainMenu .btn {
-      padding: 0.75rem 1.5rem; /* Smaller buttons */
-      font-size: 1.125rem; /* Smaller text */
-      margin-bottom: 0.75rem;
-    }
-    /* --- END MAIN MENU UI FIX --- */
-
-    .stats-display {
-      margin-top: 2rem;
-      /* mt-8 */
-      margin-bottom: 1.5rem;
-    }
-
-    .stats-display div {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .stats-display span:first-child {
-      font-size: 0.875rem;
-      /* text-sm */
-      color: #94a3b8;
-      /* slate-400 */
-      font-weight: 500;
-      text-transform: uppercase;
-    }
-
-    .stats-display span:last-child {
-      font-size: 1.125rem;
-      /* text-lg */
-      font-weight: 700;
-      color: white;
-      /* --- DEV MODE (Fix #9) --- */
-      max-width: 150px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      /* --- END DEV MODE --- */
-    }
-    
-    /* --- DEV MODE (Fix #9) --- */
-    #highScoreDisplayContainer {
-      cursor: pointer;
-    }
-    /* --- END DEV MODE --- */
-
-    #gameOverModal .stats-display span:last-child {
-      font-size: 1.875rem;
-      /* text-3xl */
-    }
-
-    /* This is your .btn, re-styled as .glass-btn */
-    .btn {
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
-      background-color: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      /* rounded-xl */
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-      color: white;
-      padding: 1rem 1.5rem;
-      /* py-4 px-6 */
-      font-size: 1.25rem;
-      /* text-2xl */
-      font-weight: 700;
-      cursor: pointer;
-      width: 100%;
-      margin-bottom: 1rem;
-      /* mb-4 */
-      /* CLICK BUG FIX */
-      user-select: none;
-      -webkit-user-select: none;
-    }
-
-    .btn:hover {
-      background-color: rgba(255, 255, 255, 0.2);
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-      transform: translateY(-2px);
-    }
-
-    .btn:active {
-      transform: translateY(0);
-      background-color: rgba(255, 255, 255, 0.15);
-    }
-
-    /* This is your .btn-secondary */
-    .btn-secondary {
-      padding: 0.75rem 1.25rem;
-      /* py-3 px-5 */
-      font-size: 1rem;
-      /* text-lg */
-      margin-top: 0;
-      background-color: rgba(255, 255, 255, 0.05);
-    }
-
-    .btn-secondary:hover {
-      background-color: rgba(255, 255, 255, 0.15);
-    }
-
-    .pause-btn {
-      position: relative;
-      /* PERFORMANCE FIX (Fix #5): Removed backdrop-filter */
-      background-color: rgba(255, 255, 255, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 0.75rem;
-      /* rounded-xl */
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-      color: white;
-      width: 3.5rem;
-      /* w-14 */
-      height: 3.5rem;
-      /* h-14 */
-      font-size: 1.5rem;
-      cursor: pointer;
-      font-weight: bold;
-      pointer-events: auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .pause-btn:hover {
-      background-color: rgba(255, 255, 255, 0.2);
-    }
-
-    /* Screen Shake Animation */
-    @keyframes shake {
-      0%,
-      100% {
-        transform: translateX(0);
-      }
-      10%,
-      30%,
-      50%,
-      70%,
-      90% {
-        transform: translateX(-5px);
-      }
-      20%,
-      40%,
-      60%,
-      80% {
-        transform: translateX(5px);
-      }
-    }
-
-    .screen-shake {
-      animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
-    }
-
-
-    /* --- NEW OBSERVATORY V2 STYLES (LANDSCAPE) --- */
-    .observatory-modal {
-      /* MOBILE RESPONSIVE FIX (Fix #2): Use 100% width and a max-width */
-      width: 100%;
-      max-width: 64rem;
-      /* 1024px */
-      height: 90vh;
-      max-height: 700px;
-      padding: 0;
-      /* Remove padding to allow flex to fill */
-      display: flex;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Portrait-first (column) */
-      flex-direction: column;
-      overflow: hidden;
-      /* Prevent modal from scrolling */
-    }
-
-    /* MOBILE RESPONSIVE FIX (Fix #2): Apply row layout only in landscape */
-    @media (min-width: 640px) and (orientation: landscape) {
-      .observatory-modal {
-        flex-direction: row;
-      }
-    }
-
-    .observatory-nav {
-      flex-shrink: 0;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Full width, auto height in portrait */
-      width: 100%;
-      height: auto;
-      background-color: #0f172a;
-      /* slate-900 */
-      /* MOBILE RESPONSIVE FIX (Fix #2): Bottom border in portrait */
-      border-bottom: 1px solid #334155; /* slate-700 */
-      border-right: 0;
-      padding: 1rem;
-      display: flex;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Row for tabs in portrait */
-      flex-direction: row;
-      flex-wrap: wrap; /* Allow wrapping */
-      gap: 0.5rem;
-      align-items: center;
-    }
-    
-    /* MOBILE RESPONSIVE FIX (Fix #2): Apply column layout only in landscape */
-    @media (min-width: 640px) and (orientation: landscape) {
-      .observatory-nav {
-        flex-direction: column;
-        width: 12rem; /* 192px */
-        border-right: 1px solid #334155; /* slate-700 */
-        border-bottom: 0;
-        align-items: flex-start;
-      }
-    }
-
-    .observatory-nav h2 {
-      font-size: 1.5rem;
-      /* text-2xl */
-      font-weight: 700;
-      color: #f1f5f9;
-      /* slate-100 */
-      margin-bottom: 0.5rem;
-      padding-left: 0.5rem;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Take full width in portrait */
-      width: 100%;
-    }
-    
-    /* MOBILE RESPONSIVE FIX (Fix #2): Hide title in landscape */
-    @media (min-width: 640px) and (orientation: landscape) {
-      .observatory-nav h2 {
-        display: block;
-      }
-    }
-    
-    /* Tab container */
-    .tab-container {
-      display: flex;
-      gap: 0.5rem;
-      flex-grow: 1;
-    }
-    
-    @media (min-width: 640px) and (orientation: landscape) {
-      .tab-container {
-        flex-direction: column;
-        width: 100%;
-      }
-    }
-
-
-    .tab-button {
-      padding: 0.75rem 1rem;
-      /* py-3 px-4 */
-      border: none;
-      font-size: 1rem;
-      /* text-lg */
-      font-weight: 700;
-      cursor: pointer;
-      margin-bottom: 0;
-      text-align: left;
-      /* Align text left */
-      width: auto; /* Auto width in portrait */
-      flex-grow: 1; /* Grow to fill space */
-      /* Apply glass-btn styles */
-      background-color: transparent;
-      border: 1px solid transparent;
-      border-radius: 0.75rem;
-      /* rounded-xl */
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-      color: #cbd5e1;
-      /* slate-300 */
-    }
-    
-    @media (min-width: 640px) and (orientation: landscape) {
-      .tab-button {
-        width: 100%;
-      }
-    }
-
-    .tab-button:hover {
-      background-color: rgba(255, 255, 255, 0.1);
-      color: white;
-    }
-
-    .tab-button.active {
-      color: white;
-      /* Selected state */
-      background-color: #ea580c;
-      /* orange-600 */
-      border-color: #f97316;
-      /* orange-500 */
-    }
-
-    .observatory-nav .shop-currency {
-      /* MOBILE RESPONSIVE FIX (Fix #2): Don't push to bottom in portrait */
-      margin-top: 0;
-      padding: 0.5rem;
-      border-top: 0;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      /* gap-2 */
-      font-size: 1.5rem;
-      /* text-2xl */
-      font-weight: bold;
-      color: #facc15;
-    }
-    
-    @media (min-width: 640px) and (orientation: landscape) {
-      .observatory-nav .shop-currency {
-        margin-top: auto; /* Push to bottom */
-        padding: 1rem 0.5rem 0.5rem 0.5rem;
-        border-top: 1px solid #334155; /* slate-700 */
-      }
-    }
-
-    .observatory-nav .star-icon {
-      color: #fbbf24;
-      font-size: 1.5rem;
-      /* text-2xl */
-    }
-
-
-    .observatory-main {
-      flex-grow: 1;
-      /* Take up remaining space */
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      /* Contains the scrolling */
-    }
-
-    .tab-content {
-      display: none;
-      flex-grow: 1;
-      /* Make content fill the space */
-      padding: 1.5rem;
-      /* p-6 */
-      overflow-y: auto;
-      /* THIS is the scrolling part */
-      /* Custom Scrollbar */
-      scrollbar-width: thin;
-      scrollbar-color: #f97316 #334155;
-    }
-
-    .tab-content::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .tab-content::-webkit-scrollbar-track {
-      background: #334155;
-      border-radius: 4px;
-    }
-
-    .tab-content::-webkit-scrollbar-thumb {
-      background: #f97316;
-      border-radius: 4px;
-    }
-
-    .tab-content::-webkit-scrollbar-thumb:hover {
-      background: #ea580c;
-    }
-
-    .tab-content.active {
-      display: block;
-    }
-
-    .shop-section {
-      margin-bottom: 2rem;
-    }
-
-    .shop-section h3 {
-      text-align: left;
-      color: #94a3b8;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      font-size: 0.9rem;
-      margin-bottom: 1rem;
-      font-weight: 600;
-    }
-
-    .upgrade-item {
-      display: flex;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Stack in portrait */
-      flex-direction: column;
-      align-items: flex-start;
-      background-color: #0f172a;
-      /* slate-900 */
-      padding: 1rem;
-      border-radius: 0.5rem;
-      /* rounded-lg */
-      margin-bottom: 1rem;
-      border: 1px solid #334155;
-      /* border-slate-700 */
-    }
-    
-    @media (min-width: 640px) {
-      .upgrade-item {
-        flex-direction: row;
-        align-items: center;
-      }
-    }
-
-
-    .upgrade-info {
-      text-align: left;
-      flex-grow: 1;
-      width: 100%;
-      margin-bottom: 0;
-      margin-right: 0;
-    }
-    
-    @media (min-width: 640px) {
-      .upgrade-info {
-        margin-right: 1rem; /* md:mr-4 */
-      }
-    }
-
-
-    .upgrade-info strong {
-      font-size: 1.125rem;
-      /* text-lg */
-      font-weight: 600;
-      color: #f1f5f9;
-      /* slate-100 */
-    }
-
-    .upgrade-info p {
-      font-size: 0.875rem;
-      /* text-sm */
-      color: #cbd5e1;
-      /* slate-300 */
-      margin: 0;
-    }
-
-    .upgrade-action {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Full width in portrait */
-      width: 100%;
-      flex-shrink: 0;
-      margin-top: 1rem; /* Add space in portrait */
-    }
-    
-    @media (min-width: 640px) {
-      .upgrade-action {
-        width: auto;
-        margin-top: 0;
-      }
-    }
-
-    .upgrade-level {
-      font-size: 0.875rem;
-      /* text-sm */
-      color: #cbd5e1;
-      white-space: nowrap;
-      font-weight: 500;
-      width: 80px;
-      text-align: right;
-    }
-
-    .buy-btn {
-      width: auto;
-      min-width: 120px;
-      font-size: 0.875rem;
-      /* text-sm */
-      padding: 0.75rem 1rem;
-      /* py-3 px-4 */
-      margin-bottom: 0;
-      flex-grow: 1;
-    }
-
-    .buy-btn:disabled,
-    .equip-btn:disabled,
-    .buy-cosmetic-btn:disabled {
-      background-color: #374151;
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-
-    .buy-btn:disabled:hover,
-    .equip-btn:disabled:hover,
-    .buy-cosmetic-btn:disabled:hover {
-      background-color: #374151;
-      transform: none;
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-    }
-
-    /* --- PREMIUM VISUALS --- */
-    @keyframes pulse-glow {
-      0%,
-      100% {
-        box-shadow: 0 0 8px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(0, 0, 0, 0.5);
-        transform: scale(1);
-      }
-      50% {
-        box-shadow: 0 0 18px 4px var(--glow-color, #fff), inset 0 0 10px rgba(0, 0, 0, 0.5);
-        transform: scale(1.05);
-      }
-    }
-
-
-    /* Cosmetics */
-    .cosmetic-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 1rem;
-      /* gap-4 */
-    }
-
-    .cosmetic-item {
-      background-color: #0f172a;
-      /* slate-900 */
-      border: 1px solid #334155;
-      /* border-slate-700 */
-      border-radius: 0.5rem;
-      /* rounded-lg */
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    .cosmetic-preview {
-      width: 100%;
-      height: 6rem;
-      /* h-24 */
-      border-radius: 0.5rem;
-      /* rounded-lg */
-      margin-bottom: 0.75rem;
-      /* mb-3 */
-      border: none;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background-color: #020617;
-      /* slate-950 */
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
-      --glow-color: transparent;
-      animation: pulse-glow 3s infinite ease-in-out;
-      transition: transform 0.2s ease;
-      position: relative;
-      /* For custom canvas draws */
-      overflow: hidden;
-    }
-
-    .cosmetic-item strong {
-      font-size: 1rem;
-      /* text-lg */
-      font-weight: 600;
-      color: #f1f5f9;
-      /* slate-100 */
-      margin-bottom: 0.75rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      width: 100%;
-    }
-
-    .cosmetic-item .btn {
-      font-size: 0.875rem;
-      /* text-sm */
-      padding: 0.5rem 1rem;
-      /* py-2 px-3 */
-      width: 100%;
-      margin: 0;
-    }
-
-    .equip-btn {
-      background-color: #10b981;
-      /* Green */
-    }
-
-    .equip-btn:hover {
-      background-color: #059669;
-    }
-
-    /* This is your #closeObservatoryButton */
-    .shop-footer {
-      flex-shrink: 0;
-      padding: 1rem;
-      /* p-4 */
-      border-top: 1px solid #334155;
-      /* border-slate-700 */
-    }
-
-    .shop-footer .btn-secondary {
-      max-width: 16rem;
-      /* max-w-xs */
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      /* gap-2 */
-    }
-
-    /* Close button for new Observatory layout */
-    #closeObservatoryButton {
-      width: 100%;
-      margin: 0;
-      padding: 0.75rem 1rem;
-      /* MOBILE RESPONSIVE FIX (Fix #2): Hide in portrait */
-      display: none;
-    }
-    
-    @media (min-width: 640px) and (orientation: landscape) {
-      #closeObservatoryButton {
-        display: block;
-      }
-    }
-    
-    /* MOBILE RESPONSIVE FIX (Fix #2): Show a 'Back' button in main content for portrait */
-    .back-button-portrait {
-      display: block;
-      margin-bottom: 1rem;
-    }
-    
-    @media (min-width: 640px) and (orientation: landscape) {
-      .back-button-portrait {
-        display: none;
-      }
-    }
-    
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Gravity Well: Pro Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;500;700&display=swap');
+
+        :root {
+            --primary: #38bdf8;
+            --accent: #f43f5e;
+            --bg-deep: #020617;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-deep);
+            font-family: 'Rajdhani', sans-serif;
+            color: #e0f2fe;
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Professional UI Overlays */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .screen {
+            pointer-events: auto;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+            backdrop-filter: blur(16px);
+            padding: 2.5rem;
+            border-radius: 2rem;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.9), 0 0 20px rgba(56, 189, 248, 0.1);
+            text-align: center;
+            max-width: 90%;
+            width: 440px;
+            opacity: 0;
+            transform: scale(0.85);
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            display: none;
+        }
+
+        .screen.active {
+            display: block;
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            background: linear-gradient(to bottom, #f0f9ff, #38bdf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 6px;
+            filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.4));
+        }
+
+        .btn-main {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 18px 36px;
+            margin: 14px 0;
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            border-radius: 12px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-main:active { transform: translateY(2px) scale(0.98); box-shadow: 0 2px 10px rgba(37, 99, 235, 0.2); }
+        
+        .btn-sec {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 14px;
+            margin: 10px 0;
+            color: #7dd3fc;
+            font-family: 'Orbitron', sans-serif;
+            border-radius: 10px;
+            width: 100%;
+            font-size: 0.85rem;
+            transition: background 0.3s;
+        }
+
+        .btn-sec:hover { background: rgba(56, 189, 248, 0.1); }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: env(safe-area-inset-top, 24px);
+            left: 24px;
+            right: 24px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .hud-card {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 12px 24px;
+            border-bottom: 2px solid var(--primary);
+            backdrop-filter: blur(8px);
+            border-radius: 4px;
+        }
+
+        .hud-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.4rem;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+        }
+
+        /* Screen FX */
+        #fx-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .loader {
+            border: 3px solid rgba(56, 189, 248, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 0.8s linear infinite;
+            margin: 24px auto;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
 </head>
-
 <body>
-  <div id="app">
-    <canvas id="gameCanvas"></canvas>
 
-    <!-- In-Game UI (Re-styled) -->
-    <div class="ui-container" data-ui-screen="inGame">
-      <div class="left-ui">
-        <div class="score-display">
-          <span data-string="score">Score</span>:
-          <span id="score">0</span>
-        </div>
-        <div id="runFragmentsContainer" class="">
-          <span class="star-icon">✦</span>
-          <span id="runFragmentsDisplay">0</span>
-        </div>
-      </div>
+    <div id="fx-overlay"></div>
+    <canvas id="game-canvas"></canvas>
 
-      <div class="right-ui">
-        <div id="activeUpgradesContainer">
-          <span id="magnetIndicator" class="upgrade-icon" title="Fragment Magnet Active">🧲</span>
-          <span id="scoreIndicator" class="upgrade-icon" title="Score Bonus Active">✨</span>
-          <span id="reviveIndicator" class="upgrade-icon" title="Second Chance Ready">❤️</span>
+    <div id="hud">
+        <div class="hud-card">
+            <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.2em] mb-1">Traversed</div>
+            <div id="score-display" class="hud-value">0 LY</div>
         </div>
-        <button id="pauseButton" class="pause-btn">||</button>
-      </div>
+        <div class="hud-card text-right">
+            <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.2em] mb-1">Zone Intensity</div>
+            <div id="zone-display" class="hud-value">01</div>
+        </div>
     </div>
 
-    <div id="powerUpStatus" class="powerup-hidden" data-ui-screen="powerUp"></div>
-
-    <!-- Main Menu (Re-styled) -->
-    <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
-      <div class="modal-content">
-        <h1>Gravity Well</h1>
-        <p data-string="menu_subtitle">Tap and hold to guide the comet. Survive as long as you can.</p>
-        <div class="stats-display">
-          <!-- DEV MODE (Fix #9): Added container for click event -->
-          <div id="highScoreDisplayContainer">
-            <span data-string="high_score">HIGH SCORE</span>
-            <span id="highScoreDisplay">0</span>
-          </div>
-          <div>
-            <span>✦ <span data-string="fragments">FRAGMENTS</span></span>
-            <span id="starFragmentsDisplay">0</span>
-          </div>
-          <!-- DEV MODE (Fix #9): Added User ID display -->
-          <div style="grid-column: 1 / -1;">
-            <span data-string="user_id">User ID</span>
-            <span id="userIdDisplay">Offline</span>
-          </div>
-          <!-- END DEV MODE -->
-        </div>
-        <button id="playButton" class="btn" data-string="play_button">Start Game</button>
-        <button id="observatoryButton" class="btn btn-secondary" data-string="observatory">Observatory</button>
-        <!-- EXIT BUTTON (POINT 2) -->
-        <button id="exitButton" class="btn btn-secondary" data-string="exit_game">Exit Game</button>
-      </div>
-    </div>
-
-    <!-- Game Over Modal (Re-styled) -->
-    <div id="gameOverModal" class="modal modal-hidden" data-ui-screen="gameOver">
-      <div class="modal-content">
-        <h2 class="text-red-500" data-string="game_over">Game Over</h2>
-        <div class="stats-display">
-          <div>
-            <span data-string="final_score">FINAL SCORE</span>
-            <span id="finalScoreElement">0</span>
-          </div>
-          <div>
-            <span>✦ <span data-string="earned">EARNED</span></span>
-            <span id="fragmentsEarnedDisplay">0</span>
-          </div>
-        </div>
-        <button id="restartButton" class="btn" data-string="play_again">Play Again</button>
-        <div class="flex gap-4">
-          <button id="gameOverObservatoryButton" class="btn btn-secondary" data-string="observatory">Observatory</button>
-          <button id="gameOverMenuButton" class="btn btn-secondary" data-string="main_menu">Main Menu</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pause Menu (Re-styled) -->
-    <div id="pauseMenu" class="modal modal-hidden" data-ui-screen="pause">
-      <div class="modal-content" style="max-width: 24rem;">
-        <!-- max-w-xs -->
-        <h2 data-string="paused">Paused</h2>
-        <button id="resumeButton" class="btn" data-string="resume">Resume</button>
-        <button id="quitButton" classs="btn btn-secondary" data-string="quit_menu">Quit to Menu</button>
-      </div>
-    </div>
-
-    <!-- NEW Observatory Modal (V2 - Landscape Optimized) -->
-    <div id="observatory" class="modal modal-hidden" data-ui-screen="observatory">
-      <div class="modal-content observatory-modal">
-
-        <!-- Left Nav Column -->
-        <nav class="observatory-nav">
-          <h2 data-string="observatory">Observatory</h2>
-          <!-- MOBILE RESPONSIVE FIX (Fix #2): Tab container -->
-          <div class="tab-container">
-            <button class="tab-button active" data-tab="upgradesTab" data-string="upgrades">Upgrades</button>
-            <button class="tab-button" data-tab="cometsTab" data-string="comets">Comets</button>
-            <button class="tab-button" data-tab="anomaliesTab" data-string="anomalies">Anomalies</button>
-          </div>
-
-          <div class="shop-currency">
-            <span class="star-icon">✦</span>
-            <span id="shopFragmentsDisplay">0</span>
-          </div>
-          <button id="closeObservatoryButton" class="btn btn-secondary" data-string="back_menu">
-            Back to Menu
-          </button>
-        </nav>
-
-        <!-- Right Content Column -->
-        <main class="observatory-main">
-          <!-- MOBILE RESPONSIVE FIX (Fix #2): Back button for portrait -->
-          <button id="observatoryBackButtonPortrait" class="btn btn-secondary back-button-portrait" data-string="back_menu">
-            Back to Menu
-          </button>
+    <div id="ui-layer">
         
-          <!-- Upgrades Tab -->
-          <div id="upgradesTab" class="tab-content active">
-            <div class="shop-section">
-              <h3 data-string="perm_upgrades">Permanent Upgrades</h3>
-              <div class="upgrade-item" id="upgrade-shield">
-                <div class="upgrade-info">
-                  <strong data-string="shield_name">Longer Shield</strong>
-                  <p data-string="shield_desc">Increases Shield power-up duration.</p>
+        <div id="menu-screen" class="screen active">
+            <h1 class="text-5xl mb-1">GRAVITY</h1>
+            <h1 class="text-5xl mb-6">WELL</h1>
+            <div class="h-1 w-32 bg-blue-600 mx-auto mb-10 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.8)]"></div>
+            <button id="btn-start" class="btn-main">Launch Engine</button>
+            <button id="btn-observatory" class="btn-sec">Global Records</button>
+            <button id="btn-settings" class="btn-sec">System Maintenance</button>
+        </div>
+
+        <div id="settings-screen" class="screen">
+            <h2 class="text-2xl font-black mb-10 text-white tracking-[0.3em] uppercase">Settings</h2>
+            
+            <div class="mb-8 text-left">
+                <div class="flex justify-between mb-3">
+                    <label class="text-xs text-blue-300 uppercase font-black tracking-widest">Master Amplitude</label>
+                    <span id="val-master-txt" class="text-xs text-white">70%</span>
                 </div>
-                <div class="upgrade-action">
-                  <span class="upgrade-level">Level 0/5</span>
-                  <button class="btn buy-btn" data-upgrade="shield" data-string="buy_button" data-cost="100">Buy (100)</button>
+                <input type="range" id="vol-master" min="-40" max="0" step="1" value="-10" class="w-full accent-blue-500 bg-slate-800 rounded-lg h-2 appearance-none">
+            </div>
+            
+            <div class="mb-10 text-left">
+                <div class="flex justify-between mb-3">
+                    <label class="text-xs text-blue-300 uppercase font-black tracking-widest">BGM Gain</label>
+                    <span id="val-music-txt" class="text-xs text-white">60%</span>
                 </div>
-              </div>
-              <div class="upgrade-item" id="upgrade-magnet">
-                <div class="upgrade-info">
-                  <strong data-string="magnet_name">Fragment Magnet</strong>
-                  <p data-string="magnet_desc">Automatically collects nearby fragments.</p>
-                </div>
-                <div class="upgrade-action">
-                  <span class="upgrade-level">Level 0/3</span>
-                  <button class="btn buy-btn" data-upgrade="magnet" data-string="buy_button" data-cost="300">Buy (300)</button>
-                </div>
-              </div>
-              <div class="upgrade-item" id="upgrade-score">
-                <div class="upgrade-info">
-                  <strong data-string="score_name">Score Bonus</strong>
-                  <p data-string="score_desc">Permanently increases score gain.</p>
-                </div>
-                <div class="upgrade-action">
-                  <span class="upgrade-level">Level 0/5</span>
-                  <button class="btn buy-btn" data-upgrade="score" data-string="buy_button" data-cost="200">Buy (200)</button>
-                </div>
-              </div>
+                <input type="range" id="vol-music" min="-40" max="0" step="1" value="-12" class="w-full accent-blue-500 bg-slate-800 rounded-lg h-2 appearance-none">
             </div>
 
-            <div class="shop-section">
-              <h3 data-string="single_use">Single-Use Utilities</h3>
-              <div class="upgrade-item" id="utility-headstart">
-                <div class="upgrade-info">
-                  <strong data-string="headstart_name">Head Start</strong>
-                  <p data-string="headstart_desc">Start the next run at Zone 2 (Score 1500).</p>
-                </div>
-                <div class="upgrade-action">
-                  <button class="btn buy-btn" data-upgrade="headstart" data-string="buy_button" data-cost="150">Buy (150)</button>
+            <button id="btn-settings-back" class="btn-main mt-4">Commit Changes</button>
+        </div>
 
-          <!-- Comets Tab Content -->
-          <div id="cometsTab" class="tab-content">
-            <div class="shop-section">
-              <h3 data-string="comet_skins">Comet Skins</h3>
-              <div class="cosmetic-grid" id="cometSkinsGrid">
-                <!-- Comet skin items will be added here by JS -->
-              </div>
+        <div id="gameover-screen" class="screen">
+            <div class="text-rose-500 font-black tracking-[0.4em] text-[0.7rem] mb-3 uppercase">Critial Integrity Failure</div>
+            <h2 class="text-4xl font-black mb-10 text-white uppercase italic tracking-tighter">Signal Lost</h2>
+            
+            <div class="bg-blue-950/40 border-y border-blue-500/30 py-8 mb-10">
+                <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.5em] mb-2">Final Telemetry</div>
+                <div id="final-score" class="text-5xl text-white font-black tracking-tighter">0 LY</div>
             </div>
-          </div>
 
-          <!-- Anomalies Tab Content (Obstacle & Background) -->
-          <div id="anomaliesTab" class="tab-content">
-            <div class="shop-section">
-              <h3 data-string="obstacle_skins">Obstacle Skins</h3>
-              <div class="cosmetic-grid" id="obstacleSkinsGrid">
-                <!-- Obstacle skin items will be added here by JS -->
-              </div>
-            </div>
-            <div class="shop-section">
-              <h3 data-string="background_themes">Background Themes</h3>
-              <div class="cosmetic-grid" id="backgroundThemesGrid">
-                <!-- Background theme items will be added here by JS -->
-              </div>
-            </div>
-          </div>
-        </main>
+            <div id="upload-status" class="text-[0.6rem] mb-8 h-4 text-blue-300 font-bold uppercase tracking-widest animate-pulse"></div>
 
-      </div>
+            <button id="btn-restart" class="btn-main">Re-Initialize</button>
+            <button id="btn-home" class="btn-sec">Abort Project</button>
+        </div>
+
+        <div id="observatory-screen" class="screen">
+            <h2 class="text-2xl font-black mb-8 text-white uppercase tracking-[0.2em]">Observatory</h2>
+            <div id="leaderboard-list" class="w-full mb-10 bg-black/50 p-6 rounded-2xl h-72 overflow-y-auto text-left space-y-3 border border-blue-500/20 scrollbar-hide">
+                <div class="loader"></div>
+            </div>
+            <button id="btn-observatory-back" class="btn-main">Exit Uplink</button>
+        </div>
+
     </div>
 
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js';
+        import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
+        import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
-  </div>
+        // --- PRODUCTION CONSTANTS ---
+        const CONFIG = {
+            baseSpeed: 5.5,
+            accel: 1.00035,
+            maxSpeed: 25,
+            damping: 0.93,
+            attraction: 0.95,
+            colors: {
+                ship: '#38bdf8',
+                accent: '#f43f5e',
+                thruster: '#7dd3fc',
+                star: 'rgba(255, 255, 255, 0.9)'
+            },
+            zones: [0, 2000, 5000, 10000, 20000]
+        };
 
-  <!-- DOM READY FIX (Bug #9): Move the script to the end of the body -->
-  <script type="module">
-    // --- FIREBASE SDK (Fix #7): Import SDKs ---
-    // Import the functions from the SDKs
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-  
-    // --- USER'S FIREBASE CONFIG ---
-    const firebaseConfig = {
-      apiKey: "AIzaSyBSWa9-Ss3oyrdLpQzRVAkb1qVZ3D8Ok00",
-      authDomain: "gravity-well-eddfb.firebaseapp.com",
-      projectId: "gravity-well-eddfb",
-      storageBucket: "gravity-well-eddfb.firebasestorage.app",
-      messagingSenderId: "1076833951463",
-      appId: "1:1076833951463:web:550227dc20c245540d4c42"
-    };
-    // ----------------------------------------
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gravity-well-pro';
 
-    // --- FIREBASE SDK (Fix #7): Initialize Firebase and services ---
-    let app, auth, db, userId;
-    let devModeClickCount = 0; // <-- DEV MODE (Fix #9)
-    try {
-      app = initializeApp(firebaseConfig);
-      auth = getAuth(app);
-      db = getFirestore(app);
-      console.log("Firebase initialized.");
-    } catch (e) {
-      console.error("Firebase initialization failed:", e);
-      // Display a friendly error to the user on the menu
-      const mainMenu = document.getElementById('mainMenu');
-      if (mainMenu) {
-        mainMenu.innerHTML = `
-          <div class="modal-content">
-            <h2 class="text-red-500">Connection Error</h2>
-            <p>Could not connect to game services. Please check your internet connection and reload.</p>
-            <p style="font-size: 0.8rem; color: #94a3b8;">(Error: ${e.message})</p>
-          </div>
-        `;
-        // Show the menu modal
-        mainMenu.className = 'modal modal-visible';
-      }
-    }
-    // --- END FIREBASE SDK ---
-  
-    // --- SOUND FIX (POINT 3) ---
-    // Do NOT create a 'const Tone'. We will use 'window.Tone' directly
-    // in all functions to ensure it's loaded.
-    // --- END SOUND FIX ---
+        let currentUser = null;
 
-    // --- CAPACITOR NATIVE APP INTEGRATION ---
-    // We will dynamically import the Capacitor App plugin
-    // This will only work when bundled in a native Capacitor app
-    // In a browser, it will be gracefully ignored.
-    async function initCapacitorAppListener() {
-      try {
-        // NATIVE APP FIX (Fix #6): Import from the local capacitor-app.js
-        const { App } = await import('./capacitor-app.js');
-        
-        // Store App globally to be used by the exit button
-        window.CapacitorApp = App;
-        
-        // Add a listener for when the app state changes (minimized/resumed)
-        App.addListener('appStateChange', ({ isActive }) => {
-          if (!isActive) {
-            // App is being minimized
-            if (gameState === 'playing') {
-              setGameState('paused');
+        // --- SENIOR DEV PARTICLE ENGINE ---
+        class Particle {
+            constructor(x, y, options = {}) {
+                this.x = x;
+                this.y = y;
+                this.vx = options.vx || (Math.random() - 0.5) * 5;
+                this.vy = options.vy || (Math.random() - 0.5) * 5;
+                this.life = options.life || 1000;
+                this.maxLife = this.life;
+                this.size = options.size || 2;
+                this.color = options.color || '#38bdf8';
+                this.friction = options.friction || 0.98;
             }
-          }
-        });
-        console.log("Capacitor App listener attached.");
-      } catch (e) {
-        console.warn("Capacitor App plugin not found. Running in standard browser mode.", e);
-      }
-    }
-    // --- END CAPACITOR INTEGRATION ---
-    
-
-    // --- LOCALIZATION (I18N) ---
-    const stringTable = {
-      "en": {
-        "score": "Score",
-        "high_score": "High Score",
-        "fragments": "Fragments",
-        "user_id": "User ID", // <-- DEV MODE (Fix #9)
-        "menu_subtitle": "Tap and hold to guide the comet. Survive as long as you can.",
-        "play_button": "Start Game",
-        "observatory": "Observatory",
-        "exit_game": "Exit Game", // <-- ADDED (POINT 2)
-        "game_over": "Game Over",
-        "final_score": "Final Score",
-        "earned": "Earned",
-        "play_again": "Play Again",
-        "main_menu": "Main Menu",
-        "paused": "Paused",
-        "resume": "Resume",
-        "quit_menu": "Quit to Menu",
-        "back_menu": "Back to Menu",
-        "upgrades": "Upgrades",
-        "comets": "Comets",
-        "anomalies": "Anomalies",
-        "perm_upgrades": "Permanent Upgrades",
-        "shield_name": "Longer Shield",
-        "shield_desc": "Increases Shield power-up duration.",
-        "magnet_name": "Fragment Magnet",
-        "magnet_desc": "Automatically collects nearby fragments.",
-        "score_name": "Score Bonus",
-        "score_desc": "Permanently increases score gain.",
-        "single_use": "Single-Use Utilities",
-        "headstart_name": "Head Start",
-        "headstart_desc": "Start the next run at Zone 2 (Score 1500).",
-        "revive_name": "Second Chance",
-        "revive_desc": "Revive once after crashing.",
-        "comet_skins": "Comet Skins",
-        "obstacle_skins": "Obstacle Skins",
-        "background_themes": "Background Themes",
-        "buy_button": "Buy",
-        "equip_button": "Equip",
-        "equipped_button": "Equipped",
-        "level": "Level",
-        "max_level": "Max Level",
-      }
-      // Add other languages here, e.g., "es": { ... }
-    };
-
-    let currentLanguage = 'en'; // Default language
-
-    /**
-     * Finds all elements with a [data-string] attribute and updates their text
-     * based on the currentLanguage and the stringTable.
-     */
-    function updateUIText() {
-      const strings = stringTable[currentLanguage];
-      if (!strings) {
-        console.warn(`Language "${currentLanguage}" not found in stringTable.`);
-        return;
-      }
-      
-      document.querySelectorAll('[data-string]').forEach(el => {
-        const key = el.dataset.string;
-        if (strings[key]) {
-          // Update text, being careful not to wipe out child nodes (like <span>✦</span>)
-          // Find the first text-node child and update it
-          const textNode = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '');
-          if (textNode) {
-            textNode.textContent = strings[key];
-          } else {
-            // Fallback for elements with no other children (like <p>)
-            el.textContent = strings[key];
-          }
-          
-          // Also update data-attributes for dynamic buttons
-          if (el.dataset.cost) {
-            el.textContent = `${strings[key]} (${el.dataset.cost})`;
-          } else if (el.classList.contains('buy-btn-maxed')) {
-            el.textContent = strings['max_level'];
-          } else if (el.classList.contains('equip-btn')) {
-            el.textContent = strings['equip_button'];
-          } else if (el.classList.contains('equipped-btn')) {
-            el.textContent = strings['equipped_button'];
-          }
-          
-        } else {
-          console.warn(`String key "${key}" not found in language "${currentLanguage}".`);
+            update(dt) {
+                this.x += this.vx * (dt/16);
+                this.y += this.vy * (dt/16);
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.life -= dt;
+            }
+            draw(ctx) {
+                const alpha = Math.max(0, this.life / this.maxLife);
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
         }
-      });
-      
-      // Update dynamic level text
-      document.querySelectorAll('.upgrade-level').forEach(el => {
-        if (el.textContent.includes('Level')) {
-          el.textContent = el.textContent.replace('Level', strings['level']);
+
+        // --- ROBUST AUDIO MIXER ---
+        const Audio = {
+            init: async function() {
+                if (this.ready) return;
+                await Tone.start();
+                this.master = new Tone.Volume(-10).toDestination();
+                this.music = new Tone.Volume(-12).connect(this.master);
+                
+                // Procedural Drone (Physicality)
+                this.lowDrone = new Tone.Oscillator(45, "sine").connect(new Tone.Filter(150, "lowpass").connect(this.music));
+                this.highDrone = new Tone.Oscillator(90, "sawtooth").connect(new Tone.Filter(400, "lowpass").connect(this.music));
+                
+                this.lowDrone.start();
+                this.highDrone.start();
+                
+                this.ready = true;
+                this.syncUI();
+            },
+            syncUI() {
+                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10, music: -12 };
+                this.master.volume.value = saved.master;
+                this.music.volume.value = saved.music;
+                document.getElementById('vol-master').value = saved.master;
+                document.getElementById('vol-music').value = saved.music;
+                this.updateLabel('master', saved.master);
+                this.updateLabel('music', saved.music);
+            },
+            updateLabel(key, val) {
+                const percent = Math.floor(((val + 40) / 40) * 100);
+                document.getElementById(`val-${key}-txt`).innerText = `${percent}%`;
+            },
+            save(key, val) {
+                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10, music: -12 };
+                saved[key] = parseFloat(val);
+                localStorage.setItem('gw_pro_audio', JSON.stringify(saved));
+                if (key === 'master') this.master.volume.rampTo(val, 0.1);
+                if (key === 'music') this.music.volume.rampTo(val, 0.1);
+                this.updateLabel(key, val);
+            }
+        };
+
+        // --- GAME ENGINE CORE ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const fxOverlay = document.getElementById('fx-overlay');
+
+        let state = 'MENU';
+        let score = 0;
+        let speed = CONFIG.baseSpeed;
+        let lastTime = 0;
+        let particles = [];
+        let stars = [];
+        let obstacles = [];
+        let shake = 0;
+        let chromatic = 0;
+
+        const player = {
+            x: 0, y: 0, vx: 0, vy: 0, 
+            radius: 12, angle: 0, 
+            targetY: 0, targetX: 0, active: false
+        };
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            player.x = canvas.width * 0.2;
+            player.y = canvas.height / 2;
+            initParallax();
         }
-      });
-    }
-    // --- END LOCALIZATION ---
+        window.addEventListener('resize', resize);
 
-
-    // --- GAME CODE ---
-    // --- DOM READY FIX (Bug #9) ---
-    // Declare all DOM-related variables here, but *assign* them inside init()
-    let canvas, ctx, appContainer;
-    
-    // UI elements
-    let allUiScreens = []; // CORRECTLY DECLARED
-    let scoreElement, gameOverModal, finalScoreElement, restartButton,
-        powerUpStatusElement, inGameUi, mainMenu, playButton,
-        highScoreDisplay, starFragmentsDisplay, userIdDisplay,
-        runFragmentsContainer, runFragmentsDisplay, fragmentsEarnedDisplay,
-        pauseButton, pauseMenu, resumeButton, quitButton,
-        observatoryButton, closeObservatoryButton, observatory,
-        shopFragmentsDisplay, observatoryNav, tabContents,
-        cometSkinsGrid, obstacleSkinsGrid, backgroundThemesGrid,
-        gameOverMenuButton, gameOverObservatoryButton,
-        activeUpgradesContainer, magnetIndicator, scoreIndicator,
-        reviveIndicator, observatoryBackButtonPortrait;
-    // --- END DOM READY FIX ---
-
-    // Game state
-    let gameState = 'menu';
-    let playerData = {}; // Will be populated by loadPlayerData()
-    let playerComet = null;
-    let obstacles = [];
-    let powerUps = [];
-    let starFragments = [];
-    let particles = [];
-    let stars = []; // <-- THE FIX IS HERE
-    let backgroundDecorations = []; // <-- BACKGROUND VISUALS (POINT 4)
-    let menuComet = null;
-    let gravityWell = null;
-    let score = 0;
-    let fragmentsThisRun = 0;
-    let isGameOver = false;
-    let animationFrameId;
-    let maxDistanceReached = 0;
-    let cameraX = 0;
-    let nextObstacleSpawnX = 0;
-    let nextPowerUpSpawnX = 0;
-    let nextFragmentSpawnX = 0;
-    let nextBgObjectSpawnX = 0; // <-- BACKGROUND VISUALS (POINT 4)
-    let activePowerUp = { type: null, timer: 0 };
-    let lastZoneIndex = -1;
-    let currentZoneColors = {};
-    let isHeadstarting = false;
-    let headstartTimer = 0;
-    const HEADSTART_DURATION = 500;
-    let hasRevive = false;
-
-    // Game constants
-    const VIRTUAL_WIDTH = 1280;
-    const VIRTUAL_HEIGHT = 720;
-    let scale = 1;
-    const SCORE_DIVISOR = 10; // <-- MISSING VARIABLE FIX
-    
-    const PLAYER_COMET_RADIUS = 15;
-    // --- MODIFICATION #1: Increased gravity pull ---
-    const GRAVITY_INFLUENCE = 0.4; // Was 0.2
-    // --- END MODIFICATION #1 ---
-    const INERTIAL_DAMPING = 0.98; // For gravity well
-    const VERTICAL_DAMPING = 0.95; // For return-to-horizontal
-    const WAVE_AMPLITUDE = 0.3; // Softer oscillation
-    const WAVE_FREQUENCY = 0.03;
-    const ZONE_SCORE_INCREMENT = 1500;
-    const INITIAL_SPEED = 2.5;
-    const SPEED_INCREMENT_PER_ZONE = 0.5;
-
-    // Shop data
-    const upgradeCosts = {
-      shield: [100, 250, 500, 1000, 2000],
-      magnet: [300, 750, 1500],
-      score: [200, 400, 800, 1600, 3200],
-      headstart: 150,
-      revive: 250
-    };
-
-    const cosmeticItems = {
-      // Comet Skins
-      comet_default: { id: 'comet_default', name: 'Classic Comet', type: 'comet', cost: 0, fillStyle: '#FFFFFF' },
-      comet_inferno: { id: 'comet_inferno', name: 'Inferno', type: 'comet', cost: 1500, fillStyle: 'linear-gradient(45deg, #f87171, #fb923c)', particleColor: '#fb923c' },
-      comet_emerald: { id: 'comet_emerald', name: 'Emerald', type: 'comet', cost: 1500, fillStyle: 'linear-gradient(45deg, #34d399, #22c55e)', particleColor: '#34d399' },
-      comet_galaxy: { id: 'comet_galaxy', name: 'Galaxy', type: 'comet', cost: 2500, fillStyle: 'radial-gradient(circle, #a855f7, #7e22ce, #3b0764)', particleColor: '#a855f7' },
-      comet_plasma: { id: 'comet_plasma', name: 'Plasma Ball', type: 'comet', cost: 3000, fillStyle: 'radial-gradient(circle, #60a5fa, #3b82f6, #1d4ed8)', particleColor: '#60a5fa' },
-      comet_gold: { id: 'comet_gold', name: 'Golden Nugget', type: 'comet', cost: 5000, fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleColor: '#fde047' },
-      comet_smiley: { id: 'comet_smiley', name: 'Smiley', type: 'comet', cost: 2000, fillStyle: '#facc15', particleColor: '#fde047',
-        drawAddition: (ctx, x, y, r) => {
-          ctx.fillStyle = 'black';
-          ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.2, r * 0.15, 0, Math.PI * 2); ctx.fill(); // Left eye
-          ctx.beginPath(); ctx.arc(x + r * 0.3, y - r * 0.2, r * 0.15, 0, Math.PI * 2); ctx.fill(); // Right eye
-          ctx.beginPath(); ctx.arc(x, y + r * 0.1, r * 0.5, 0, Math.PI); // Smile
-          ctx.lineWidth = r * 0.1;
-          ctx.strokeStyle = 'black';
-          ctx.stroke();
+        function initParallax() {
+            stars = [];
+            for(let i=0; i<150; i++) {
+                stars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    z: Math.random() * 4 + 0.5,
+                    o: Math.random() * 0.7 + 0.1
+                });
+            }
         }
-      },
 
-      // Obstacle Skins
-      obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, fillStyle: '#9333ea', strokeStyle: '#a855f7', collisionShape: 'rect' },
-      obstacle_rock: {
-        id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000,
-        fillStyle: '#71717a', strokeStyle: '#a1a1aa',
-        collisionShape: 'circle',
-        draw: (ctx, x, y, w, h, skin, obs) => { /* ... snip ... */ } // Custom draw logic from context
-      },
-      obstacle_crystal: {
-        id: 'obstacle_crystal', name: 'Crystal Spires', type: 'obstacle', cost: 3000,
-        fillStyle: 'linear-gradient(180deg, rgba(192, 132, 252, 0.7), rgba(126, 34, 206, 0.8))', strokeStyle: '#e9d5ff',
-        collisionShape: 'rect',
-        draw: (ctx, x, y, w, h, skin, obs) => { /* ... snip ... */ } // Custom draw logic from context
-      },
-      obstacle_alien: {
-        id: 'obstacle_alien', name: 'Alien Monolith', type: 'obstacle', cost: 4000,
-        fillStyle: '#1e293b', strokeStyle: '#64748b',
-        collisionShape: 'rect',
-        draw: (ctx, x, y, w, h, skin, obs) => { /* ... snip ... */ } // Custom draw logic from context
-      },
-      obstacle_rubber_ducky: {
-        id: 'obstacle_rubber_ducky', name: 'Rubber Duckies', type: 'obstacle', cost: 2500,
-        fillStyle: '#facc15', strokeStyle: '#fde047',
-        collisionShape: 'circle',
-        draw: (ctx, x, y, w, h, skin, obs) => { /* ... snip ... */ } // Custom draw logic from context
-      },
-
-      // Background Themes
-      background_default: { id: 'background_default', name: 'Classic Starfield', type: 'background', cost: 0,
-        render: (ctx, zoneColors) => {
-          ctx.fillStyle = zoneColors.background;
-          ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-          return { stars: true, custom: false };
+        function launchGame() {
+            Audio.init();
+            state = 'PLAYING';
+            score = 0;
+            speed = CONFIG.baseSpeed;
+            obstacles = [];
+            particles = [];
+            player.vy = 0; player.vx = 0;
+            switchScreen(null);
+            document.getElementById('hud').style.opacity = 1;
+            lastTime = performance.now();
+            requestAnimationFrame(engineLoop);
         }
-      },
-      background_nebula: { id: 'background_nebula', name: 'Crimson Nebula', type: 'background', cost: 5000,
-        render: (ctx, zoneColors) => {
-          const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-          grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-          return { stars: true, custom: true };
-        }
-      },
-      background_lava: { id: 'background_lava', name: 'Volcanic Void', type: 'background', cost: 4000,
-        render: (ctx, zoneColors) => {
-          const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0);
-          grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-          return { stars: true, custom: true };
-        }
-      },
-      background_ice: { id: 'background_ice', name: 'Glacial Expanse', type: 'background', cost: 4000,
-        render: (ctx, zoneColors) => {
-          const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT);
-          grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a');
-          ctx.fillStyle = grad;
-          ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
-          return { stars: true, custom: true };
-        }
-      },
-    };
-    
-    // Fill in the complex draw functions that were snipped for brevity
-    cosmeticItems.obstacle_rock.draw = (ctx, x, y, w, h, skin, obs) => {
-      const radius = w / 2;
-      const centerX = x + radius;
-      const centerY = y + radius;
-      if (!obs.vertices) {
-        obs.vertices = [];
-        const numVertices = 8 + Math.floor(Math.random() * 5);
-        for (let i = 0; i < numVertices; i++) {
-          const angle = (i / numVertices) * Math.PI * 2;
-          const dist = radius * (0.8 + Math.random() * 0.4);
-          obs.vertices.push({ x: Math.cos(angle) * dist, y: Math.sin(angle) * dist });
-        }
-      }
-      ctx.fillStyle = skin.fillStyle;
-      ctx.strokeStyle = skin.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(centerX + obs.vertices[0].x, centerY + obs.vertices[0].y);
-      for (let i = 1; i < obs.vertices.length; i++) {
-        ctx.lineTo(centerX + obs.vertices[i].x, centerY + obs.vertices[i].y);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    
-    cosmeticItems.obstacle_crystal.draw = (ctx, x, y, w, h, skin, obs) => {
-      let grad;
-      try {
-        grad = ctx.createLinearGradient(x, y + h, x, y);
-        const colors = skin.fillStyle.match(/rgba?\([^)]+\)/gi);
-        grad.addColorStop(0, colors[1]);
-        grad.addColorStop(1, colors[0]);
-      } catch(e) { grad = skin.strokeStyle; }
-      
-      ctx.fillStyle = grad;
-      ctx.strokeStyle = skin.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x, y + h); // bottom left
-      ctx.lineTo(x, y + h * 0.2); // top left shoulder
-      ctx.lineTo(x + w * 0.5, y); // top center (point)
-      ctx.lineTo(x + w, y + h * 0.2); // top right shoulder
-      ctx.lineTo(x + w, y + h); // bottom right
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    };
-    
-    cosmeticItems.obstacle_alien.draw = (ctx, x, y, w, h, skin, obs) => {
-      ctx.fillStyle = skin.fillStyle;
-      ctx.strokeStyle = skin.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeRect(x, y, w, h);
-      
-      const glowAlpha = 0.5 + Math.sin(Date.now() * 0.005) * 0.5; // 0.0 to 1.0
-      ctx.shadowColor = '#0ea5e9';
-      ctx.shadowBlur = 10 + glowAlpha * 10; // 10 to 20
-      ctx.strokeStyle = `rgba(100, 180, 255, ${glowAlpha})`;
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, w, h);
-      
-      ctx.shadowColor = 'transparent';
-      ctx.shadowBlur = 0;
-    };
-    
-    cosmeticItems.obstacle_rubber_ducky.draw = (ctx, x, y, w, h, skin, obs) => {
-      const radius = w / 2;
-      const centerX = x + radius;
-      const centerY = y + radius;
-      // Body
-      ctx.fillStyle = skin.fillStyle;
-      ctx.strokeStyle = skin.strokeStyle;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      // Head
-      ctx.beginPath();
-      ctx.arc(centerX + radius*0.1, centerY - radius*0.5, radius*0.6, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-      // Eye
-      ctx.fillStyle = 'black';
-      ctx.beginPath(); ctx.arc(centerX + radius*0.2, centerY - radius*0.55, radius*0.1, 0, Math.PI*2); ctx.fill();
-      // Beak
-      ctx.fillStyle = '#f97316';
-      ctx.beginPath(); ctx.moveTo(centerX + radius*0.5, centerY - radius*0.5); ctx.lineTo(centerX + radius*0.8, centerY - radius*0.4); ctx.lineTo(centerX + radius*0.5, centerY - radius*0.3); ctx.closePath(); ctx.fill();
-    };
 
-
-    // --- AUDIO MANAGER V5 (Volume Balanced) ---
-    const audioManager = {
-      isInitialized: false,
-      isAudioUnlocked: false,
-      synths: {},
-      effects: {},
-      musicLoops: [],
-      currentZone: -1,
-
-      // --- DYNAMIC AUDIO (Fix #10): New Audio Mix ---
-      // Re-balanced all volumes for a 4-layer system
-      volumes: {
-        music: -10,     // Lead/Melody
-        pad: -16,       // Ambient Atmosphere
-        bass: -8,       // Rhythmic Bass
-        perc: -12,      // Kick & Hat
-        
-        fragment: -20,  // SFX are much quieter
-        powerUp: -18,
-        gameOver: -16,
-        click: -22,
-        obstacle: -18
-      },
-      // --- END DYNAMIC AUDIO ---
-
-      // --- DYNAMIC AUDIO (Fix #10): New Music Patterns ---
-      // Renamed to 'gameMusicPatterns'
-      gameMusicPatterns: [
-        // Zone 0-1 (Atmosphere, Bass, Lead)
-        { bpm: 150, 
-          pad: ['C2', 'G2'], padInterval: '1m',
-          bass: ['C2', null, 'C2', null, 'G1', null, 'G1', null, 'F1', null, 'F1', null, 'F1', null, 'F1', null],
-          lead: ['C4', null, 'E4', 'G4', null, 'E4', 'C4', null, 'D4', 'E4', null, 'D4', null, null, null, null], 
-          leadInterval: '16n',
-          kick: null, // No percussion
-          hat: null
-        },
-        // Zone 2-3 (Percussion Fades In)
-        { bpm: 160, 
-          pad: ['C2', 'G2', 'F2'], padInterval: '1m',
-          bass: ['C2', 'C2', 'D2', 'C2', 'G1', 'G1', 'A1', 'G1', 'F1', 'F1', 'G1', 'F1', 'A1', 'A1', 'G1', 'A1'],
-          lead: ['C5', 'E5', 'G5', 'C6', 'A5', 'G5', 'E5', null, 'C5', 'E5', 'G5', 'A5', 'G5', 'E5', 'D5', null], 
-          leadInterval: '16n',
-          kick: ['C1', null, 'C1', null, 'C1', null, 'C1', null], // Simple kick
-          hat: [null, 'C7', null, 'C7'], // 8th note hi-hats
-          hatInterval: '8n'
-        },
-        // Zone 4+ (Frantic)
-        { bpm: 170, 
-          pad: ['C2', 'G2', 'F2', 'A2'], padInterval: '1m',
-          bass: ['C2', 'D2', 'E2', 'D2', 'G1', 'A1', 'B1', 'A1', 'F1', 'G1', 'A1', 'G1', 'A1', 'B1', 'C2', 'B1'],
-          lead: ['C6', 'E6', 'G6', 'A6', 'C7', 'A6', 'G6', 'E6', 'A6', 'C7', 'A6', 'G6', 'E6', 'D6', 'E6', 'D6'], 
-          leadInterval: '16n',
-          kick: ['C1', null, 'C1', 'C1', 'C1', null, 'C1', null], // More complex kick
-          hat: ['C7', 'C7', 'C7', 'C7', 'C7', 'C7', 'C7', 'C7'], // 16th note hi-hats
-          hatInterval: '16n'
-        }
-      ],
-      
-      // New pattern for the main menu (Chill)
-      menuMusicPattern: {
-        bpm: 100,
-        pad: ['C2', 'F2', 'G2'], padInterval: '1m',
-        lead: [null, null, null, 'C4', null, 'E4', null, 'G4', null, null, 'F4', null, 'D4', null, null, null],
-        leadInterval: '8n'
-      },
-      // --- END DYNAMIC AUDIO ---
-
-      async init() {
-        // SOUND FIX (POINT 3) - Check for window.Tone object
-        if (this.isInitialized || !window.Tone) {
-          if (!window.Tone) console.error("Tone.js object not found during init!");
-          return;
-        }
-        try {
-          // Effects Chain
-          this.effects.reverb = new window.Tone.Reverb(1.5).toDestination();
-          this.effects.delay = new window.Tone.PingPongDelay("8n", 0.4).connect(this.effects.reverb);
-          this.effects.bassFilter = new window.Tone.AutoFilter("4n").toDestination().start();
-          this.effects.bassFilter.baseFrequency = 80;
-          this.effects.bassFilter.octaves = 3;
-
-          // Simple Click Synth
-          this.synths.click = new window.Tone.Synth({
-            oscillator: { type: 'triangle' },
-            envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 },
-            volume: this.volumes.click // Apply balanced volume
-          }).toDestination();
-
-          // Game Synths
-          this.synths.fragment = new window.Tone.FMSynth({
-            envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 },
-            volume: this.volumes.fragment // Apply balanced volume
-          }).toDestination();
-          this.synths.powerUp = new window.Tone.Synth({
-            oscillator: { type: 'square' },
-            envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 },
-            volume: this.volumes.powerUp // Apply balanced volume
-          }).toDestination();
-          this.synths.gameOver = new window.Tone.NoiseSynth({
-            noise: { type: 'pink' },
-            envelope: { attack: 0.01, decay: 0.8, sustain: 0, release: 0.2 },
-            volume: this.volumes.gameOver // Apply balanced volume
-          }).toDestination();
-
-          // Special Obstacle Synths
-          const obsVol = this.volumes.obstacle;
-          this.synths.obstacle = {
-            obstacle_default: new window.Tone.MembraneSynth({ volume: obsVol }).toDestination(),
-            obstacle_rock: new window.Tone.MembraneSynth({ pitchDecay: 0.1, octaves: 2, volume: obsVol }).toDestination(),
-            obstacle_crystal: new window.Tone.FMSynth({ modulationIndex: 10, harmonicity: 3.0, volume: obsVol }).toDestination(),
-            obstacle_alien: new window.Tone.FMSynth({ modulationIndex: 5, harmonicity: 1.5, volume: obsVol }).toDestination(),
-            obstacle_rubber_ducky: new window.Tone.Synth({
-              oscillator: { type: 'sine' },
-              envelope: { attack: 0.02, decay: 0.1, sustain: 0.2, release: 0.1 },
-              volume: obsVol - 5 // Ducks are quieter
-            }).toDestination() // <-- SYNTAX ERROR FIX: Removed trailing comma
-          };
-
-          // --- DYNAMIC AUDIO (Fix #10): Add new synths ---
-          this.synths.musicPad = new Tone.FMSynth({
-            envelope: { attack: 2.0, decay: 1.0, sustain: 1.0, release: 2.0 }, // Long, soft attack/release
-            volume: this.volumes.pad
-          }).connect(this.effects.reverb); // Connect to reverb for spacey feel
-
-          this.synths.musicKick = new Tone.MembraneSynth({
-            pitchDecay: 0.05,
-            octaves: 10,
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.001, decay: 0.4, sustain: 0.01, release: 1.4 },
-            volume: this.volumes.perc
-          }).toDestination();
-          
-          this.synths.musicHat = new Tone.NoiseSynth({
-            noise: { type: 'pink' },
-            envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 }, // Very short
-            volume: this.volumes.perc
-          }).toDestination();
-          // --- END DYNAMIC AUDIO ---
-
-          // Music Synths
-          this.synths.musicLead = new Tone.FMSynth({
-            harmonicity: 1.2, modulationIndex: 5,
-            envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.3 },
-            modulationEnvelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 },
-            volume: this.volumes.music // Apply balanced volume
-          }).connect(this.effects.delay);
-
-          this.synths.musicBass = new Tone.MonoSynth({
-            oscillator: { type: 'sawtooth' },
-            envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 },
-            filter: { type: 'lowpass', Q: 2, frequency: 400 },
-            filterEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1, baseFrequency: 100, octaves: 3 },
-            volume: this.volumes.bass // Apply balanced volume
-          }).connect(this.effects.bassFilter);
-
-          this.isInitialized = true;
-        } catch (e) {
-          console.error("Failed to initialize audioManager:", e);
-        }
-      },
-
-      async tryInitAudio() {
-        // SOUND FIX (POINT 3) - Check for window.Tone object
-        if (this.isAudioUnlocked || typeof window.Tone === 'undefined' || !window.Tone.start) {
-            return;
-        }
-        try {
-          await window.Tone.start();
-          if (!this.isInitialized) {
-            await this.init();
-          }
-          this.isAudioUnlocked = true;
-          console.log("Audio Unlocked.");
-        } catch (e) {
-          console.error("Could not start audio:", e);
-        }
-      },
-
-      // This function just starts the transport and Zone 0
-      startMusic() {
-        if (!this.isAudioUnlocked || this.musicLoops.length > 0) return;
-        this.setMusicZone(0); // Start with zone 0
-        if (window.Tone.Transport.state !== 'started') {
-          window.Tone.Transport.start();
-        }
-      },
-      
-      // --- DYNAMIC AUDIO (Fix #10): New function for menu music ---
-      startMenuMusic() {
-        if (!this.isAudioUnlocked) return;
-        
-        // Stop any old loops
-        this.stopMusic();
-        this.currentZone = -1; // Not in a game zone
-        
-        const pattern = this.menuMusicPattern;
-        window.Tone.Transport.bpm.value = pattern.bpm;
-        
-        // Create new loops
-        const padPattern = new Tone.Sequence((time, note) => {
-          this.synths.musicPad.triggerAttackRelease(note, "2m", time);
-        }, pattern.pad, "randomWalk").start(0);
-        padPattern.interval = pattern.padInterval;
-        
-        const melodyPattern = new Tone.Pattern((time, note) => {
-          if (note) this.synths.musicLead.triggerAttackRelease(note, "8n", time);
-        }, pattern.lead, "randomWalk").start(0);
-        melodyPattern.interval = pattern.leadInterval;
-
-        this.musicLoops = [padPattern, melodyPattern];
-        
-        if (window.Tone.Transport.state !== 'started') {
-          window.Tone.Transport.start();
-        }
-      },
-      // --- END DYNAMIC AUDIO ---
-
-      setMusicZone(zoneIndex) {
-        if (!this.isAudioUnlocked) return;
-        if (zoneIndex === this.currentZone) return;
-
-        this.musicLoops.forEach(loop => {
-          loop.stop(0);
-          loop.dispose();
-        });
-        this.musicLoops = [];
-
-        // --- DYNAMIC AUDIO (Fix #10): Use gameMusicPatterns ---
-        const pattern = this.gameMusicPatterns[Math.min(zoneIndex, this.gameMusicPatterns.length - 1)];
-        this.currentZone = zoneIndex;
-
-        window.Tone.Transport.bpm.value = pattern.bpm;
-
-        // --- DYNAMIC AUDIO (Fix #10): Create all 4 layers ---
-        
-        // 1. Pad (Atmosphere)
-        const padPattern = new Tone.Sequence((time, note) => {
-          this.synths.musicPad.triggerAttackRelease(note, "2m", time);
-        }, pattern.pad, "randomWalk").start(0);
-        padPattern.interval = pattern.padInterval;
-
-        // 2. Bass (Rhythm)
-        const bassPattern = new Tone.Sequence((time, note) => {
-          if (note) this.synths.musicBass.triggerAttackRelease(note, "8n", time);
-        }, pattern.bass, "8n").start(0);
-
-        // 3. Lead (Melody)
-        const melodyPattern = new Tone.Pattern((time, note) => {
-          if (note) this.synths.musicLead.triggerAttackRelease(note, "8n", time);
-        }, pattern.lead, "randomWalk").start(0);
-        melodyPattern.interval = pattern.leadInterval;
-        
-        this.musicLoops = [padPattern, bassPattern, melodyPattern];
-        
-        // 4. Percussion (Urgency) - Only if it exists
-        if (pattern.kick) {
-          const kickPattern = new Tone.Sequence((time, note) => {
-            if (note) this.synths.musicKick.triggerAttackRelease(note, "4n", time);
-          }, pattern.kick, "4n").start(0);
-          this.musicLoops.push(kickPattern);
-        }
-        
-        if (pattern.hat) {
-          const hatPattern = new Tone.Sequence((time, note) => {
-            if (note) this.synths.musicHat.triggerAttackRelease("8n", time);
-          }, pattern.hat, pattern.hatInterval).start(0);
-          this.musicLoops.push(hatPattern);
-        }
-        // --- END DYNAMIC AUDIO ---
-      },
-
-      stopMusic() {
-        if (!this.isInitialized || !window.Tone) return;
-
-        this.musicLoops.forEach(loop => {
-          loop.stop(0);
-          loop.dispose();
-        });
-        this.musicLoops = [];
-        this.currentZone = -1;
-
-        if (window.Tone.Transport.state === 'started') {
-          window.Tone.Transport.stop();
-          window.Tone.Transport.cancel();
-        }
-      },
-
-      playClickSound() { if (this.isAudioUnlocked) this.synths.click.triggerAttackRelease("C4", "16n"); },
-      playFragmentSound() { if (this.isAudioUnlocked) this.synths.fragment.triggerAttackRelease("E5", "8n"); },
-      playPowerUpSound() { if (this.isAudioUnlocked) this.synths.powerUp.triggerAttackRelease("G4", "4n"); },
-      playGameOverSound() { if (this.isAudioUnlocked) this.synths.gameOver.triggerAttack(); },
-      playObstacleSound(skinId) {
-        if (!this.isAudioUnlocked) return;
-        const synth = this.synths.obstacle[skinId] || this.synths.obstacle.obstacle_default;
-        if (skinId === 'obstacle_rubber_ducky') {
-          synth.triggerAttackRelease('C5', '16n', '+0.0');
-          synth.triggerAttackRelease('E5', '16n', '+0.1');
-        } else if (skinId === 'obstacle_crystal') {
-          synth.triggerAttackRelease('G6', '16n');
-        } else {
-          synth.triggerAttack('C2', '16n');
-        }
-      }
-    };
-    // --- END AUDIO MANAGER ---
-
-
-    // --- Step 3: Game Classes ---
-    
-    // --- LERP HELPER (REMOVED) ---
-    // Not needed for the new physics model
-    
-    class Star {
-      constructor() {
-        // --- VISUAL ENHANCEMENT: PARALLAX ---
-        // Give a z-depth from 0.1 (far) to 1.0 (near)
-        this.z = Math.random() * 0.9 + 0.1;
-        this.x = Math.random() * VIRTUAL_WIDTH;
-        this.y = Math.random() * VIRTUAL_HEIGHT;
-        // Closer stars (z=1.0) are bigger
-        this.radius = (0.5 + Math.random() * 1.5) * this.z;
-        // Closer stars (z=1.0) are brighter
-        this.alpha = 0.5 + this.z * 0.5;
-        // --- END VISUAL ENHANCEMENT ---
-      }
-      update(speed) {
-        // --- VISUAL ENHANCEMENT: PARALLAX ---
-        // z-value now directly multiplies speed.
-        // z=1.0 moves at 100% speed, z=0.1 moves at 10% speed
-        this.x -= speed * this.z;
-        if (this.x < 0) {
-          this.x = VIRTUAL_WIDTH;
-          this.y = Math.random() * VIRTUAL_HEIGHT;
-        }
-      }
-      draw(ctx, starColor) {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-        // --- VISUAL ENHANCEMENT: PARALLAX ---
-        // Apply individual star's alpha
-        ctx.fillStyle = `rgba(${starColor}, ${this.alpha})`;
-        // --- END VISUAL ENHANCEMENT ---
-        ctx.fill();
-      }
-    }
-    
-    // --- BACKGROUND VISUALS (POINT 4) ---
-    class BackgroundObject {
-      constructor(x, y, z) {
-        this.x = x;
-        this.y = y;
-        this.z = z; // Parallax factor (0 = deep space, 1 = foreground)
-      }
-      
-      update(currentSpeed) {
-        // Parallax scroll
-        this.x -= (currentSpeed * this.z) * 0.5; // Slower than stars
-      }
-      
-      draw(ctx) {
-        // To be implemented by subclasses
-      }
-    }
-
-    class DistantPlanet extends BackgroundObject {
-      constructor(x, y, z) {
-        super(x, y, z);
-        this.radius = Math.random() * 30 + 20; // 20-50px radius
-        this.color1 = `hsl(${Math.random() * 360}, 50%, 30%)`;
-        this.color2 = `hsl(${Math.random() * 360}, 50%, 20%)`;
-        // --- VISUAL ENHANCEMENT: DYNAMIC BG ---
-        this.pulse = Math.random() * Math.PI;
-        // --- END VISUAL ENHANCEMENT ---
-      }
-      
-      draw(ctx) {
-        // --- VISUAL ENHANCEMENT: DYNAMIC BG ---
-        this.pulse += 0.01;
-        const alpha = 0.5 + Math.sin(this.pulse) * 0.1; // 0.4 to 0.6
-        // --- END VISUAL ENHANCEMENT ---
-        
-        const screenX = this.x - cameraX * this.z;
-        const grad = ctx.createRadialGradient(screenX + this.radius * 0.2, this.y - this.radius * 0.2, this.radius * 0.1, screenX, this.y, this.radius);
-        grad.addColorStop(0, this.color1);
-        grad.addColorStop(1, this.color2);
-        
-        ctx.fillStyle = grad;
-        // --- VISUAL ENHANCEMENT: DYNAMIC BG ---
-        ctx.globalAlpha = alpha; // Far away
-        // --- END VISUAL ENHANCEMENT ---
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1.0;
-      }
-    }
-
-    class ShootingStar extends BackgroundObject {
-      constructor(x, y, z) {
-        super(x, y, z);
-        this.vx = -(Math.random() * 10 + 10); // Fast
-        this.vy = Math.random() * 6 - 3;
-        this.trail = [];
-        // --- POINT 4 FIX: Removed lifespan ---
-      }
-      
-      update(currentSpeed) {
-        // Use its own speed, not parallax
-        this.x += this.vx;
-        this.y += this.vy;
-        
-        this.trail.push({x: this.x, y: this.y});
-        if (this.trail.length > 20) this.trail.shift();
-      }
-      
-      draw(ctx) {
-        const screenX = this.x - cameraX; // No parallax, it's an effect
-        
-        // Draw Trail
-        ctx.strokeStyle = `rgba(255, 255, 220, 0.5)`; // --- POINT 4 FIX: Removed lifespan alpha ---
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        if (this.trail.length > 0) {
-            ctx.moveTo(this.trail[0].x - cameraX, this.trail[0].y);
-        }
-        for(let i = 1; i < this.trail.length; i++) {
-            ctx.lineTo(this.trail[i].x - cameraX, this.trail[i].y);
-        }
-        ctx.stroke();
-        
-        // Draw Head
-        ctx.fillStyle = `rgba(255, 255, 255, 1.0)`; // --- POINT 4 FIX: Removed lifespan alpha ---
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    
-    class AlienShip extends BackgroundObject {
-      constructor(x, y, z) {
-        super(x, y, z);
-        this.vx = -1; // Moves slowly
-      }
-      
-      update(currentSpeed) {
-        // Use its own speed, not parallax
-        this.x += this.vx * this.z;
-      }
-      
-      draw(ctx) {
-        const screenX = this.x - cameraX * this.z;
-        const y = this.y;
-        
-        ctx.fillStyle = '#52525b'; // zinc-600
-        ctx.globalAlpha = 0.7;
-        
-        // Saucer shape
-        ctx.beginPath();
-        ctx.moveTo(screenX - 20, y);
-        ctx.quadraticCurveTo(screenX, y - 15, screenX + 20, y);
-        ctx.quadraticCurveTo(screenX, y + 15, screenX - 20, y);
-        ctx.fill();
-        
-        // Cockpit
-        ctx.fillStyle = '#0ea5e9'; // sky-500
-        ctx.beginPath();
-        ctx.arc(screenX, y - 5, 5, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.globalAlpha = 1.0;
-      }
-    }
-    
-    // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
-    class NebulaCloud extends BackgroundObject {
-      constructor(x, y, z) {
-        super(x, y, z); // z will be very low (far away)
-        this.radius = Math.random() * 200 + 400; // 400-600px radius
-        this.color = `hsla(${Math.random() * 360}, 70%, 50%, ${Math.random() * 0.1 + 0.05})`;
-        this.vx = -0.1; // Almost stationary
-      }
-      
-      update(currentSpeed) {
-        // Use its own tiny speed + a tiny bit of parallax
-        this.x += this.vx - (currentSpeed * this.z * 0.1);
-      }
-      
-      draw(ctx) {
-        const screenX = this.x - cameraX * this.z;
-        
-        const grad = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
-        // --- SYNTAX ERROR FIX ---
-        // Removed the stray backticks (`) at the end of the replace() calls.
-        grad.addColorStop(0, this.color.replace(/, [0-9.]+\)/, ', 0.2)')); // More opaque center
-        grad.addColorStop(1, this.color.replace(/, [0-9.]+\)/, ', 0)')); // Fades to transparent
-        // --- END SYNTAX ERROR FIX ---
-        
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    // --- END VISUAL ENHANCEMENT ---
-
-    class PlayerComet {
-      constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.radius = PLAYER_COMET_RADIUS;
-        this.trail = [];
-        this.orbiters = [];
-        
-        // --- NEW PHYSICS (POINT 2) ---
-        // Back to the "hybrid" model
-        this.vx = 0;
-        this.vy = 0;
-        this.waveAngle = Math.PI / 2; // Start at neutral (0 vertical force)
-        this.startDelay = 60; // 1-second grace period (60fps)
-        // --- END NEW PHYSICS ---
-      }
-
-      update() {
-        const baseSpeed = calculateCurrentSpeed();
-        
-        // --- PHYSICS BUG FIX ("Grinding Halt"): Part 1 ---
-        // We now track if the well is *actually* affecting the comet.
-        let wellIsActive = false;
-        // --- END BUG FIX ---
-        
-        if (gravityWell && !isHeadstarting) {
-          // --- WELL IS ACTIVE ---
-          this.startDelay = 60; // Reset delay if well is used
-          
-          const dx = gravityWell.x - this.x;
-          const dy = gravityWell.y - this.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          // --- PHYSICS BUG FIX ("Grinding Halt"): Part 2 ---
-          // This check is now the *only* thing that happens in this block.
-          if (dist > 0.01 && dist < gravityWell.radius) {
+        function onCollision() {
+            state = 'GAMEOVER';
+            shake = 40;
+            chromatic = 15;
             
-            // --- The bug fix flag is set ---
-            wellIsActive = true; 
+            // Visual Flash
+            fxOverlay.style.background = 'rgba(244, 63, 94, 0.5)';
+            setTimeout(() => fxOverlay.style.background = 'transparent', 100);
             
-            // --- PHYSICS ACCELERATION FIX (Bug #2) ---
-            // Calculate direction, then apply baseSpeed
-            // 1. Calculate the velocity from gravity influence
-            let influencedVx = this.vx + (dx / dist) * GRAVITY_INFLUENCE;
-            let influencedVy = this.vy + (dy / dist) * GRAVITY_INFLUENCE;
-            
-            // 2. Dampen the influenced velocity
-            influencedVx *= INERTIAL_DAMPING;
-            influencedVy *= INERTIAL_DAMPING;
+            document.getElementById('final-score').innerText = Math.floor(score) + " LY";
+            document.getElementById('hud').style.opacity = 0;
+            switchScreen('gameover-screen');
+            commitTelemetry(Math.floor(score));
+        }
 
-            // 3. Find the magnitude (current speed) of this new vector
-            const currentSpeed = Math.sqrt(influencedVx * influencedVx + influencedVy * influencedVy);
+        // --- UPDATER ---
+        function update(dt) {
+            if (state !== 'PLAYING') return;
 
-            // 4. Cap the speed
-            // If the influenced speed is *faster* than baseSpeed, scale it down.
-            if (currentSpeed > baseSpeed) {
-              const scaleDown = baseSpeed / currentSpeed;
-              this.vx = influencedVx * scaleDown;
-              this.vy = influencedVy * scaleDown;
+            // Complexity Scaling
+            speed *= CONFIG.accel;
+            if (speed > CONFIG.maxSpeed) speed = CONFIG.maxSpeed;
+            score += speed * (dt/40);
+
+            // Gravity Well Input
+            if (player.active) {
+                const dy = player.targetY - player.y;
+                const dx = player.targetX - player.x;
+                player.vy += dy * 0.0012 * CONFIG.attraction * (dt/16);
+                player.vx += dx * 0.0006 * CONFIG.attraction * (dt/16);
+                
+                // Active Thruster Particles
+                particles.push(new Particle(player.x - 10, player.y, {
+                    vx: -speed - Math.random() * 5,
+                    vy: (Math.random()-0.5) * 4,
+                    color: CONFIG.colors.thruster,
+                    life: 400,
+                    size: 3
+                }));
             } else {
-              // Otherwise, just use the influenced speed
-              this.vx = influencedVx;
-              this.vy = influencedVy;
+                // Natural Center Attraction (The Well)
+                player.vy += (canvas.height/2 - player.y) * 0.0003 * (dt/16);
             }
-            
-            // 5. Override horizontal speed to *always* be at least the base speed
-            // This prevents the "grinding to a halt" feeling.
-            
-            // --- MODIFICATION #2 (Physics): Allow "curving" ---
-            // This line was forcing horizontal speed and preventing curves.
-            // By removing it, 'this.vx' can now decrease, allowing the
-            // comet to slow down horizontally as it's pulled vertically.
-            /*
-            if (this.vx < baseSpeed) {
-              this.vx = baseSpeed;
-            }
-            */
-            // --- END MODIFICATION #2 ---
-            
-            // --- END PHYSICS ACCELERATION FIX ---
 
-          } 
-          // --- PHYSICS BUG FIX ("Grinding Halt"): Part 3 ---
-          // The old "else" block that applied damping is REMOVED.
-          // Now, if the well exists but the comet is out of range,
-          // "wellIsActive" stays false, and the "idle" logic below runs.
-          // --- END BUG FIX ---
-          
+            player.vx *= CONFIG.damping;
+            player.vy *= CONFIG.damping;
+            player.y += player.vy;
+            player.x += player.vx;
+
+            // Soft Boundaries
+            if (player.y < 40 || player.y > canvas.height - 40) player.vy *= -0.5;
+            player.x = Math.max(60, Math.min(canvas.width * 0.35, player.x));
+
+            // Ship Orientation (The Lean)
+            player.angle = Math.atan2(player.vy, speed * 1.5);
+
+            // Parallax Update
+            stars.forEach(s => {
+                s.x -= speed * 0.15 * s.z;
+                if (s.x < 0) s.x = canvas.width;
+            });
+
+            // Procedural Obstacle Wave
+            if (Math.random() < 0.03 + (score/150000)) {
+                obstacles.push({
+                    x: canvas.width + 150,
+                    y: Math.random() * canvas.height,
+                    r: 20 + Math.random() * 45,
+                    v: 0.8 + Math.random() * 0.8,
+                    rot: Math.random() * Math.PI,
+                    rotV: (Math.random()-0.5) * 0.1
+                });
+            }
+
+            obstacles.forEach(o => {
+                o.x -= speed * o.v;
+                o.rot += o.rotV;
+                
+                // Precise Circle Collision
+                const dx = player.x - o.x;
+                const dy = player.y - o.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < player.radius + o.r * 0.85) onCollision();
+            });
+            obstacles = obstacles.filter(o => o.x > -200);
+
+            // Particles Life Cycle
+            particles.forEach(p => p.update(dt));
+            particles = particles.filter(p => p.life > 0);
+            
+            // Post-FX decay
+            if (shake > 0) shake *= 0.9;
+            chromatic = (speed / CONFIG.maxSpeed) * 5;
+
+            // HUD Refresh
+            document.getElementById('score-display').innerText = `${Math.floor(score).toLocaleString()} LY`;
+            const zoneNum = Math.floor(score / 3000) + 1;
+            document.getElementById('zone-display').innerText = zoneNum.toString().padStart(2, '0');
         }
+
+        // --- RENDERER ---
+        function draw() {
+            // Dark base
+            ctx.fillStyle = '#020617';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            if (shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+
+            // Stars (2.5D)
+            stars.forEach(s => {
+                ctx.fillStyle = `rgba(255,255,255,${s.o})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.z/2, 0, Math.PI*2);
+                ctx.fill();
+            });
+
+            // Particle Layer
+            particles.forEach(p => p.draw(ctx));
+
+            // Ship (Vector-Heavy High Detail)
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+            
+            // Bloom Effect
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = CONFIG.colors.ship;
+            
+            // Ship Body
+            ctx.fillStyle = CONFIG.colors.ship;
+            ctx.beginPath();
+            ctx.moveTo(20, 0);
+            ctx.lineTo(-12, -12);
+            ctx.lineTo(-6, 0);
+            ctx.lineTo(-12, 12);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Detail Lines
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            
+            ctx.restore();
+
+            // Obstacles (Tech-Asteroids)
+            obstacles.forEach(o => {
+                ctx.save();
+                ctx.translate(o.x, o.y);
+                ctx.rotate(o.rot);
+                
+                // Deep Core
+                ctx.fillStyle = '#1e293b';
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                // Hexagonal shape for technical look
+                for(let i=0; i<6; i++) {
+                    const angle = (i/6) * Math.PI * 2;
+                    const rx = Math.cos(angle) * o.r;
+                    const ry = Math.sin(angle) * o.r;
+                    if(i === 0) ctx.moveTo(rx, ry);
+                    else ctx.lineTo(rx, ry);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                
+                // Tech Overlay (Circuit lines)
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-o.r, 0); ctx.lineTo(o.r, 0);
+                ctx.stroke();
+                
+                ctx.restore();
+            });
+
+            ctx.restore();
+            
+            // Chromatic Aberration Simulation (Screen border)
+            if (chromatic > 1) {
+                ctx.strokeStyle = `rgba(244, 63, 94, ${chromatic/20})`;
+                ctx.lineWidth = chromatic;
+                ctx.strokeRect(0,0,canvas.width, canvas.height);
+            }
+        }
+
+        function engineLoop(ts) {
+            if (state !== 'PLAYING') return;
+            const dt = ts - lastTime;
+            lastTime = ts;
+            update(dt);
+            draw();
+            requestAnimationFrame(engineLoop);
+        }
+
+        // --- INPUT ABSTRACTION ---
+        const handleInteraction = (e, active) => {
+            player.active = active;
+            if (active) {
+                const t = e.touches ? e.touches[0] : e;
+                player.targetX = t.clientX;
+                player.targetY = t.clientY;
+            }
+        };
+
+        canvas.addEventListener('mousedown', e => handleInteraction(e, true));
+        canvas.addEventListener('mousemove', e => player.active && handleInteraction(e, true));
+        window.addEventListener('mouseup', () => player.active = false);
+
+        canvas.addEventListener('touchstart', e => { e.preventDefault(); handleInteraction(e, true); }, {passive: false});
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); handleInteraction(e, true); }, {passive: false});
+        window.addEventListener('touchend', () => player.active = false);
+
+        // --- UI ROUTER ---
+        function switchScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            setTimeout(() => {
+                document.querySelectorAll('.screen').forEach(s => {
+                    if (!s.classList.contains('active')) s.style.display = 'none';
+                });
+            }, 500);
+            
+            if (id) {
+                const target = document.getElementById(id);
+                target.style.display = 'block';
+                setTimeout(() => target.classList.add('active'), 50);
+            }
+        }
+
+        document.getElementById('btn-start').onclick = launchGame;
+        document.getElementById('btn-restart').onclick = launchGame;
+        document.getElementById('btn-home').onclick = () => switchScreen('menu-screen');
+        document.getElementById('btn-settings').onclick = () => switchScreen('settings-screen');
+        document.getElementById('btn-settings-back').onclick = () => switchScreen('menu-screen');
         
-        // --- PHYSICS BUG FIX ("Grinding Halt"): Part 4 ---
-        // We run the "idle" logic if the well is NOT active.
-        if (!wellIsActive) {
-          // --- NO WELL IS ACTIVE ---
-          
-          // PHYSICS REFINEMENT (Bug #4): "Angle Correction" not "Center Correction"
-          
-          // 1. Set horizontal speed to the constant base speed.
-          this.vx = baseSpeed;
+        document.getElementById('vol-master').oninput = e => Audio.save('master', e.target.value);
+        document.getElementById('vol-music').oninput = e => Audio.save('music', e.target.value);
 
-          // 2. Gradually dampen the vertical velocity (vy) to 0.
-          // This will "correct the angle" to be horizontal over time.
-          // A damping factor of 0.95 is a gentle correction.
-          this.vy *= 0.95; 
-          
-          // 3. Define what "idle" (horizontal flight) means.
-          // We are "idle" if vertical velocity is very low.
-          const IDLE_VELOCITY_THRESHOLD = 0.5;
-          const isIdle = Math.abs(this.vy) < IDLE_VELOCITY_THRESHOLD;
+        document.getElementById('btn-observatory').onclick = () => {
+            switchScreen('observatory-screen');
+            fetchGlobalRecords();
+        };
+        document.getElementById('btn-observatory-back').onclick = () => switchScreen('menu-screen');
 
-          // 4. ONLY apply oscillation if we are in the grace period OR are idle.
-          if (this.startDelay > 0) {
-            this.startDelay--;
-          } else if (isIdle) {
-            // We are stable and flying horizontally.
-            // Now we add the gentle "idle" oscillation.
-            // We'll reset vy to 0 first to ensure the wave is pure.
-            this.vy = 0; 
-            this.waveAngle += WAVE_FREQUENCY;
-            // We add the wave *directly* to vy. Since it's reset to 0,
-            // this.vy will now *become* the wave value.
-            this.vy += (Math.cos(this.waveAngle) * WAVE_AMPLITUDE);
-          }
-          // If we are not idle (Math.abs(this.vy) >= 0.5),
-          // no oscillation is added. The damping (this.vy *= 0.95)
-          // will continue to run until the comet is stable.
-          
-        }
-        
-        if (isHeadstarting) {
-            this.vx = 30; // Override all logic
-            this.vy = 0;
-        }
-
-        // Apply final calculated velocity
-        this.x += this.vx;
-        this.y += this.vy;
-        // --- END NEW PHYSICS ---
-
-        this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
-
-        this.trail.push({ x: this.x, y: this.y, radius: this.radius });
-        if (this.trail.length > 20) this.trail.shift();
-
-        // Particle Effects
-        const skin = cosmeticItems[playerData.cosmetics.equipped.comet] || cosmeticItems['comet_default'];
-        if (skin.particleColor && baseSpeed > 0 && Math.random() < 0.5) {
-          particles.push(new Particle(
-            this.x,
-            this.y + (Math.random() - 0.5) * this.radius,
-            skin.particleColor,
-            {
-              lifespan: 20 + Math.random() * 20,
-              vx: -baseSpeed * 0.5 * (Math.random() + 0.5)
-            }
-          ));
-        }
-        this.orbiters.forEach(orb => orb.update());
-      }
-      
-      // Helper to get the primary color from a skin's fillStyle
-      getPrimarySkinColor(skinStyle) {
-           if (!skinStyle) return 'white'; // Fallback
-           if (skinStyle.startsWith('linear-gradient') || skinStyle.startsWith('radial-gradient')) {
-             const colors = skinStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-             return colors ? colors[0] : 'white'; // Return first color or fallback
-         }
-         return skinStyle; // Solid color
-       }
-
-      draw(ctx) {
-        const screenX = this.x - cameraX;
-        const equippedSkinId = playerData.cosmetics.equipped.comet;
-        const skin = cosmeticItems[equippedSkinId] || cosmeticItems['comet_default'];
-        const primaryColor = this.getPrimarySkinColor(skin.fillStyle);
-
-        // Draw Trail using primary skin color
-        this.trail.forEach((t, i) => {
-          ctx.beginPath();
-          ctx.arc(t.x - cameraX, t.y, t.radius * (i / this.trail.length), 0, Math.PI * 2);
-          const alpha = (i / this.trail.length) * 0.4;
-          let trailColor = primaryColor;
-           if (trailColor.startsWith('#')) { 
-             const r = parseInt(trailColor.slice(1, 3), 16);
-             const g = parseInt(trailColor.slice(3, 5), 16);
-             const b = parseInt(trailColor.slice(5, 7), 16);
-             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-           } else if (trailColor.startsWith('rgb')) { 
-             trailColor = trailColor.replace(/rgba?\(|\)/g, '');
-             const parts = trailColor.split(',');
-             ctx.fillStyle = `rgba(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
-           } else { 
-              ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`; // Fallback to white 
-           }
-          ctx.fill();
+        // --- CLOUD TELEMETRY (FIREBASE) ---
+        onAuthStateChanged(auth, user => {
+            currentUser = user || signInAnonymously(auth);
         });
 
-        // --- VISUAL ENHANCEMENT: COMET GLOW ---
-        // Apply a shadow/bloom effect based on the comet's primary color
-        try {
-          ctx.shadowColor = primaryColor.startsWith('#') ? primaryColor : 'white';
-        } catch(e) {
-          ctx.shadowColor = 'white';
-        }
-        ctx.shadowBlur = 15;
-        // --- END VISUAL ENHANCEMENT ---
-
-        // Draw Comet Body based on skin
-        ctx.beginPath();
-        ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-
-        // Apply skin style
-        try {
-          if (skin.fillStyle.startsWith('linear-gradient')) {
-            const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-            if(colors && colors.length >= 2){
-              const gradient = ctx.createLinearGradient(screenX - this.radius, this.y - this.radius, screenX + this.radius, this.y + this.radius);
-              gradient.addColorStop(0, colors[0]);
-              gradient.addColorStop(1, colors[1]);
-              ctx.fillStyle = gradient;
-            } else { ctx.fillStyle = 'white'; }
-          } else if (skin.fillStyle.startsWith('radial-gradient')) {
-            const colors = skin.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-            if (colors && colors.length >= 2) {
-              const gradient = ctx.createRadialGradient(screenX, this.y, this.radius * 0.1, screenX, this.y, this.radius);
-              gradient.addColorStop(0, colors[0]);
-              gradient.addColorStop(0.5, colors[1]);
-              gradient.addColorStop(1, colors[2] || colors[1]); 
-              ctx.fillStyle = gradient;
-            } else { ctx.fillStyle = 'white'; }
-          } else {
-            ctx.fillStyle = skin.fillStyle; // Solid color
-          }
-        } catch (e) {
-          ctx.fillStyle = 'white'; // Fallback on error
-        }
-        ctx.fill();
-        
-        // --- Draw additions like smiley face ---
-        if (skin.drawAddition) {
-           skin.drawAddition(ctx, screenX, this.y, this.radius);
-        }
-
-        // Draw Score Bonus Indicator (if applicable)
-        if (playerData.upgrades.score > 0) {
-          const indicatorX = screenX + this.radius * 0.8, indicatorY = this.y - this.radius * 0.8;
-          ctx.fillStyle = 'rgba(253, 224, 71, 0.5)'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
-        }
-        // Draw Shield (if applicable)
-        if (activePowerUp.type === 'shield' || isHeadstarting) {
-          ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2);
-          // --- VISUALS (POINT 3) ---
-          // Use a pulsing, glowing shader for the shield
-          ctx.strokeStyle = `rgba(56, 189, 248, ${0.5 + Math.sin(Date.now() * 0.01) * 0.5})`;
-          ctx.lineWidth = 3 + Math.sin(Date.now() * 0.01) * 2;
-          ctx.shadowColor = '#38bdf8';
-          ctx.shadowBlur = 15;
-          ctx.stroke();
-          ctx.shadowColor = 'transparent'; // Reset shadow
-          ctx.shadowBlur = 0;
-          ctx.lineWidth = 1; // Reset line width
-        }
-        // Draw Orbiters
-        this.orbiters.forEach(orb => orb.draw(ctx, screenX, this.y));
-        
-        // --- VISUAL ENHANCEMENT: COMET GLOW ---
-        // Reset shadow so it doesn't affect other game objects
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        // --- END VISUAL ENHANCEMENT ---
-      }
-    }
-
-    class Orbiter {
-      constructor(distance, color) { this.distance = distance; this.color = color; this.angle = Math.random() * Math.PI * 2; this.speed = 0.02 + Math.random() * 0.02; }
-      update() { this.angle += this.speed; }
-      draw(ctx, cometX, cometY) {
-        const x = cometX + Math.cos(this.angle) * this.distance; const y = cometY + Math.sin(this.angle) * this.distance;
-        // --- VISUALS (POINT 3) ---
-        // Enhanced orbiter visuals
-        ctx.shadowColor = this.color;
-        ctx.shadowBlur = 10;
-        const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.3, this.color);
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient; 
-        ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-      }
-    }
-
-    class GravityWell {
-      constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; this.pulse = 0; }
-      draw(ctx) {
-        this.pulse += 0.05;
-        const screenX = this.x - cameraX;
-        const radius1 = this.radius * (0.8 + Math.sin(this.pulse) * 0.2);
-        const radius2 = this.radius * (0.4 + Math.sin(this.pulse * 0.8 + 1) * 0.1);
-
-        // --- VISUALS (POINT 3) ---
-        // Enhanced gravity well with gradients and pulses
-        const grad1 = ctx.createRadialGradient(screenX, this.y, 0, screenX, this.y, radius1);
-        grad1.addColorStop(0, 'rgba(196, 181, 253, 0.0)');
-        grad1.addColorStop(0.8, 'rgba(196, 181, 253, 0.15)');
-        grad1.addColorStop(1, 'rgba(196, 181, 253, 0.3)');
-        
-        ctx.fillStyle = grad1;
-        ctx.beginPath(); ctx.arc(screenX, this.y, radius1, 0, Math.PI * 2); ctx.fill();
-        
-        ctx.fillStyle = 'rgba(196, 181, 253, 0.1)';
-        ctx.beginPath(); ctx.arc(screenX, this.y, radius2, 0, Math.PI * 2); ctx.fill();
-        
-        ctx.strokeStyle = 'rgba(224, 208, 255, 0.5)';
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(screenX, this.y, radius1, 0, Math.PI * 2); ctx.stroke();
-        ctx.lineWidth = 1;
-      }
-    }
-
-    class Obstacle {
-      constructor(x, y, width, height, type) { this.x = x; this.y = y; this.width = width; this.height = height; this.type = type; this.initialY = y; this.direction = 1; this.speedY = 1; this.isActive = true; this.phaseTimer = 0; this.phaseDuration = 120; this.warningFrames = 45; }
-      update() {
-        if (this.type === 'vertical') { this.y += this.speedY * this.direction; if (Math.abs(this.y - this.initialY) > 50) this.direction *= -1; }
-        else if (this.type === 'phasing') { this.phaseTimer++; if (this.phaseTimer > this.phaseDuration) { this.phaseTimer = 0; this.isActive = !this.isActive; } }
-      }
-      
-      // --- NEW OBSTACLE TYPE ---
-      // Added a generic collision check for subclasses to use
-      collidesWith(comet) {
-        if (!this.isActive) return false;
-
-        const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
-
-        if (skin.collisionShape === 'circle') {
-          const obsRadius = this.width / 2;
-          const obsCenterX = this.x + obsRadius;
-          const obsCenterY = this.y + obsRadius;
-          
-          const distSq = (comet.x - obsCenterX)**2 + (comet.y - obsCenterY)**2;
-          const radiiSq = (comet.radius + obsRadius)**2;
-          
-          if (distSq < radiiSq) {
-            audioManager.playObstacleSound(skin.id); // Play sound on collision
-            return true;
-          }
-        } else {
-          // Default Rectangle (AABB) Collision
-          if (comet.x + comet.radius > this.x && 
-              comet.x - comet.radius < this.x + this.width && 
-              comet.y + comet.radius > this.y && 
-              comet.y - comet.radius < this.y + this.height) {
-            audioManager.playObstacleSound(skin.id); // Play sound on collision
-            return true;
-          }
-        }
-        return false;
-      }
-      // --- END NEW OBSTACLE TYPE ---
-
-      draw(ctx) {
-        const equippedSkinId = playerData.cosmetics.equipped.obstacle;
-        const skin = cosmeticItems[equippedSkinId] || cosmeticItems['obstacle_default'];
-        
-        let fillColor = skin.fillStyle || currentZoneColors.obstacle;
-        let strokeColor = skin.strokeStyle || currentZoneColors.stroke;
-        
-        if (equippedSkinId === 'obstacle_default') {
-          fillColor = currentZoneColors.obstacle;
-          strokeColor = currentZoneColors.stroke;
-        }
-
-        let shouldDraw = true;
-
-        if (this.type === 'phasing' && !this.isActive) {
-          const timeToActivate = this.phaseDuration - this.phaseTimer;
-          if (timeToActivate < this.warningFrames) { 
-            // --- VISUALS (POINT 3) ---
-            // Pulsing red shader for phasing
-            const alpha = Math.abs(Math.sin(this.phaseTimer * 0.2));
-            fillColor = `rgba(239, 68, 68, ${alpha * 0.5})`; 
-            strokeColor = `rgba(255, 150, 150, ${alpha * 0.8})`;
-            ctx.shadowColor = 'red';
-            ctx.shadowBlur = 10 * alpha;
-          }
-          else { shouldDraw = false; }
-        }
-
-        if (shouldDraw) {
-          try {
-            if (typeof fillColor === 'string' && fillColor.startsWith('linear-gradient')) {
-              const colors = fillColor.match(/rgba?\([^)]+\)/gi);
-              if (colors && colors.length >= 2) {
-                let gradient = ctx.createLinearGradient(this.x - cameraX, this.y, this.x - cameraX, this.y + this.height);
-                gradient.addColorStop(0, colors[0]);
-                gradient.addColorStop(1, colors[1]);
-                ctx.fillStyle = gradient;
-              } else { ctx.fillStyle = currentZoneColors.obstacle; }
-            } else {
-              ctx.fillStyle = fillColor;
-            }
-          } catch (e) {
-            ctx.fillStyle = currentZoneColors.obstacle; // Fallback
-          }
-          
-          if (skin.draw) {
+        async function commitTelemetry(s) {
+            if (!currentUser) return;
+            const status = document.getElementById('upload-status');
+            status.innerText = "Synchronizing Data...";
             try {
-              skin.draw(ctx, this.x - cameraX, this.y, this.width, this.height, skin, this);
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), {
+                    uid: currentUser.uid, score: s, ts: serverTimestamp()
+                });
+                status.innerText = "Telemetry Saved.";
             } catch (e) {
-              ctx.fillStyle = 'red';
-              ctx.fillRect(this.x - cameraX, this.y, this.width, this.height);
+                status.innerText = "Link Failure.";
             }
-          } else {
-            // Default rectangle drawing
-            // --- VISUAL ENHANCEMENT: 2.5D OBSTACLE ---
-            const screenX = this.x - cameraX;
-            const depth = 8; // The "thickness" of the pillar in pixels
-    
-            // 1. Draw the dark "side" or "depth"
-            // We need to create a darker version of the fill color
-            let sideColor;
-            if (typeof fillColor === 'string' && fillColor.startsWith('#')) {
-                // Simple darken for hex: subtract from each component (crude but fast)
-                const r = Math.max(0, parseInt(fillColor.slice(1, 3), 16) - 50).toString(16).padStart(2, '0');
-                const g = Math.max(0, parseInt(fillColor.slice(3, 5), 16) - 50).toString(16).padStart(2, '0');
-                const b = Math.max(0, parseInt(fillColor.slice(5, 7), 16) - 50).toString(16).padStart(2, '0');
-                sideColor = `#${r}${g}${b}`;
-            } else {
-                // Fallback for gradients/rgba (just use a dark grey)
-                sideColor = '#334155'; // slate-700
-            }
-            
-            ctx.fillStyle = sideColor;
-            ctx.fillRect(screenX + depth, this.y + depth, this.width, this.height);
-            
-            // 2. Draw the "front" face
-            ctx.fillStyle = fillColor;
-            ctx.fillRect(screenX, this.y, this.width, this.height);
-    
-            // 3. Draw the "highlight" stroke on the front face
-            if (this.type !== 'phasing' || this.isActive) { 
-              ctx.strokeStyle = strokeColor; 
-              ctx.lineWidth = 2; 
-              ctx.strokeRect(screenX, this.y, this.width, this.height); 
-            }
-            // --- END VISUAL ENHANCEMENT ---
-          }
         }
-        
-        // Reset shadow
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-      }
-    }
-    
-    // --- NEW OBSTACLE TYPE ---
-    class LaserGate extends Obstacle {
-      constructor(x, y, width, height, type) {
-        // 'type' will be 'laser-v' (vertical) or 'laser-h' (horizontal)
-        super(x, y, width, height, type); 
-        this.phaseDuration = 90; // Faster phasing
-        this.warningFrames = 30; // Shorter warning
-      }
-      
-      draw(ctx) {
-        const screenX = this.x - cameraX;
-        let laserColor = `rgba(239, 68, 68, 0.2)`; // Faint red 'off' state
-        let strokeColor = `rgba(255, 150, 150, 0.3)`;
-        let glowColor = 'transparent';
-        let isLethal = false;
 
-        if (this.isActive) {
-          // --- LETHAL "ON" STATE ---
-          isLethal = true;
-          const pulse = 0.7 + Math.sin(Date.now() * 0.05) * 0.3;
-          laserColor = `rgba(239, 68, 68, ${pulse})`; // Pulsing red
-          strokeColor = `rgba(255, 255, 255, ${pulse})`; // White-hot core
-          glowColor = 'red';
-        } else {
-          // --- "OFF" STATE / WARNING ---
-          isLethal = false;
-          const timeToActivate = this.phaseDuration - this.phaseTimer;
-          if (timeToActivate < this.warningFrames) { 
-            const alpha = Math.abs(Math.sin(this.phaseTimer * 0.3));
-            laserColor = `rgba(255, 200, 0, ${alpha * 0.5})`; // Pulsing yellow warning
-            strokeColor = `rgba(255, 255, 255, ${alpha * 0.8})`;
-            glowColor = `rgba(255, 200, 0, ${alpha})`;
-          }
-        }
-        
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = 15;
-        
-        // Draw the main beam
-        ctx.fillStyle = laserColor;
-        ctx.fillRect(screenX, this.y, this.width, this.height);
-        
-        // Draw the "core"
-        ctx.strokeStyle = strokeColor;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(screenX, this.y, this.width, this.height);
-        
-        // Temporarily set isActive for collision check
-        this.isLethal = isLethal; 
-        
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-      }
-      
-      // Override checkCollisions logic
-      collidesWith(comet) {
-        if (!this.isLethal) return false;
-        // Use standard AABB collision
-        return (comet.x + comet.radius > this.x && 
-                comet.x - comet.radius < this.x + this.width && 
-                comet.y + comet.radius > this.y && 
-                comet.y - comet.radius < this.y + this.height);
-      }
-    }
-    
-    // --- NEW OBSTACLE TYPE ---
-    class Pulsar extends Obstacle {
-      constructor(x, y, width, height, type) {
-        super(x, y, width, width, 'pulsar'); // Force width=height
-        this.baseRadius = width / 2;
-        this.currentRadius = this.baseRadius;
-        this.pulseAngle = 0;
-        
-        // --- LOGIC BUG FIX ---
-        // Pre-calculate the center point, which is constant
-        this.centerX = x + this.baseRadius;
-        this.centerY = y + this.baseRadius;
-        // --- END LOGIC BUG FIX ---
-      }
-      
-      update() {
-        this.pulseAngle += 0.02;
-        // Pulse between 50% and 100% of base radius
-        this.currentRadius = this.baseRadius * (0.75 + Math.sin(this.pulseAngle) * 0.25);
-        
-        // Update dimensions for collision (centered)
-        this.width = this.currentRadius * 2;
-        this.height = this.currentRadius * 2;
-        // We need to adjust x/y to keep it centered
-        this.drawX = this.centerX - this.currentRadius;
-        this.drawY = this.centerY - this.currentRadius;
-      }
-      
-      draw(ctx) {
-        // --- LOGIC BUG FIX ---
-        // Draw from the calculated center
-        const screenX = this.centerX - cameraX;
-        const screenY = this.centerY;
-        // --- END LOGIC BUG FIX ---
-        
-        const pulse = 0.7 + Math.sin(this.pulseAngle) * 0.3;
-        const color = `hsl(190, 100%, ${pulse * 70 + 30}%)`; // Pulses blue/white
-        
-        ctx.shadowColor = 'cyan';
-        ctx.shadowBlur = 20;
-        
-        const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, this.currentRadius);
-        grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-        grad.addColorStop(0.5, color);
-        grad.addColorStop(1, 'rgba(0, 200, 255, 0.3)');
-        
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, this.currentRadius, 0, Math.PI * 2);
-        ctx.fill();
-        
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-      }
-      
-      collidesWith(comet) {
-        // --- LOGIC BUG FIX ---
-        // Use the constant center point for collision
-        const distSq = (comet.x - this.centerX)**2 + (comet.y - this.centerY)**2;
-        // --- END LOGIC BUG FIX ---
-        const radiiSq = (comet.radius + this.currentRadius)**2;
-        
-        return (distSq < radiiSq);
-      }
-    }
-    // --- END NEW OBSTACLE TYPES ---
-
-
-    class PowerUp {
-      constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: '#38bdf8' }, shrink: { main: '#16a34a', glow: '#22c55e' }, boost: { main: '#facc15', glow: '#fde047' } }; this.animation = Math.random() * Math.PI * 2; }
-      draw(ctx) {
-        this.animation += 0.05; 
-        const pulse = 1.0 + Math.sin(this.animation) * 0.2; // Larger pulse
-        const colorSet = this.colors[this.type]; 
-        const screenX = this.x - cameraX;
-        
-        // --- VISUALS (POINT 3) ---
-        // Glowing, pulsing power-up effect
-        ctx.shadowColor = colorSet.glow;
-        ctx.shadowBlur = 20;
-        
-        const gradient = ctx.createRadialGradient(screenX, this.y, 0, screenX, this.y, this.radius * pulse);
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.4, colorSet.main);
-        gradient.addColorStop(1, 'transparent');
-        
-        ctx.fillStyle = gradient;
-        ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse * 1.5, 0, Math.PI * 2); ctx.fill();
-        
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-      }
-    }
-    
-    class StarFragment {
-      constructor(x, y) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; }
-      update() {
-        const magnetLevel = playerData.upgrades.magnet || 0;
-        if (magnetLevel > 0 && playerComet) {
-          const magnetRange = 50 + magnetLevel * 25; const dx = playerComet.x - this.x; const dy = playerComet.y - this.y; const distSq = dx * dx + dy * dy;
-          if (distSq < magnetRange * magnetRange) { const dist = Math.sqrt(distSq); this.vx += (dx / dist) * 5; this.vy += (dy / dist) * 5; }
-        }
-        this.vx *= 0.95; this.vy *= 0.95; this.x += this.vx; this.y += this.vy;
-      }
-      draw(ctx) {
-        this.animation += 0.07; 
-        const scale = 1 + Math.sin(this.animation) * 0.2;
-        const screenX = this.x - cameraX;
-        
-        // --- VISUALS (POINT 3) ---
-        // Enhanced star fragment with glow
-        ctx.save(); 
-        ctx.translate(screenX, this.y); 
-        ctx.rotate(this.animation * 0.5); 
-        ctx.scale(scale, scale); 
-        
-        ctx.shadowColor = '#fde047';
-        ctx.shadowBlur = 15;
-        
-        ctx.fillStyle = '#facc15'; 
-        ctx.strokeStyle = '#fde047'; 
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        for (let i = 0; i < 5; i++) { let angle = (i / 5) * 2 * Math.PI; ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius); angle += (1 / 5) * Math.PI; ctx.lineTo(Math.cos(angle) * (this.radius / 2), Math.sin(angle) * (this.radius / 2)); }
-        ctx.closePath(); 
-        ctx.fill(); 
-        ctx.stroke(); 
-        ctx.restore();
-      }
-    }
-    
-    class Particle {
-      constructor(x, y, color, options = {}) { 
-        this.x = x; 
-        this.y = y; 
-        this.color = color; 
-        this.maxLifespan = this.lifespan = options.lifespan || (Math.random() * 20 + 25);
-        this.radius = Math.random() * 2 + 1;
-        const speed = options.speed || (Math.random() * 3 + 1);
-        const angle = options.angle || (Math.random() * Math.PI * 2);
-        this.vx = options.vx !== undefined ? options.vx : (Math.cos(angle) * speed);
-        this.vy = options.vy !== undefined ? options.vy : (Math.sin(angle) * speed);
-      }
-      update() { 
-        this.x += this.vx; 
-        this.y += this.vy; 
-        this.vx *= 0.98;
-        this.vy *= 0.98;
-        this.lifespan--; 
-      }
-      draw(ctx) { 
-        ctx.beginPath(); 
-        ctx.arc(this.x - cameraX, this.y, this.radius * (this.lifespan / this.maxLifespan), 0, Math.PI * 2); 
-        ctx.fillStyle = this.color; 
-        ctx.globalAlpha = this.lifespan / this.maxLifespan; 
-        ctx.fill(); 
-        ctx.globalAlpha = 1.0; 
-      }
-    }
-
-
-    // --- Step 4: Core Game Logic Functions ---
-    
-    // --- LOCALSTORAGE (POINT 5) ---
-    // Swapped from Firebase to LocalStorage for offline-first, no-cost persistence.
-    
-    function getDefaultPlayerData() {
-      // This function provides a clean slate
-      return {
-        highScore: 0,
-        starFragments: 0,
-        upgrades: {
-          shield: 0,
-          magnet: 0,
-          score: 0,
-          headstart: false,
-          revive: false,
-        },
-        cosmetics: {
-          unlocked: ['comet_default', 'obstacle_default', 'background_default'],
-          equipped: {
-            comet: 'comet_default',
-            obstacle: 'obstacle_default',
-            background: 'background_default'
-          }
-        }
-      };
-    }
-    
-    // --- FIREBASE SDK (Fix #7): Re-write loadPlayerData to use Firestore ---
-    async function loadPlayerData() {
-      if (!db || !userId) {
-        console.warn("Firestore/User not ready, loading default data.");
-        playerData = getDefaultPlayerData();
-        return;
-      }
-      
-      const playerDocRef = doc(db, "players", userId);
-      
-      try {
-        const docSnap = await getDoc(playerDocRef);
-        if (docSnap.exists()) {
-          console.log("Loaded player data from Firestore.");
-          const loaded = docSnap.data();
-          // Merge with default to ensure new features/items are present
-          const defaults = getDefaultPlayerData();
-          playerData = {
-            ...defaults,
-            ...loaded,
-            upgrades: { ...defaults.upgrades, ...loaded.upgrades },
-            cosmetics: {
-              unlocked: [...new Set([...defaults.cosmetics.unlocked, ...(loaded.cosmetics?.unlocked || [])])],
-              equipped: { ...defaults.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) }
-            }
-          };
-        } else {
-          console.log("No player data in Firestore, creating new save.");
-          playerData = getDefaultPlayerData();
-          // Save this new default data to Firestore
-          await savePlayerData();
-        }
-      } catch (e) {
-        console.error("Could not load player data, using defaults.", e);
-        playerData = getDefaultPlayerData();
-      }
-    }
-
-    // --- FIREBASE SDK (Fix #7): Re-write savePlayerData to use Firestore ---
-    async function savePlayerData() {
-      if (!db || !userId) {
-        console.warn("Firestore/User not ready, cannot save.");
-        return;
-      }
-
-      const playerDocRef = doc(db, "players", userId);
-      try {
-        // We use setDoc with merge: true to avoid overwriting fields
-        // if the cloud data is newer (though for this simple app, it's fine)
-        await setDoc(playerDocRef, playerData, { merge: true });
-        console.log("Player data saved to Firestore.");
-      } catch (e) {
-        console.error("Could not save player data.", e);
-      }
-    }
-    // --- END LOCALSTORAGE ---
-
-
-    function updateObservatoryUI() {
-      shopFragmentsDisplay.textContent = playerData.starFragments;
-      
-      const strings = stringTable[currentLanguage];
-
-      // Update Upgrades Tab
-      Object.keys(upgradeCosts).forEach(id => {
-        if (Array.isArray(upgradeCosts[id])) {
-          // Permanent upgrade
-          const item = document.getElementById(`upgrade-${id}`);
-          if (!item) return;
-          const level = playerData.upgrades[id] || 0;
-          const button = item.querySelector('button');
-          const levelDisplay = item.querySelector('.upgrade-level');
-          const maxLevel = upgradeCosts[id].length;
-
-          if (level >= maxLevel) {
-            button.textContent = strings['max_level'];
-            button.disabled = true;
-            button.classList.add('buy-btn-maxed');
-          } else {
-            const cost = upgradeCosts[id][level];
-            button.textContent = `${strings['buy_button']} (${cost})`;
-            button.dataset.cost = cost; // Store cost for localization update
-            button.disabled = playerData.starFragments < cost;
-            button.classList.remove('buy-btn-maxed');
-          }
-          levelDisplay.textContent = `${strings['level']} ${level}/${maxLevel}`;
-        } else {
-          // Single-use utility
-          const item = document.getElementById(`utility-${id}`);
-          if (!item) return;
-          const button = item.querySelector('button');
-          const cost = upgradeCosts[id];
-          button.dataset.cost = cost; // Store cost
-
-          if (playerData.upgrades[id]) {
-            button.textContent = strings['buy_button']; // Or "Owned" - we'll just disable
-            button.disabled = true;
-            button.classList.add('buy-btn-maxed');
-          } else {
-            button.textContent = `${strings['buy_button']} (${cost})`;
-            button.disabled = playerData.starFragments < cost;
-            button.classList.remove('buy-btn-maxed');
-          }
-        }
-      });
-
-      // Update Cosmetics Grids
-      const grids = {
-        comet: cometSkinsGrid,
-        obstacle: obstacleSkinsGrid,
-        background: backgroundThemesGrid
-      };
-
-      Object.values(grids).forEach(grid => { if (grid) grid.innerHTML = ''; });
-
-      Object.keys(cosmeticItems).forEach(id => {
-        try {
-          const item = cosmeticItems[id];
-          const grid = grids[item.type];
-          if (!grid) return;
-
-          const div = document.createElement('div');
-          div.className = 'cosmetic-item';
-          
-          const preview = document.createElement('div');
-          preview.className = `cosmetic-preview`;
-          
-          // --- VISUALS (POINT 3) ---
-          // Create a mini-canvas for advanced previews
-          const previewCanvas = document.createElement('canvas');
-          previewCanvas.width = 100;
-          previewCanvas.height = 80;
-          const pCtx = previewCanvas.getContext('2d');
-          pCtx.translate(50, 40); // Center
-          
-          if (item.type === 'comet') {
-            const tempComet = { x: 0, y: 0, radius: 15, trail: [] };
-            // Draw a simple preview
-            pCtx.beginPath(); pCtx.arc(0, 0, tempComet.radius, 0, 2 * Math.PI);
+        async function fetchGlobalRecords() {
+            const list = document.getElementById('leaderboard-list');
+            list.innerHTML = '<div class="loader"></div>';
             try {
-              if (item.fillStyle.startsWith('linear-gradient')) {
-                const colors = item.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-                const grad = pCtx.createLinearGradient(-15, -15, 15, 15);
-                grad.addColorStop(0, colors[0]); grad.addColorStop(1, colors[1]);
-                pCtx.fillStyle = grad;
-              } else if (item.fillStyle.startsWith('radial-gradient')) {
-                const colors = item.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi);
-                const grad = pCtx.createRadialGradient(0, 0, 2, 0, 0, 15);
-                grad.addColorStop(0, colors[0]); grad.addColorStop(0.5, colors[1]); grad.addColorStop(1, colors[2] || colors[1]);
-                pCtx.fillStyle = grad;
-              } else {
-                pCtx.fillStyle = item.fillStyle;
-              }
-            } catch(e) { pCtx.fillStyle = 'white'; }
-            pCtx.fill();
-            if(item.drawAddition) item.drawAddition(pCtx, 0, 0, 15);
-            
-          } else if (item.type === 'obstacle') {
-            const tempObs = { vertices: null }; // Fresh vertices
-            pCtx.scale(0.8, 0.8); // Scale down obstacles to fit
-            if(item.draw) {
-              item.draw(pCtx, -25, -30, 50, 60, item, tempObs);
-            } else {
-              pCtx.fillStyle = item.fillStyle;
-              pCtx.strokeStyle = item.strokeStyle;
-              pCtx.fillRect(-25, -30, 50, 60);
-              pCtx.strokeRect(-25, -30, 50, 60);
-            }
-          } else if (item.type === 'background') {
-            pCtx.translate(-50, -40); // Reset translation
-            if(item.render) {
-              item.render(pCtx, { background: '#020617' });
-            } else {
-              pCtx.fillStyle = '#020617';
-              pCtx.fillRect(0,0,100,80);
-            }
-          }
-          preview.appendChild(previewCanvas);
-          // --- END VISUALS ---
-
-          const name = document.createElement('strong');
-          name.textContent = item.name;
-          
-          const button = document.createElement('button');
-          button.dataset.cosmeticId = id;
-
-          if (playerData.cosmetics.equipped[item.type] === id) {
-            button.className = 'btn equip-btn equipped-btn';
-            button.textContent = strings['equipped_button'];
-            button.disabled = true;
-          } else if (playerData.cosmetics.unlocked.includes(id)) {
-            button.className = 'btn equip-btn';
-            button.textContent = strings['equip_button'];
-          } else {
-            button.className = 'btn buy-cosmetic-btn';
-            button.textContent = `${strings['buy_button']} (${item.cost})`;
-            button.dataset.cost = item.cost;
-            button.disabled = playerData.starFragments < item.cost;
-          }
-          
-          div.appendChild(preview);
-          div.appendChild(name);
-          div.appendChild(button);
-          grid.appendChild(div);
-        } catch (error) {
-          console.error(`Failed to create UI for cosmetic item ${id}:`, error);
-        }
-      });
-    }
-
-    async function setGameState(newState) { // <-- Made this function async
-      // PAUSE BUG FIX (Fix #4):
-      // Explicitly destroy the gravity well when pausing to prevent
-      // a "stuck" well when resuming.
-      if (newState === 'paused') {
-        gravityWell = null;
-      }
-      
-      const oldState = gameState;
-      gameState = newState;
-      
-      // --- GAME OVER BUG FIX (Fix #11) ---
-      // Stop any existing game loop *before* setting the new state
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-      // --- END GAME OVER BUG FIX ---
-
-      allUiScreens.forEach(screen => {
-        const screenType = screen.dataset.uiScreen;
-        const isModal = screen.classList.contains('modal');
-        
-        if (screenType === 'inGame') {
-          screen.style.display = 'none';
-        } else if (screenType === 'powerUp') {
-          screen.className = 'powerup-hidden'; 
-        } else if (isModal) {
-          screen.className = 'modal modal-hidden';
-        }
-      });
-
-      appContainer.classList.remove('screen-shake');
-      
-      // Now, selectively SHOW the elements for the new state
-      if (newState === 'menu') {
-        // --- DYNAMIC AUDIO (Fix #10): Call new menu music function ---
-        await audioManager.tryInitAudio(); // Ensure audio is unlocked
-        audioManager.startMenuMusic(); 
-        // --- END DYNAMIC AUDIO ---
-        mainMenu.className = 'modal modal-visible';
-        highScoreDisplay.textContent = playerData.highScore;
-        starFragmentsDisplay.textContent = playerData.starFragments;
-        userIdDisplay.textContent = userId ? `${userId.substring(0, 10)}...` : 'Offline'; // <-- DEV MODE (Fix #9)
-        if (!menuComet) {
-            menuComet = new PlayerComet(VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT / 2);
-            menuComet.startDelay = 0; // Menu comet can oscillate
-        }
-        gameLoop(); // Start the new menu loop
-      } else if (newState === 'playing') {
-        inGameUi.style.display = 'flex';
-        runFragmentsContainer.classList.remove('run-fragments-hidden');
-        if (oldState === 'paused') { 
-          // MUSIC BUG FIX (Bug #3):
-          // We must re-unlock audio context *before* starting music,
-          // as the context may have been suspended.
-          await audioManager.tryInitAudio(); // <-- Added 'await'
-          audioManager.startMusic(); 
-          gameLoop(); 
-        }
-        else { setTimeout(startGame, 350); }
-      } else if (newState === 'paused') {
-        // MUSIC BUG FIX (Bug #3): Stop music when pausing
-        audioManager.stopMusic(); 
-        inGameUi.style.display = 'flex';
-        pauseMenu.className = 'modal modal-visible';
-      } else if (newState === 'game-over') {
-        if (playerComet) createExplosion(playerComet.x, playerComet.y, 10, 'white');
-        audioManager.stopMusic(); audioManager.playGameOverSound(); 
-        inGameUi.style.display = 'flex';
-        runFragmentsContainer.classList.add('run-fragments-hidden');
-        appContainer.classList.add('screen-shake');
-        
-        // --- LOCALSTORAGE (POINT 5) ---
-        if (score > playerData.highScore) playerData.highScore = Math.floor(score);
-        playerData.starFragments += fragmentsThisRun;
-        savePlayerData(); // Save to Firestore
-        // --- END LOCALSTORAGE ---
-        
-        finalScoreElement.textContent = Math.floor(score);
-        fragmentsEarnedDisplay.textContent = fragmentsThisRun;
-        gameOverModal.className = 'modal modal-visible';
-      } else if (newState === 'observatory') {
-        // --- DYNAMIC AUDIO (Fix #10): Play menu music in observatory ---
-        await audioManager.tryInitAudio(); // Ensure audio is unlocked
-        audioManager.startMenuMusic();
-        // --- END DYNAMIC AUDIO ---
-        updateObservatoryUI(); 
-        observatory.className = 'modal modal-visible';
-      }
-      
-      // Update UI text for the newly visible screen
-      updateUIText();
-    }
-
-    function initNewRun() {
-      score = 0;
-      fragmentsThisRun = 0;
-      maxDistanceReached = 0;
-      lastZoneIndex = -1;
-      cameraX = 0;
-      obstacles = [];
-      powerUps = [];
-      starFragments = [];
-      particles = [];
-      backgroundDecorations = []; // <-- BACKGROUND VISUALS (POINT 4)
-      nextObstacleSpawnX = VIRTUAL_WIDTH;
-      nextPowerUpSpawnX = VIRTUAL_WIDTH / 2;
-      nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
-      nextBgObjectSpawnX = VIRTUAL_WIDTH * 0.5; // <-- BACKGROUND VISUALS (POINT 4)
-      activePowerUp = { type: null, timer: 0 };
-      runFragmentsDisplay.textContent = '0';
-      scoreElement.textContent = '0';
-      
-      isHeadstarting = playerData.upgrades.headstart;
-      if (isHeadstarting) { 
-        headstartTimer = 0; 
-        playerData.upgrades.headstart = false; 
-        savePlayerData(); 
-      }
-      hasRevive = playerData.upgrades.revive;
-      if (hasRevive) { 
-        playerData.upgrades.revive = false; 
-        savePlayerData(); 
-      }
-      
-      updateUpgradeIndicators();
-      // --- MOBILE (POINT 2) ---
-      // Changed start X from 150 to 160
-      playerComet = new PlayerComet(160, VIRTUAL_HEIGHT / 2);
-      checkZoneTransition();
-    }
-
-    async function startGame() { // <-- Made this function async
-      resizeCanvas(); 
-      initNewRun(); 
-      // MUSIC BUG FIX (Bug #3): Unlock audio before starting music
-      await audioManager.tryInitAudio(); // <-- Added 'await'
-      audioManager.startMusic(); 
-      if (animationFrameId) { 
-        cancelAnimationFrame(animationFrameId); 
-        animationFrameId = null; 
-      } 
-      gameLoop(); 
-    }
-
-    function gameLoop() {
-      if (animationFrameId) cancelAnimationFrame(animationFrameId);
-
-      if (gameState === 'playing' && !isGameOver) {
-        updateGame();
-        drawGame();
-      } else if (gameState === 'menu') {
-        updateMenu();
-        drawMenu();
-      }
-      
-      if (gameState !== 'game-over' && gameState !== 'paused') {
-        animationFrameId = requestAnimationFrame(gameLoop);
-      }
-    }
-
-
-    function updateGame() {
-      if (!playerComet) return;
-      if (isHeadstarting) {
-        headstartTimer++;
-        const progress = headstartTimer / HEADSTART_DURATION;
-        playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
-        if (headstartTimer >= HEADSTART_DURATION) {
-          isHeadstarting = false;
-          activePowerUp.type = 'shield';
-          activePowerUp.timer = 300;
-        }
-      }
-      
-      // --- MOBILE (POINT 2) ---
-      // Changed camera logic to lock comet to the left
-      cameraX = playerComet.x - 160;
-      
-      playerComet.update();
-      manageObstacles();
-      managePowerUps();
-      manageStarFragments();
-      manageParticles();
-      manageBackgroundDecorations(); // <-- BACKGROUND VISUALS (POINT 4)
-      
-      const theme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
-      if(theme.render && theme.render(ctx, currentZoneColors).stars) {
-        // --- PHYSICS (POINT 2) FIX ---
-        // Pass playerComet.vx (actual speed) instead of .speed (which is undefined)
-        stars.forEach(s => s.update(playerComet.vx)); 
-      }
-
-      obstacles.forEach(o => o.update());
-      starFragments.forEach(sf => sf.update());
-      // --- BACKGROUND VISUALS (POINT 4) ---
-      // Pass the *actual* horizontal speed
-      backgroundDecorations.forEach(bg => bg.update(playerComet.vx)); 
-      
-      const collisionResult = checkCollisions();
-      if (collisionResult.obstacle) {
-        if (hasRevive) revivePlayer();
-        else { setGameState('game-over'); return; }
-      }
-      if (collisionResult.fragment) {
-        fragmentsThisRun++;
-        runFragmentsDisplay.textContent = fragmentsThisRun;
-        audioManager.playFragmentSound();
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15');
-      }
-      if (collisionResult.powerUp) {
-        activePowerUp.type = collisionResult.powerUp;
-        let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1);
-        activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type];
-        audioManager.playPowerUpSound();
-        createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[activePowerUp.type].main);
-      }
-      
-      handleActivePowerUp();
-      
-      if (!isHeadstarting) {
-        if (playerComet.vx > 0) {
-          const distanceGained = Math.max(0, playerComet.x - maxDistanceReached);
-          if (distanceGained > 0) {
-            const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0);
-            score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
-          }
-        }
-        maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
-      } else {
-        score = (maxDistanceReached / SCORE_DIVISOR);
-      }
-      
-      scoreElement.textContent = Math.floor(score);
-      checkZoneTransition();
-    }
-
-    function drawBackground() {
-      const equippedBackgroundId = playerData.cosmetics.equipped.background;
-      const theme = cosmeticItems[equippedBackgroundId] || cosmeticItems['background_default'];
-      
-      // --- VISUALS (POINT 3 & 4) ---
-      // Custom background render functions + decorations
-      let renderConfig = { stars: true, custom: false };
-      try {
-        renderConfig = theme.render(ctx, currentZoneColors) || renderConfig;
-      } catch (e) {
-        console.error(`Error rendering background theme ${equippedBackgroundId}:`, e);
-        renderConfig = cosmeticItems['background_default'].render(ctx, currentZoneColors);
-      }
-      
-      // Draw new background decorations (they draw themselves with parallax)
-      backgroundDecorations.forEach(bg => bg.draw(ctx));
-      
-      // Draw stars if the theme wants them
-      if (renderConfig.stars) {
-        const starColor = renderConfig.custom ? 'rgba(255, 255, 255, 0.7)' : currentZoneColors.star;
-        stars.forEach(s => s.draw(ctx, starColor));
-      }
-    }
-
-
-    function drawGame() {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.scale(scale, scale);
-
-      drawBackground(); // Use the dedicated background drawing function
-
-      // Draw other game elements
-      if (playerComet) playerComet.draw(ctx);
-      obstacles.forEach(o => o.draw(ctx));
-      powerUps.forEach(p => p.draw(ctx));
-      starFragments.forEach(sf => sf.draw(ctx));
-      particles.forEach(p => p.draw(ctx));
-      if (gravityWell && !isHeadstarting) gravityWell.draw(ctx);
-      
-      ctx.restore();
-    }
-
-    function updateMenu() {
-      if (!menuComet) return;
-      stars.forEach(s => s.update(0.5));
-      // --- BACKGROUND VISUALS (POINT 4) ---
-      // Update and manage decorations in the menu
-      backgroundDecorations.forEach(bg => bg.update(0.5));
-      manageBackgroundDecorations();
-      menuComet.update();
-    }
-
-    function drawMenu() {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.save();
-      ctx.scale(scale, scale);
-      
-      cameraX = 0; // Reset camera for menu
-      drawBackground();
-
-      if (menuComet) {
-        // Center camera on menu comet
-        cameraX = menuComet.x - VIRTUAL_WIDTH / 2;
-        menuComet.draw(ctx);
-      }
-      ctx.restore();
-    }
-
-    function resizeCanvas() {
-      const { clientWidth, clientHeight } = appContainer;
-      // MOBILE VIEWPORT FIX (Fix #1): Use innerWidth/innerHeight for Webview
-      const w = clientWidth || window.innerWidth;
-      const h = clientHeight || window.innerHeight;
-      
-      scale = Math.min(w / VIRTUAL_WIDTH, h / VIRTUAL_HEIGHT);
-      canvas.width = VIRTUAL_WIDTH * scale;
-      canvas.height = VIRTUAL_HEIGHT * scale;
-    }
-
-    function getObstacleTypeForZone() {
-      const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-      const rand = Math.random();
-      if (zoneIndex < 1) return 'static';
-      if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical';
-      // --- NEW OBSTACLE TYPE ---
-      // Zones 3+ can now spawn phasing, lasers, and pulsars
-      if (zoneIndex < 5) {
-        if (rand < 0.4) return 'static';
-        if (rand < 0.7) return 'vertical';
-        return 'phasing';
-      }
-      // Zones 5+ get wild
-      if (rand < 0.2) return 'static';
-      if (rand < 0.4) return 'vertical';
-      if (rand < 0.6) return 'phasing';
-      if (rand < 0.8) return Math.random() < 0.5 ? 'laser-v' : 'laser-h';
-      return 'pulsar';
-      // --- END NEW OBSTACLE TYPE ---
-    }
-
-    function manageObstacles() {
-      if (!playerComet) return;
-      obstacles = obstacles.filter(o => o.x + o.width > cameraX);
-      const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
-
-      if (nextObstacleSpawnX < spawnAheadPoint) {
-        const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-        const minDistance = Math.max(80, 200 - zoneIndex * 15);
-        const randomDistance = Math.max(50, 150 - zoneIndex * 10);
-        const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance;
-        
-        const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
-        // --- NEW OBSTACLE TYPE ---
-        const obstacleType = getObstacleTypeForZone();
-        
-        if (obstacleType === 'laser-v') {
-          // Full-height vertical laser
-          obstacles.push(new LaserGate(x + 10, 0, 5, VIRTUAL_HEIGHT, obstacleType));
-        } else if (obstacleType === 'laser-h') {
-          // Horizontal laser (at random height)
-          const y = Math.random() * (VIRTUAL_HEIGHT - 20) + 10;
-          obstacles.push(new LaserGate(x, y, 100, 5, obstacleType));
-        } else if (obstacleType === 'pulsar') {
-          // Pulsing obstacle
-          const y = Math.random() * (VIRTUAL_HEIGHT - 100) + 50;
-          obstacles.push(new Pulsar(x, y, 100, 100, obstacleType));
-        } else {
-          // --- END NEW OBSTACLE TYPE ---
-          let width = Math.random() * 50 + 25;
-          let height = Math.random() * 180 + 50;
-
-          if (skin.collisionShape === 'circle') {
-            width = height = Math.random() * 30 + 30; // 30-60 radius
-          }
-
-          const y = Math.random() * (VIRTUAL_HEIGHT - height);
-          obstacles.push(new Obstacle(x, y, width, height, obstacleType)); // <-- Pass new type
-        }
-        nextObstacleSpawnX = x;
-      }
-    }
-
-    function managePowerUps() {
-      if (!playerComet) return;
-      powerUps = powerUps.filter(p => p.x + p.radius > cameraX);
-      const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
-
-      if (nextPowerUpSpawnX < spawnAheadPoint) {
-        for (let attempts = 0; attempts < 5; attempts++) {
-          const x = spawnAheadPoint + Math.random() * 500;
-          const y = Math.random() * VIRTUAL_HEIGHT;
-          if (!obstacles.some(obs => x < obs.x + obs.width && x + 24 > obs.x && y < obs.y + obs.height && y + 24 > obs.y)) {
-            const type = ['shield', 'shrink', 'boost'][Math.floor(Math.random() * 3)];
-            powerUps.push(new PowerUp(x, y, type));
-            break;
-          }
-        }
-        nextPowerUpSpawnX = spawnAheadPoint + (Math.random() * 1000 + 800);
-      }
-    }
-
-    function manageStarFragments() {
-      if (!playerComet) return;
-      starFragments = starFragments.filter(sf => sf.x + sf.radius > cameraX);
-      const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
-
-      if (nextFragmentSpawnX < spawnAheadPoint) {
-        const clusterSize = Math.floor(Math.random() * 4) + 3;
-        const startX = spawnAheadPoint + 100;
-        const startY = VIRTUAL_HEIGHT * 0.2 + Math.random() * VIRTUAL_HEIGHT * 0.6;
-        
-        // --- 5-STAR ARCH ---
-        const arcRadius = Math.random() * 100 + 50;
-        const arcAngle = (Math.random() - 0.5) * Math.PI / 2;
-        const potentialFragments = Array.from({length: clusterSize}, (_, i) => {
-            const segment = (i / (clusterSize - 1)) - 0.5; // -0.5 to 0.5
-            const angle = arcAngle + segment * Math.PI;
-            return {
-                x: startX + Math.cos(angle) * arcRadius,
-                y: startY + Math.sin(angle) * arcRadius
-            };
-        });
-        
-        if (!potentialFragments.some(pf => obstacles.some(obs => pf.x > obs.x && pf.x < obs.x + obs.width && pf.y > obs.y && pf.y < obs.y + obs.height))) {
-          potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y)));
-        }
-        nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
-      }
-    }
-    
-    // --- BACKGROUND VISUALS (POINT 4) ---
-    function manageBackgroundDecorations() {
-      const spawnRootX = (gameState === 'menu') ? 0 : cameraX;
-      const spawnAheadPoint = spawnRootX + VIRTUAL_WIDTH;
-
-      // --- POINT 4 FIX: Simplified filter ---
-      // All objects are now only filtered by their position, not lifespan
-      backgroundDecorations = backgroundDecorations.filter(bg => {
-        // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
-        // Need to account for large nebula radius
-        const width = bg.radius ? bg.radius * 2 : (bg.width || 50);
-        return (bg.x + width) > spawnRootX;
-        // --- END VISUAL ENHANCEMENT ---
-      });
-
-      if (nextBgObjectSpawnX < spawnAheadPoint) {
-        const rand = Math.random();
-        const x = spawnAheadPoint + Math.random() * 300;
-        const y = Math.random() * VIRTUAL_HEIGHT;
-        const z = Math.random() * 0.3 + 0.1; // 0.1 to 0.4 (mid-to-far background)
-
-        if (rand < 0.2) {
-          backgroundDecorations.push(new DistantPlanet(x, y, z));
-        } else if (rand < 0.3) {
-          backgroundDecorations.push(new AlienShip(x, y, z * 2)); // Ships are a bit closer
-        } else if (rand < 0.35) {
-          // Shooting stars are special, they spawn at top
-          backgroundDecorations.push(new ShootingStar(x, Math.random() * VIRTUAL_HEIGHT * 0.2, 0));
-        }
-        // --- VISUAL ENHANCEMENT: NEW BG ASSET ---
-        else if (rand < 0.5) {
-          // Add a nebula cloud, very far away
-          backgroundDecorations.push(new NebulaCloud(x, y, Math.random() * 0.05 + 0.01));
-        } else if (rand < 0.6) {
-          // Add a "foreground" asteroid field (z > 1.0)
-          const fieldX = spawnAheadPoint + Math.random() * 200;
-          const fieldY = Math.random() * VIRTUAL_HEIGHT;
-          const fieldZ = 1.0 + Math.random(); // Faster than the player
-          for(let i = 0; i < 5; i++) {
-            const rock = new DistantPlanet( // Re-using DistantPlanet as a "rock"
-              fieldX + (Math.random() - 0.5) * 200,
-              fieldY + (Math.random() - 0.5) * 200,
-              fieldZ
-            );
-            rock.radius = Math.random() * 5 + 2; // small rocks
-            rock.color1 = '#52525b'; // zinc-600
-            rock.color2 = '#3f3f46'; // zinc-700
-            rock.draw = function(ctx) { // Simple draw
-              const screenX = this.x - cameraX * this.z;
-              ctx.fillStyle = this.color1;
-              ctx.globalAlpha = 0.8;
-              ctx.beginPath();
-              ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.globalAlpha = 1.0;
-            }
-            backgroundDecorations.push(rock);
-          }
-        }
-        // --- END VISUAL ENHANCEMENT ---
-        
-        nextBgObjectSpawnX = spawnAheadPoint + Math.random() * 400 + 100; // 100-500px gap
-      }
-    }
-    // --- END BACKGROUND VISUALS ---
-
-    function createExplosion(x, y, count, color) { 
-      for (let i = 0; i < count; i++) { 
-        particles.push(new Particle(x, y, color)); 
-      } 
-    }
-    function manageParticles() { particles = particles.filter(p => { p.update(); return p.lifespan > 0; }); }
-
-    function handleActivePowerUp() {
-      if (activePowerUp.type && activePowerUp.timer > 0) {
-        activePowerUp.timer--;
-        powerUpStatusElement.textContent = `${activePowerUp.type.toUpperCase()}: ${(activePowerUp.timer / 60).toFixed(1)}s`;
-        powerUpStatusElement.className = 'powerup-active';
-        if (activePowerUp.timer <= 0) {
-          activePowerUp.type = null;
-          powerUpStatusElement.className = 'powerup-hidden';
-        }
-      }
-    }
-
-    function checkCollisions() {
-      if (!playerComet) return {};
-      for (let i = starFragments.length - 1; i >= 0; i--) { 
-        const sf = starFragments[i]; 
-        if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
-          return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
-        } 
-      }
-      for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
-      
-      if (activePowerUp.type !== 'shield' && !isHeadstarting) {
-        if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
-        
-        for (const obs of obstacles) {
-          // --- NEW OBSTACLE TYPE ---
-          // Use the obstacle's own collision logic if it has one
-          if (obs.collidesWith) {
-            if (obs.collidesWith(playerComet)) {
-              // audioManager.playObstacleSound(playerData.cosmetics.equipped.obstacle); // Sound is now played in the collidesWith method
-              return { obstacle: true };
-            }
-            continue; // Skip to next obstacle
-          }
-          // --- END NEW OBSTACLE TYPE ---
-        }
-      }
-      return {};
-    }
-
-    function revivePlayer() {
-      hasRevive = false;
-      updateUpgradeIndicators();
-      createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9');
-      activePowerUp.type = 'shield';
-      activePowerUp.timer = 180;
-      obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH);
-    }
-    
-    function calculateCurrentSpeed() { 
-      const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); 
-      // --- MODIFICATION #2: Exponential speed increase ---
-      // The old formula was linear: INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
-      // This new formula is exponential, making the game get much faster over time.
-      return INITIAL_SPEED * Math.pow(1.15, zoneIndex);
-      // --- END MODIFICATION #2 ---
-    }
-
-    function checkZoneTransition() {
-      const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-      const theme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
-      
-      // Always update dynamic colors
-      const hue = (240 + (zoneIndex * 50)) % 360;
-      currentZoneColors.background = `hsla(${hue}, 60%, 15%, 0.8)`;
-      // --- VISUAL ENHANCEMENT: PARALLAX ---
-      // Store star color as an RGB string for the alpha calculation
-      currentZoneColors.star = `255, 255, 255`;
-      // --- END VISUAL ENHANCEMENT ---
-      currentZoneColors.obstacle = `hsl(${hue + 20}, 80%, 60%)`;
-      currentZoneColors.stroke = `hsl(${hue + 20}, 80%, 70%)`;
-      
-      if (zoneIndex !== lastZoneIndex) {
-        if (playerComet && lastZoneIndex > -1) { // Don't add orbiter on first zone
-          const orbColor = `hsl(${hue + 20}, 80%, 60%)`;
-          playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), orbColor));
-        }
-        
-        audioManager.setMusicZone(zoneIndex);
-        lastZoneIndex = zoneIndex;
-        
-      } else if (lastZoneIndex === -1) {
-        // Set initial zone/music
-        lastZoneIndex = 0;
-        audioManager.setMusicZone(0);
-      }
-    }
-    
-    function updateUpgradeIndicators() {
-      powerUpStatusElement.className = 'powerup-hidden';
-      activeUpgradesContainer.style.display = 'flex';
-      magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none';
-      scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none';
-      reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none';
-    }
-    
-    function setupEventListeners() {
-      const getPos = (e) => { 
-        const rect = canvas.getBoundingClientRect(); 
-        const clientX = e.clientX || e.touches[0].clientX; 
-        const clientY = e.clientY || e.touches[0].clientY; 
-        return { 
-          x: (clientX - rect.left) / scale, 
-          y: (clientY - rect.top) / scale 
-        }; 
-      };
-
-      const startWell = (e) => { 
-        if (gameState !== 'playing' || isHeadstarting) return; 
-        e.preventDefault(); 
-        const pos = getPos(e);
-        gravityWell = new GravityWell(pos.x + cameraX, pos.y); 
-      };
-      
-      const moveWell = (e) => { 
-        if (gravityWell && !isHeadstarting) { 
-          e.preventDefault(); 
-          const pos = getPos(e);
-          gravityWell.x = pos.x + cameraX; 
-          gravityWell.y = pos.y; 
-        } 
-      };
-      
-      const endWell = (e) => { 
-        if (gameState === 'playing') {
-          e.preventDefault(); 
-        }
-        gravityWell = null; 
-      };
-      
-      // Canvas Listeners
-      canvas.addEventListener('mousedown', startWell);
-      canvas.addEventListener('mousemove', moveWell);
-      canvas.addEventListener('touchstart', startWell, { passive: false });
-      canvas.addEventListener('touchmove', moveWell, { passive: false });
-      
-      // Global listeners for ending interaction
-      document.addEventListener('mouseup', endWell); 
-      document.addEventListener('touchend', endWell); 
-      document.addEventListener('touchcancel', endWell); 
-      
-      window.addEventListener('resize', resizeCanvas); 
-      
-      // --- All clicks are now handled by one delegation listener ---
-      // --- MUSIC FIX (POINT 3) ---
-      // Made the listener async to await the audio unlock
-      document.body.addEventListener('click', async (e) => {
-        // --- AUDIO UNLOCK ---
-        // Any click on the body will attempt to unlock the audio
-        await audioManager.tryInitAudio();
-        
-        const target = e.target;
-        
-        // --- BUTTON CLICKS ---
-        // Use .closest() to catch clicks on icons inside buttons
-        
-        if (target.closest('#playButton')) {
-          setGameState('playing');
-        } 
-        else if (target.closest('#restartButton')) {
-          setGameState('playing');
-        }
-        else if (target.closest('#pauseButton')) {
-          if (gameState === 'playing') setGameState('paused');
-        }
-        else if (target.closest('#resumeButton')) {
-          if (gameState === 'paused') setGameState('playing');
-        }
-        else if (target.closest('#quitButton')) {
-          if (gameState === 'paused') setGameState('menu');
-        }
-        else if (target.closest('#observatoryButton') || target.closest('#gameOverObservatoryButton') || target.closest('#observatoryBackButtonPortrait')) {
-          setGameState('observatory');
-        }
-        else if (target.closest('#gameOverMenuButton')) {
-          setGameState('menu');
-        }
-        else if (target.closest('#closeObservatoryButton')) {
-          setGameState('menu');
-        }
-        // --- EXIT BUTTON (POINT 2) ---
-        else if (target.closest('#exitButton')) {
-          audioManager.playClickSound();
-          if (window.CapacitorApp) {
-            window.CapacitorApp.exitApp();
-          } else {
-            console.log("Exit button clicked (App.exitApp() only works in native app)");
-          }
-        }
-        
-        // --- DEV MODE (Fix #9): Secret cheat code ---
-        else if (target.closest('#highScoreDisplayContainer')) {
-          devModeClickCount++;
-          if (devModeClickCount >= 5) {
-            devModeClickCount = 0;
-            if (db && userId) {
-              const playerDocRef = doc(db, "players", userId);
-              await updateDoc(playerDocRef, {
-                starFragments: increment(10000)
-              });
-              // Reload player data to reflect change immediately
-              await loadPlayerData();
-              // Update UI
-              starFragmentsDisplay.textContent = playerData.starFragments;
-              console.log("DEV: Added 10,000 fragments.");
-            }
-          }
-        } else if (!target.closest('.modal-content')) {
-          devModeClickCount = 0; // Reset count if clicking elsewhere
-        }
-        // --- END DEV MODE ---
-      });
-      
-      // --- PAUSE BUTTON (MOBILE FIX) ---
-      // Use touchstart for immediate response on mobile
-      pauseButton.addEventListener('touchstart', (e) => {
-        e.preventDefault(); // Prevent click event from firing too
-        if (gameState === 'playing') {
-          setGameState('paused');
-        }
-      }, { passive: false });
-
-      // --- OBSERVATORY DELEGATION ---
-      observatory.addEventListener('click', (e) => {
-        const target = e.target.closest('button');
-        if (!target) return;
-
-        // Tab Switching
-        if (target.dataset.tab) {
-          observatoryNav.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-          tabContents.forEach(content => content.classList.remove('active'));
-          
-          target.classList.add('active');
-          document.getElementById(target.dataset.tab).classList.add('active');
-          audioManager.playClickSound();
-          return;
-        }
-
-        // Upgrade Buys
-        if (target.dataset.upgrade) {
-          buyUpgrade(target.dataset.upgrade);
-          return;
-        }
-        
-        // Cosmetic Buy/Equip
-        if (target.dataset.cosmeticId) {
-          const id = target.dataset.cosmeticId;
-          if (target.classList.contains('buy-cosmetic-btn')) {
-            buyCosmetic(id);
-          } else if (target.classList.contains('equip-btn')) {
-            equipCosmetic(id);
-          }
-          return;
-        }
-      });
-    } // --- End setupEventListeners ---
-
-    function buyUpgrade(upgradeId) {
-      let cost, canAfford = false;
-      if (Array.isArray(upgradeCosts[upgradeId])) {
-        // Permanent
-        const level = playerData.upgrades[upgradeId] || 0;
-        if (level < upgradeCosts[upgradeId].length) {
-          cost = upgradeCosts[upgradeId][level];
-          if (playerData.starFragments >= cost) { 
-            playerData.starFragments -= cost; 
-            playerData.upgrades[upgradeId]++; 
-            canAfford = true; 
-          }
-        }
-      } else {
-        // Single-use
-        if (!playerData.upgrades[upgradeId]) { 
-          cost = upgradeCosts[upgradeId]; 
-          if (playerData.starFragments >= cost) { 
-            playerData.starFragments -= cost; 
-            playerData.upgrades[upgradeId] = true; 
-            canAfford = true; 
-          } 
-        }
-      }
-      if (canAfford) { 
-        audioManager.playFragmentSound(); 
-        savePlayerData(); 
-        updateObservatoryUI(); 
-      }
-    }
-
-    function buyCosmetic(cosmeticId) {
-      const item = cosmeticItems[cosmeticId];
-      if (item && !playerData.cosmetics.unlocked.includes(cosmeticId) && playerData.starFragments >= item.cost) {
-        playerData.starFragments -= item.cost;
-        playerData.cosmetics.unlocked.push(cosmeticId);
-        audioManager.playFragmentSound();
-        savePlayerData();
-        updateObservatoryUI();
-      }
-    }
-
-    function equipCosmetic(cosmeticId) {
-       const item = cosmeticItems[cosmeticId];
-       if (item && playerData.cosmetics.unlocked.includes(cosmeticId)) {
-         playerData.cosmetics.equipped[item.type] = cosmeticId;
-         audioManager.playClickSound();
-         savePlayerData();
-         updateObservatoryUI();
-         
-         // If in menu, redraw to show new theme
-         if(item.type === 'background' && gameState === 'menu') {
-            if (!animationFrameId) gameLoop();
-         }
-       }
-    }
-
-    // --- FIREBASE SDK (Fix #7): Create a new function to handle auth ---
-    function initFirebase() {
-      return new Promise((resolve, reject) => {
-        if (!auth) {
-          console.error("Auth is not initialized.");
-          return reject("Auth is not initialized.");
-        }
-        
-        onAuthStateChanged(auth, async (user) => {
-          if (user) {
-            // User is signed in
-            userId = user.uid;
-            console.log("User is signed in with UID:", userId);
-            resolve(user);
-          } else {
-            // User is signed out, so sign them in anonymously
-            console.log("No user found, signing in anonymously...");
-            try {
-              const userCredential = await signInAnonymously(auth);
-              userId = userCredential.user.uid;
-              console.log("Signed in anonymously with UID:", userId);
-              resolve(userCredential.user);
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), orderBy('score', 'desc'), limit(15));
+                const snap = await getDocs(q);
+                list.innerHTML = '';
+                if (snap.empty) {
+                    list.innerHTML = '<div class="text-center text-slate-500 pt-10 uppercase tracking-widest text-xs">No Records Found</div>';
+                    return;
+                }
+                snap.forEach((doc, i) => {
+                    const d = doc.data();
+                    const isMe = currentUser && d.uid === currentUser.uid;
+                    const row = document.createElement('div');
+                    row.className = `flex justify-between items-center p-3 rounded-lg border border-white/5 ${isMe ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5'}`;
+                    row.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <span class="text-[0.6rem] font-black text-blue-400">#${(i+1).toString().padStart(2,'0')}</span>
+                            <span class="text-xs font-bold tracking-widest uppercase">UNIT-${d.uid.slice(0,6)}</span>
+                        </div>
+                        <span class="font-black text-white">${d.score.toLocaleString()} LY</span>
+                    `;
+                    list.appendChild(row);
+                });
             } catch (e) {
-              console.error("Anonymous sign-in failed:", e);
-              reject(e);
+                list.innerHTML = '<div class="text-rose-500 text-center pt-10 uppercase text-xs">Encryption Error</div>';
             }
-          }
-        });
-      });
-    }
+        }
 
-    // --- Initialization ---
-    // --- FIREBASE SDK (Fix #7): Make init() async to wait for auth ---
-    async function init() { 
-      // --- DOM READY FIX (Bug #9) ---
-      // Assign DOM elements *inside* init, after the DOM is loaded.
-      canvas = document.getElementById('gameCanvas');
-      ctx = canvas.getContext('2d');
-      appContainer = document.getElementById('app');
-      
-      allUiScreens = document.querySelectorAll('[data-ui-screen]');
-      scoreElement = document.getElementById('score');
-      gameOverModal = document.getElementById('gameOverModal');
-      finalScoreElement = document.getElementById('finalScoreElement');
-      restartButton = document.getElementById('restartButton');
-      powerUpStatusElement = document.getElementById('powerUpStatus');
-      inGameUi = document.querySelector('.ui-container');
-      mainMenu = document.getElementById('mainMenu');
-      playButton = document.getElementById('playButton');
-      highScoreDisplay = document.getElementById('highScoreDisplay');
-      starFragmentsDisplay = document.getElementById('starFragmentsDisplay');
-      userIdDisplay = document.getElementById('userIdDisplay'); // <-- DEV MODE (Fix #9)
-      runFragmentsContainer = document.getElementById('runFragmentsContainer');
-      runFragmentsDisplay = document.getElementById('runFragmentsDisplay');
-      fragmentsEarnedDisplay = document.getElementById('fragmentsEarnedDisplay');
-      pauseButton = document.getElementById('pauseButton');
-      pauseMenu = document.getElementById('pauseMenu');
-      resumeButton = document.getElementById('resumeButton');
-      quitButton = document.getElementById('quitButton');
-      observatoryButton = document.getElementById('observatoryButton');
-      closeObservatoryButton = document.getElementById('closeObservatoryButton');
-      observatory = document.getElementById('observatory');
-      shopFragmentsDisplay = document.getElementById('shopFragmentsDisplay');
-      observatoryNav = document.querySelector('.observatory-nav');
-      tabContents = document.querySelectorAll('.tab-content');
-      cometSkinsGrid = document.getElementById('cometSkinsGrid');
-      obstacleSkinsGrid = document.getElementById('obstacleSkinsGrid');
-      backgroundThemesGrid = document.getElementById('backgroundThemesGrid');
-      gameOverMenuButton = document.getElementById('gameOverMenuButton');
-      gameOverObservatoryButton = document.getElementById('gameOverObservatoryButton');
-      activeUpgradesContainer = document.getElementById('activeUpgradesContainer');
-      magnetIndicator = document.getElementById('magnetIndicator');
-      scoreIndicator = document.getElementById('scoreIndicator');
-      reviveIndicator = document.getElementById('reviveIndicator');
-      observatoryBackButtonPortrait = document.getElementById('observatoryBackButtonPortrait');
-      // --- END DOM READY FIX ---
-      
-      for (let i = 0; i < 200; i++) stars.push(new Star()); 
-      
-      setupEventListeners(); 
-      
-      try {
-        // We MUST sign in and get a userId *before* loading player data
-        await initFirebase();
-      } catch(e) {
-        // --- RESILIENCY FIX (Bug #8) ---
-        // If auth fails (like 'auth/configuration-not-found'),
-        // don't just stop. Log the error and continue.
-        // The game will be playable, but saving will not work
-        // until the Firebase issue is fixed.
-        console.error("Firebase auth failed. Game will run in offline mode.", e);
-        // We will proceed without a userId.
-        // 'loadPlayerData' and 'savePlayerData' will see userId is null
-        // and use default/local data without crashing.
-        // --- END RESILIENCY FIX ---
-      }
-      
-      await loadPlayerData(); // Load from Firestore (or defaults if userId is null)
-      resizeCanvas(); 
-      setGameState('menu');
-      initCapacitorAppListener(); // Start listening for app minimize/resume
-    }
-    
-    // START THE GAME
-    // --- DOM READY FIX (Bug #9) ---
-    // Wait for the DOM to be loaded before finding elements
-    window.addEventListener('DOMContentLoaded', (event) => {
-        init();
-    });
-    // --- END DOM READY FIX ---
-
-  </script>
+        // Initialize Boot
+        resize();
+        Audio.syncUI();
+    </script>
 </body>
-
 </html>
