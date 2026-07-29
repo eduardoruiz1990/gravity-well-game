@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 
-# CrazyGames submission bundle (regenerate with: npm run build && zip)
+# CrazyGames submission bundle (regenerate with: npm run build && npm run package)
 gravity-well-crazygames.zip
 
 # Editor directories and files
@@ -25,10 +25,3 @@ gravity-well-crazygames.zip
 *.njsproj
 *.sln
 *.sw?
-*.gradle
-*gradlew
-*.bat
-*.pro
-*.jar
-*.java
-*.png

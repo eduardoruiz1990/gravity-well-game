@@ -8,12 +8,16 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 pulled toward it. Vanilla JS, HTML5 Canvas 2D, Tone.js for audio, built with Vite. No
 framework, no TypeScript.
 
+**Web only.** The single ship target is a self-contained HTML bundle for CrazyGames.
+There is no native/mobile wrapper — see "Scope" below.
+
 ## Commands
 
 ```bash
 npm run dev       # Vite dev server
 npm run build     # production build -> dist/
 npm run preview   # serve the production build
+npm run package   # build + zip dist/ contents -> gravity-well-crazygames.zip
 ```
 
 There is no test runner. Verification is manual, plus the browser probes described below.
@@ -27,14 +31,29 @@ against the wrong one. Do not let that happen again.
   engine live in one inline `<script type="module">`. This is the Vite entry point.
 - **`src/`** contains only `PortalSDK.js`. There is no `src/main.js` — a stale 1165-line
   copy of the engine lived there, imported by nothing, and was deleted. Don't recreate it.
-- **`gravity-well-app/`** is a *separate* Capacitor/Android app with its own, much smaller
-  game in `www/index.html` (Firebase leaderboard, no shop/upgrades/cosmetics/tutorial).
-  **It has diverged from `index.html` and is NOT a build output of this project.** Do not
-  overwrite it with `dist/` without asking — it holds several commits of Firebase and
-  Android work that exist nowhere else.
 
 Before "fixing" a bug reported against this game, confirm which file it is actually in.
 A bug in a file nothing imports is not a bug in the game.
+
+## Scope: web only
+
+A Capacitor/Android wrapper (`gravity-well-app/`) with a Firebase Firestore leaderboard
+was developed through iteration 22.3 and **deliberately removed**. It contained a separate,
+much smaller build of the game (no shop, upgrades, cosmetics, or tutorial) that had
+diverged from `index.html`, and maintaining two games was the root cause of the
+three-way source split above.
+
+Everything still exists in git history — restore with:
+
+```bash
+git checkout f6398a0 -- gravity-well-app
+```
+
+Its two genuinely useful pieces were ported into `index.html` before removal: the filtered
+sub-bass drone plus the master/music/sfx bus split (`audioManager`), and the depth cue in
+`Star` (size, alpha and speed all keyed to one `depth` value). The Firebase leaderboard was
+dropped on purpose — the CrazyGames build must stay self-contained, and the SDK has no
+leaderboard API. Don't reintroduce a backend without deciding that fresh.
 
 ## Architecture notes
 
