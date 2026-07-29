@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# CrazyGames submission bundle (regenerate with: npm run build && zip)
+gravity-well-crazygames.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

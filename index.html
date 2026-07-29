@@ -4,18 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
-    <!--  
-      NEW CSS: This is the new "look and feel" CSS.
-      It has been adapted to target your existing HTML structure and classes.
+    <meta name="description" content="One mechanic: hold to bend gravity. Steer a comet through collapsing space, grab star fragments, and go as deep as you dare." />
+
+    <!-- Portal SDK. This is the ONLY external request the game makes. Hosts where it
+         is absent, blocked, or reports environment 'disabled' are handled by
+         src/PortalSDK.js, which degrades to a silent no-op. -->
+    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+
+    <!--
+      SELF-CONTAINED BUILD (CrazyGames):
+      - Tailwind's CDN build was a 407KB runtime JIT compiler loaded to supply exactly
+        three utility classes (w-6, h-6, text-red-500). Those are now plain CSS below.
+        Every other class in this file is custom CSS from the <style> block.
+      - Tone.js now comes from the npm dependency via the module script, not a CDN.
+      - Inter is served from public/fonts/ instead of Google Fonts.
     -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-    <!-- 
-      AUDIO FIX: Tone.js is in the <head> to ensure it loads 
-      before the module script tries to access it.
-    -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
     <style>
+        /* Local Inter. Replaces the Google Fonts stylesheet. */
+        @font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap; src: url(./fonts/inter-regular.woff2) format('woff2'); }
+        @font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap; src: url(./fonts/inter-medium.woff2) format('woff2'); }
+        @font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap; src: url(./fonts/inter-semibold.woff2) format('woff2'); }
+        @font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap; src: url(./fonts/inter-bold.woff2) format('woff2'); }
+        @font-face { font-family: 'Inter'; font-style: normal; font-weight: 900; font-display: swap; src: url(./fonts/inter-black.woff2) format('woff2'); }
+
+        /* The only three Tailwind utilities this page ever used. */
+        .w-6 { width: 1.5rem; }
+        .h-6 { height: 1.5rem; }
+        .text-red-500 { color: #ef4444; }
+
         :root {
           font-family: 'Inter', sans-serif;
           line-height: 1.5;
@@ -948,11 +964,21 @@
                      <div class="upgrade-item" id="upgrade-score">
                         <div class="upgrade-info">
                             <strong>Score Bonus</strong>
-                            <p>PermanENTLY increases score gain.</p>
+                            <p>Permanently increases score gain.</p>
                         </div>
                         <div class="upgrade-action">
                             <span class="upgrade-level">Level 0/5</span>
                             <button class="btn buy-btn" data-upgrade="score">Buy (200)</button>
+                        </div>
+                    </div>
+                    <div class="upgrade-item" id="upgrade-wellStrength">
+                        <div class="upgrade-info">
+                            <strong>Well Strength</strong>
+                            <p>Your gravity well pulls harder. Tighter turns at any speed.</p>
+                        </div>
+                        <div class="upgrade-action">
+                            <span class="upgrade-level">Level 0/3</span>
+                            <button class="btn buy-btn" data-upgrade="wellStrength">Buy (400)</button>
                         </div>
                     </div>
                 </div>
@@ -1044,19 +1070,18 @@
     <script type="module">
       /**
        * Gravity Well - Main Game Engine
-       * FINAL VERSION (Post-Rigorous Debugging & Feature Completion)
-       * - This code is now part of a single-file HTML build.
-       * - 'import ./style.css' is removed as CSS is in a <style> tag.
-       * - 'import * as Tone' is replaced by grabbing 'Tone' from the window.
+       * - CSS lives in the <style> tag above, not a separate stylesheet.
+       * - Tone.js and the portal adapter are bundled by Vite from node_modules/src.
        */
-      
-      // --- AUDIO RACE CONDITION FIX ---
-      // We no longer assign `const Tone = window.Tone;` here.
-      // `window.Tone` might be undefined when this module script runs.
-      // Instead, we will access `window.Tone` *directly* inside the
-      // functions that need it, all of which are safely nested
-      // inside the 'DOMContentLoaded' listener.
-      // const Tone = window.Tone; // <-- THIS WAS THE BUG. IT'S GONE.
+      import * as Tone from 'tone';
+      import { portalSDK } from './src/PortalSDK.js';
+
+      // The ~25 call sites below all reach for `window.Tone`, a holdover from when
+      // Tone.js arrived via a CDN <script> and could legitimately be undefined at
+      // module-evaluation time. Bundling removes that race entirely, but publishing the
+      // import onto window keeps every one of those call sites (and their defensive
+      // `if (!window.Tone) return` guards) valid and untouched.
+      window.Tone = Tone;
 
       // CRITICAL FIX: Wait for the HTML document to be fully loaded before running any game code
       document.addEventListener('DOMContentLoaded', () => {
@@ -1146,6 +1171,7 @@
               shield: [100, 250, 500, 1000, 2000],
               magnet: [300, 750, 1500],
               score: [200, 400, 800, 1600, 3200],
+              wellStrength: [400, 900, 1800],
               headstart: 150,
               revive: 250
           };
@@ -1166,8 +1192,8 @@
               obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
               obstacle_rock: { 
                   id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
-                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #7171a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a1a1aa;', 
-                  fillStyle: '#7171a', strokeStyle: '#a1a1aa', 
+                  previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a1a1aa;',
+                  fillStyle: '#71717a', strokeStyle: '#a1a1aa',
                   collisionShape: 'circle', // Collision is simple circle
                   draw: (ctx, x, y, w, h, skin, obs) => { // Draw is complex polygon
                       const radius = w / 2;
@@ -1302,8 +1328,20 @@
           let powerUps = [];
           let starFragments = [];
           let particles = [];
+          let shockRings = [];
           let stars = [];
-          let menuComet = null; 
+          let menuComet = null;
+
+          // Keyboard steering state. keyboardWellActive distinguishes a well WE created
+          // from one the pointer is holding, so the two input paths never fight over it.
+          const heldDirections = new Set();
+          let keyboardWellActive = false;
+
+          let fragmentClusterCounter = 0;
+          // Slow-motion is counted in RENDERED frames; while it is running the simulation
+          // is stepped on every other frame, i.e. half speed. See gameLoop().
+          let slowMoFrames = 0;
+          let slowMoParity = false;
 
           let gravityWell = null; // Single definition for the game instance
           let score = 0;
@@ -1324,7 +1362,32 @@
           let hasRevive = false;
 
           const PLAYER_COMET_RADIUS = 15;
-          const GRAVITY_INFLUENCE = 0.2; 
+
+          // --- CORE FEEL ---
+          // The well applies a CONSTANT-magnitude steering force to a velocity whose
+          // magnitude is pinned to baseSpeed (see the renormalise further down in
+          // PlayerComet.update). So per-frame turn rate is ~ influence / baseSpeed.
+          //
+          // baseSpeed climbs every zone (2.5 + 0.5*zone) while influence used to be a
+          // flat 0.2 — which meant turn authority HALVED by zone 6 (4.6 deg/frame ->
+          // 2.1) at the same time obstacle spacing tightened from 200 to 110. The game
+          // got harder on two axes at once, and that is what made it feel floaty at speed.
+          //
+          // Scaling influence with speed holds the turn RADIUS constant instead.
+          // TURN_AUTHORITY_EXPONENT is the tuning knob:
+          //   1.0  -> turn radius is identical at every speed
+          //   0.75 -> radius still widens gently with speed, keeping some difficulty ramp
+          const GRAVITY_INFLUENCE_BASE = 0.2;
+          const TURN_AUTHORITY_EXPONENT = 0.75;
+          const WELL_STRENGTH_PER_LEVEL = 0.12;
+
+          function getGravityInfluence(baseSpeed) {
+              const speed = Math.max(baseSpeed, INITIAL_SPEED);
+              const speedScale = Math.pow(speed / INITIAL_SPEED, TURN_AUTHORITY_EXPONENT);
+              const upgradeScale = 1 + (playerData.upgrades.wellStrength || 0) * WELL_STRENGTH_PER_LEVEL;
+              return GRAVITY_INFLUENCE_BASE * speedScale * upgradeScale;
+          }
+
           const INERTIAL_DAMPING = 0.98;
           const SCORE_DIVISOR = 7;
           const WAVE_AMPLITUDE = 0.5;
@@ -1340,61 +1403,131 @@
           const VIRTUAL_HEIGHT = 720;
           let scale = 1;
 
+          const GRAVITY_WELL_RADIUS = VIRTUAL_HEIGHT / 3.5;
+          // MUST stay inside the well's own influence radius. PlayerComet.update() only
+          // applies a pull when `dist < gravityWell.radius`, so a keyboard well parked
+          // beyond that radius exerts no force at all and the arrow keys silently do
+          // nothing. Derived from the radius rather than hardcoded so the two cannot
+          // drift apart — an earlier hardcoded 260 sat outside the ~206 radius and made
+          // keyboard control completely inert.
+          const KEYBOARD_WELL_DISTANCE = GRAVITY_WELL_RADIUS * 0.6;
+
+          // Pentatonic ladder for the fragment-pickup combo. Every scale degree is
+          // consonant with the C-minor bass loop, so a long streak climbs without ever
+          // clashing with the music underneath.
+          const FRAGMENT_PITCH_LADDER = ["C5", "Eb5", "F5", "G5", "Bb5", "C6", "Eb6", "F6", "G6"];
+
           const audioManager = {
               isInitialized: false,
-              synth: null,
-              noiseSynth: null,
+              // Buses: everything lands on master, so one node mutes/ducks the whole game
+              // (needed for the platform mute switch and for ad playback).
+              master: null,
+              musicBus: null,
+              sfxBus: null,
+              // Music voices, kept OFF the sfx path.
+              bass: null,
+              drone: null,
               musicLoop: null,
+              // SFX voices.
+              sfx: null,
+              noiseSynth: null,
               baseBPM: 100,
+              fragmentCombo: 0,
 
               init() {
-                  // --- AUDIO FIX ---
                   // Check window.Tone, not the (potentially undefined) const
-                  if (this.isInitialized || !window.Tone) return; 
+                  if (this.isInitialized || !window.Tone) return;
                   try {
-                      this.synth = new window.Tone.Synth().toDestination();
-                      this.noiseSynth = new window.Tone.NoiseSynth({
+                      const Tone = window.Tone;
+
+                      this.master = new Tone.Volume(-6).toDestination();
+                      this.musicBus = new Tone.Volume(-12).connect(this.master);
+                      this.sfxBus = new Tone.Volume(-4).connect(this.master);
+
+                      // PREVIOUSLY: one monophonic Tone.Synth played the bass loop AND every
+                      // sound effect. A Tone.Synth is one voice, so each fragment pickup cut
+                      // the bass note dead — which is a large part of why pickups read as
+                      // weak. Music and SFX now have separate voices on separate buses.
+                      this.bass = new Tone.Synth().connect(this.musicBus);
+
+                      // Sub-bass drone bed (ported from the Pro Edition build). The lowpass
+                      // is load-bearing: an unfiltered 55Hz oscillator reads as static on
+                      // phone speakers.
+                      this.drone = new Tone.Oscillator(55, "sine")
+                          .connect(new Tone.Filter(120, "lowpass").connect(new Tone.Volume(-8).connect(this.musicBus)));
+
+                      // Polyphonic so a fast fragment streak layers instead of self-cutting.
+                      this.sfx = new Tone.PolySynth(Tone.Synth, {
+                          oscillator: { type: 'triangle' },
+                          envelope: { attack: 0.005, decay: 0.12, sustain: 0.02, release: 0.15 }
+                      }).connect(this.sfxBus);
+
+                      this.noiseSynth = new Tone.NoiseSynth({
                           noise: { type: 'white' },
                           envelope: { attack: 0.005, decay: 0.1, sustain: 0 }
-                      }).toDestination();
+                      }).connect(this.sfxBus);
+
                       this.isInitialized = true;
                   } catch (e) {
                       console.error("Failed to initialize audioManager:", e);
                   }
               },
-              playFragmentSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C5", "8n"); },
-              playPowerUpSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("G5", "8n"); },
+
+              // Single mute switch for the whole game. Used by the platform's site-level
+              // mute control and while an ad is on screen.
+              setMuted(muted) {
+                  if (!this.master) return;
+                  try { this.master.mute = !!muted; } catch (e) {}
+              },
+
+              // --- SFX ---
+              // Each pickup climbs the ladder; the streak resets on death. This is the
+              // cheapest possible "this run is going well" signal.
+              playFragmentSound() {
+                  if (!this.isInitialized) return;
+                  const note = FRAGMENT_PITCH_LADDER[Math.min(this.fragmentCombo, FRAGMENT_PITCH_LADDER.length - 1)];
+                  this.fragmentCombo++;
+                  this.sfx.triggerAttackRelease(note, "16n");
+              },
+              resetFragmentCombo() { this.fragmentCombo = 0; },
+              playPowerUpSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("G5", "8n"); },
               playGameOverSound() { if (!this.isInitialized) return; this.noiseSynth.triggerAttack(); },
-              playClickSound() { if (!this.isInitialized) return; this.synth.triggerAttackRelease("C4", "16n"); },
+              playClickSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("C4", "16n"); },
+
+              // --- MUSIC ---
               startMusic() {
                   if (!this.isInitialized || this.musicLoop) return;
-                  // --- AUDIO FIX ---
-                  window.Tone.Transport.bpm.value = this.baseBPM;
+                  const Tone = window.Tone;
+                  const transport = Tone.getTransport();
+                  transport.bpm.value = this.baseBPM;
                   const notes = ["C2", "G2", "Eb3", "G2"];
                   let noteIndex = 0;
-                  this.musicLoop = new window.Tone.Loop(time => {
-                      this.synth.triggerAttackRelease(notes[noteIndex++ % notes.length], "8n", time);
+                  this.musicLoop = new Tone.Loop(time => {
+                      this.bass.triggerAttackRelease(notes[noteIndex++ % notes.length], "8n", time);
                   }, "4n").start(0);
-                  window.Tone.Transport.start();
+                  transport.start();
+                  try { if (this.drone.state !== 'started') this.drone.start(); } catch (e) {}
               },
-              updateTempo(newBPM) { 
-                  // --- AUDIO FIX ---
-                  if (!this.isInitialized || !window.Tone || window.Tone.Transport.state !== 'started') return; 
-                  window.Tone.Transport.bpm.value = newBPM; 
+              updateTempo(newBPM) {
+                  if (!this.isInitialized || !window.Tone) return;
+                  const transport = window.Tone.getTransport();
+                  if (transport.state !== 'started') return;
+                  transport.bpm.value = newBPM;
               },
               stopMusic() {
-                  // --- AUDIO FIX ---
                   // Check window.Tone, not the (potentially undefined) const
                   if (!this.isInitialized || !window.Tone) return;
-                  
+
                   if (this.musicLoop) {
                       this.musicLoop.stop(0);
                       this.musicLoop.dispose();
                       this.musicLoop = null;
                   }
-                  if (window.Tone.Transport.state === 'started') {
-                      window.Tone.Transport.stop();
-                      window.Tone.Transport.cancel();
+                  try { if (this.drone.state === 'started') this.drone.stop(); } catch (e) {}
+                  const transport = window.Tone.getTransport();
+                  if (transport.state === 'started') {
+                      transport.stop();
+                      transport.cancel();
                   }
               }
           };
@@ -1408,50 +1541,48 @@
               currentStepConfig: null,
               spotlightBounds: null, // Stores { x, y, width, height, shape }
               
-              // --- NEW, REBUILT TUTORIAL STEPS ---
+              // --- TUTORIAL STEPS ---
+              // TRIMMED 11 -> 5. The cut steps were pure text beats on autoAdvance timers
+              // ("Welcome...", "This is your comet.", "Nice one!", "You've got it!") that
+              // spent 13.5 seconds of forced waiting without teaching a verb. For a game
+              // with ONE mechanic — and for portal traffic that arrives from a thumbnail
+              // with zero investment — that was the single biggest bounce risk.
+              //
+              // Every remaining step teaches an action and ends on the PLAYER doing it
+              // (isDone), never on a timer. Copy from the cut steps was folded into the
+              // survivors rather than discarded, and the two setup-only steps had their
+              // onStart hooks merged into the step they were setting up.
+              //
+              // advance() calls end(true) when it runs past the last step, so no explicit
+              // terminator step is needed.
               steps: [
-                  { 
-                      text: "Welcome to Gravity Well! Let's learn the basics.", 
-                      blockInput: true, autoAdvance: 2000 
-                      // allowForwardSpeed is false by default
-                  },
                   {
-                      text: "This is your comet. It's perfectly still.",
-                      blockInput: true, autoAdvance: 2500,
-                      spotlight: () => ({ x: playerComet.x, y: playerComet.y, width: 100, height: 100, shape: 'circle' })
-                  },
-                  { 
-                      text: "CLICK and HOLD anywhere to create a 'Gravity Well'.",
+                      // Absorbs the old "Welcome" + "This is your comet" beats.
+                      text: "Your comet is dead still.\nCLICK and HOLD anywhere to create a Gravity Well.\n(or hold the ARROW KEYS)",
                       blockInput: false, // Allow input
                       spotlight: () => ({ x: playerComet.x + 150, y: playerComet.y - 150, width: 150, height: 150, shape: 'circle' }),
-                      isDone: () => gravityWell !== null 
+                      isDone: () => gravityWell !== null
                   },
                   {
-                      text: "Great! The comet is pulled towards your well. Let go to release it.",
+                      text: "The comet is pulled towards your well. Let go to release it.",
                       blockInput: false,
                       spotlight: () => (gravityWell ? { x: gravityWell.x, y: gravityWell.y, width: 150, height: 150, shape: 'circle' } : null),
                       isDone: () => gravityWell === null
                   },
-                  { 
-                      text: "Now the comet will start moving forward. Here comes an obstacle!", 
-                      blockInput: true,
-                      autoAdvance: 2500,
+                  {
+                      // Absorbs the old setup step's onStart (velocity reset + obstacle spawn).
+                      text: "Now you're moving. Steer around the obstacle!",
+                      isPausedForInstruction: false,
                       allowForwardSpeed: true, // <-- Comet starts moving here
-                      onStart: () => { 
+                      onStart: () => {
                           // --- SCRIPTED ACTION FIX ---
-                          // This is the fix. When this step starts, we
-                          // reset the comet's velocity to a clean forward state,
+                          // Reset the comet's velocity to a clean forward state,
                           // overriding any "freefall" from the previous step.
                           playerComet.vx = calculateCurrentSpeed();
-                          playerComet.vy = 0; 
-                          
-                          obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.8, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')]; 
-                      }
-                  },
-                  { 
-                      text: "Use your Gravity Well to guide the comet past the obstacle!", 
-                      isPausedForInstruction: false,
-                      allowForwardSpeed: true, // Keep comet moving
+                          playerComet.vy = 0;
+
+                          obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.8, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')];
+                      },
                       spotlight: () => {
                           const obs = obstacles[0];
                           if (!obs) return null;
@@ -1459,43 +1590,31 @@
                       },
                       isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width
                   },
-                  { 
-                      text: "Nice one!", 
-                      blockInput: true, autoAdvance: 1500,
-                      allowForwardSpeed: true 
-                  },
-                  { 
-                      text: "Now for a pro move. Let's grab that star fragment.", 
-                      blockInput: true, autoAdvance: 2000,
-                      // --- BUG FIX (Bug 3) & FLUIDITY ---
-                      // Stop the comet's forward speed. The comet will now freeze
-                      // for the explanation, preventing the star from flying away.
+                  {
+                      // Absorbs the old "pro move" setup step's onStart.
+                      text: "Pro move: place a well BEHIND the comet to pull it backward.",
+                      isPausedForInstruction: false,
+                      // Comet's baseSpeed is 0. It will *only* move via the gravity well.
                       allowForwardSpeed: false,
                       onStart: () => {
                           obstacles = []; // Clear obstacles
                           // Spawn a fragment *behind* the (now stationary) comet
-                          starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)]; 
-                      }
-                  },
-                  { 
-                      text: "Place a well BEHIND the comet to pull it backward.", 
-                      isPausedForInstruction: false,
-                      // Comet's baseSpeed is 0. It will *only* move via the gravity well.
-                      allowForwardSpeed: false, 
+                          starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)];
+                      },
                       spotlight: () => ({
-                          x: playerComet.x - 150, 
-                          y: playerComet.y, 
-                          width: 150, 
+                          x: playerComet.x - 150,
+                          y: playerComet.y,
+                          width: 150,
                           height: 150,
                           shape: 'circle'
                       }),
                       isDone: () => gravityWell !== null && gravityWell.x < playerComet.x // Done when well is behind
                   },
                   {
-                      text: "Great! Now collect the fragment.",
+                      text: "Now reel it in and grab the fragment.",
                       isPausedForInstruction: false,
                       // Comet's baseSpeed is still 0.
-                      allowForwardSpeed: false, 
+                      allowForwardSpeed: false,
                       spotlight: () => ({ // Spotlight the action area
                           x: playerComet.x,
                           y: playerComet.y,
@@ -1504,18 +1623,9 @@
                           shape: 'circle'
                       }),
                       isDone: () => starFragments.length === 0 // Done when fragment is collected
-                  },
-                  { 
-                      text: "You've got it! Skills Learned:\n✓ Comet Control\n✓ Dodging\n✓ Backtracking\nGet ready for the real run!", 
-                      blockInput: true, autoAdvance: 5000, 
-                      // Re-enable forward speed for the finale
-                      allowForwardSpeed: true, 
-                      onComplete: () => { 
-                          tutorialManager.end(true); // End tutorial and start game
-                      } 
                   }
               ],
-              // --- END NEW TUTORIAL STEPS ---
+              // --- END TUTORIAL STEPS ---
 
               start() {
                   this.isActive = true; 
@@ -1666,13 +1776,33 @@
 
           // --- Step 3: Game Classes ---
           class Star {
-              constructor() { this.x = Math.random() * VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; this.z = Math.random() * VIRTUAL_WIDTH; this.radius = 0.5 + Math.random() * 1.5; }
-              update(speed) { this.x -= speed * (this.z / VIRTUAL_WIDTH); if (this.x < 0) { this.x = VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; } }
-              draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'; ctx.fill(); }
+              // Cheap 2.5D depth cue: a single normalised depth value drives speed, size
+              // AND brightness together. Previously only speed varied with depth while
+              // radius was independent random and alpha was a flat 0.8, so the field read
+              // as one flat plane of identical dots that happened to move at odd rates.
+              // Coupling all three is what makes it read as distance.
+              constructor() {
+                  this.x = Math.random() * VIRTUAL_WIDTH;
+                  this.y = Math.random() * VIRTUAL_HEIGHT;
+                  this.depth = 0.15 + Math.random() * 0.85;   // 0 = far, 1 = near
+                  this.z = this.depth * VIRTUAL_WIDTH;         // retained: update() reads it
+                  this.radius = 0.4 + this.depth * 1.6;
+                  this.alpha = 0.25 + this.depth * 0.6;
+              }
+              update(speed) {
+                  this.x -= speed * this.depth;
+                  if (this.x < 0) { this.x = VIRTUAL_WIDTH; this.y = Math.random() * VIRTUAL_HEIGHT; }
+              }
+              draw() {
+                  ctx.beginPath();
+                  ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                  ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+                  ctx.fill();
+              }
           }
 
           class PlayerComet {
-              constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; }
+              constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; this.flashFrames = 0; }
               
               // --- REFACTORED UPDATE FUNCTION ---
               update() {
@@ -1703,8 +1833,9 @@
                       const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       if (dist > 0.01 && dist < gravityWell.radius) {
-                          this.vx += (dx / dist) * GRAVITY_INFLUENCE;
-                          this.vy += (dy / dist) * GRAVITY_INFLUENCE;
+                          const influence = getGravityInfluence(this.baseSpeed);
+                          this.vx += (dx / dist) * influence;
+                          this.vy += (dy / dist) * influence;
                       }
                   }
 
@@ -1735,6 +1866,8 @@
                   this.x += this.vx; 
                   this.y += this.vy; 
                   
+                  if (this.flashFrames > 0) this.flashFrames--;
+
                   this.trail.push({ x: this.x, y: this.y });
                   if (this.trail.length > 15) this.trail.shift();
 
@@ -1842,6 +1975,19 @@
                   if (activePowerUp.type === 'shield' || isHeadstarting) {
                       ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
                   }
+                  // Pickup flash — a brief additive bloom on the comet itself, so the
+                  // feedback lands on the thing the player is watching rather than only at
+                  // the fragment's position.
+                  if (this.flashFrames > 0) {
+                      const intensity = this.flashFrames / 6;
+                      ctx.globalCompositeOperation = 'lighter';
+                      ctx.beginPath();
+                      ctx.arc(screenX, this.y, this.radius * (1.4 + intensity * 0.8), 0, Math.PI * 2);
+                      ctx.fillStyle = `rgba(253, 224, 71, ${0.45 * intensity})`;
+                      ctx.fill();
+                      ctx.globalCompositeOperation = 'source-over';
+                  }
+
                   // Draw Orbiters
                   this.orbiters.forEach(orb => orb.draw(screenX, this.y));
               }
@@ -1861,12 +2007,42 @@
 
           // Ensure GravityWell class is defined only ONCE
           class GravityWell {
-              constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = VIRTUAL_HEIGHT / 3.5; }
+              constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = GRAVITY_WELL_RADIUS; }
               draw() {
                   const screenX = this.x - cameraX;
                   ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.15)'; ctx.fill();
                   ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.1)'; ctx.fill();
               }
+          }
+
+          // Circular skins (Asteroid, Rubber Ducky) fill an obstacle's width x height
+          // box with a vertical STACK of circles rather than one circle.
+          //
+          // Previously the spawner squashed those obstacles to height === width, which
+          // capped them at ~75px against ~230px for rectangular skins — so buying a
+          // 2000-fragment cosmetic quietly made the game easier. Stacking keeps the
+          // silhouette (and the difficulty) identical to the default pillar.
+          //
+          // Both Obstacle.draw() and checkCollisions() read this one function, so the
+          // drawn shape and the hitbox cannot drift apart. Each stack entry is also the
+          // per-circle cache the skins' draw() routines lazily hang state on (the
+          // Asteroid stores its procedural `vertices` there), which is what gives every
+          // circle in a stack its own distinct shape.
+          function getCircleStack(obs) {
+              if (!obs._circleStack) {
+                  const r = obs.width / 2;
+                  // ceil, not round: it guarantees consecutive circles OVERLAP rather
+                  // than merely touching, so no gap can open up for the comet to slip through.
+                  const count = Math.max(1, Math.ceil(obs.height / obs.width));
+                  obs._circleStack = [];
+                  for (let i = 0; i < count; i++) {
+                      const oy = (count === 1)
+                          ? obs.height / 2
+                          : r + (obs.height - obs.width) * (i / (count - 1));
+                      obs._circleStack.push({ ox: r, oy, r });
+                  }
+              }
+              return obs._circleStack;
           }
 
           class Obstacle {
@@ -1932,7 +2108,18 @@
                       // Check for a custom draw function on the skin
                       if (skin.draw) {
                           try {
-                              skin.draw(ctx, this.x - cameraX, this.y, this.width, this.height, skin, this);
+                              if (skin.collisionShape === 'circle') {
+                                  // Draw one instance per stacked circle. Passing the stack
+                                  // ENTRY as the final arg (rather than `this`) gives each
+                                  // circle its own lazy-init cache, so a stack of asteroids
+                                  // gets a distinct procedural outline per rock instead of
+                                  // three identical clones.
+                                  getCircleStack(this).forEach(c => {
+                                      skin.draw(ctx, this.x - cameraX + c.ox - c.r, this.y + c.oy - c.r, c.r * 2, c.r * 2, skin, c);
+                                  });
+                              } else {
+                                  skin.draw(ctx, this.x - cameraX, this.y, this.width, this.height, skin, this);
+                              }
                           } catch (e) {
                               console.error("Error in custom obstacle draw:", e);
                               // Fallback to rect if custom draw fails
@@ -1964,7 +2151,10 @@
               }
           }
           class StarFragment {
-              constructor(x, y) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; }
+              // clusterId tags which spawn-batch this fragment came from, so the pickup
+              // handler can tell when the player has cleared a whole cluster and save the
+              // big flourish for that moment instead of firing it on every single pickup.
+              constructor(x, y, clusterId = 0) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; this.clusterId = clusterId; }
               update() {
                   const magnetLevel = playerData.upgrades.magnet || 0;
                   if (magnetLevel > 0 && playerComet) {
@@ -1974,14 +2164,38 @@
                   this.vx *= 0.95; this.vy *= 0.95; this.x += this.vx; this.y += this.vy;
               }
               draw() {
-                  this.animation += 0.07; const scale = 1 + Math.sin(this.animation) * 0.1; const screenX = this.x - cameraX;
-                  ctx.save(); ctx.translate(screenX, this.y); ctx.rotate(this.animation * 0.5); ctx.scale(scale, scale); ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
+                  // NOTE: 'pulse', not the module-level 'scale' — this is the idle
+                  // breathing animation. drawGame() has already applied the canvas scale.
+                  this.animation += 0.07; const pulse = 1 + Math.sin(this.animation) * 0.1; const screenX = this.x - cameraX;
+                  ctx.save(); ctx.translate(screenX, this.y); ctx.rotate(this.animation * 0.5); ctx.scale(pulse, pulse); ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
                   ctx.beginPath();
                   for (let i = 0; i < 5; i++) { let angle = (i / 5) * 2 * Math.PI; ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius); angle += (1 / 5) * Math.PI; ctx.lineTo(Math.cos(angle) * (this.radius / 2), Math.sin(angle) * (this.radius / 2)); }
                   ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
               }
           }
           
+          // Expanding ring flourish. Reads as an impact far more cheaply than adding more
+          // particles does, because it is one coherent shape rather than N dots.
+          class ShockRing {
+              constructor(x, y, color, maxRadius = 60, lifespan = 22) {
+                  this.x = x; this.y = y; this.color = color;
+                  this.maxRadius = maxRadius;
+                  this.maxLifespan = this.lifespan = lifespan;
+              }
+              update() { this.lifespan--; }
+              draw() {
+                  const t = 1 - (this.lifespan / this.maxLifespan);   // 0 -> 1 over its life
+                  const eased = 1 - Math.pow(1 - t, 3);               // fast out, slow settle
+                  ctx.beginPath();
+                  ctx.arc(this.x - cameraX, this.y, this.maxRadius * eased, 0, Math.PI * 2);
+                  ctx.strokeStyle = this.color;
+                  ctx.lineWidth = 3 * (1 - t);
+                  ctx.globalAlpha = 1 - t;
+                  ctx.stroke();
+                  ctx.globalAlpha = 1.0;
+              }
+          }
+
           // --- PARTICLE CLASS REFACTOR ---
           class Particle {
               constructor(x, y, color, options = {}) { 
@@ -2021,24 +2235,34 @@
 
 
           // --- Step 4: Core Game Logic Functions ---
-          function savePlayerData() { try { localStorage.setItem('gravityWellSaveData', JSON.stringify(playerData)); } catch (e) { console.error("Could not save player data.", e); } }
+          // Persistence goes through portalSDK, NOT localStorage directly. On a logged-in
+          // portal account that backend is cloud save (same synchronous get/set shape);
+          // everywhere else it falls straight back to localStorage, i.e. byte-for-byte the
+          // previous behaviour.
+          function savePlayerData() { try { portalSDK.setItem('gravityWellSaveData', JSON.stringify(playerData)); } catch (e) { console.error("Could not save player data.", e); } }
           function loadPlayerData() {
               try {
-                  const savedData = localStorage.getItem('gravityWellSaveData');
-                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
-                  if (savedData) { 
-                      const loaded = JSON.parse(savedData); 
+                  const savedData = portalSDK.getItem('gravityWellSaveData');
+                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
+                  if (savedData) {
+                      const loaded = JSON.parse(savedData);
                        const mergedCosmetics = {
-                           unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])], 
-                           equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) } 
+                           unlocked: [...new Set([...(defaultPlayerData.cosmetics.unlocked || []), ...(loaded.cosmetics?.unlocked || [])])],
+                           equipped: { ...defaultPlayerData.cosmetics.equipped, ...(loaded.cosmetics?.equipped || {}) }
                        };
-                       playerData = { ...defaultPlayerData, ...loaded, cosmetics: mergedCosmetics }; 
+                       // 'upgrades' MUST be merged key-by-key, not taken wholesale from the
+                       // save. A top-level spread of `loaded` replaces the whole object, so
+                       // a save written before a new upgrade existed leaves that key
+                       // undefined — and buyUpgrade's `playerData.upgrades[id]++` then turns
+                       // it into NaN. Back-fill new keys here whenever one is added.
+                       const mergedUpgrades = { ...defaultPlayerData.upgrades, ...(loaded.upgrades || {}) };
+                       playerData = { ...defaultPlayerData, ...loaded, upgrades: mergedUpgrades, cosmetics: mergedCosmetics };
                   } else {
                        playerData = defaultPlayerData;
                   }
               } catch (e) { 
                   console.error("Could not load player data, resetting.", e); 
-                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
               }
           }
           function updateObservatoryUI() {
@@ -2174,7 +2398,20 @@
               // --- END BUG FIX ---
 
               appContainer.classList.remove('screen-shake');
-              
+
+              // --- PORTAL GAMEPLAY EVENTS ---
+              // This function is the single choke point for every state transition, so it
+              // is the only place these need to be reported from. Both calls are idempotent.
+              //
+              // Only an actual run counts as gameplay. The tutorial does (the player is
+              // flying the comet); the shop/observatory deliberately does NOT, since the
+              // SDK docs treat menus as a gameplay break.
+              if (newState === 'playing' || newState === 'tutorial') {
+                  portalSDK.gameplayStart();
+              } else {
+                  portalSDK.gameplayStop();
+              }
+
               // Now, selectively SHOW the elements for the new state
               if (newState === 'menu') {
                   audioManager.stopMusic(); 
@@ -2212,16 +2449,43 @@
                   savePlayerData();
                   finalScoreElement.textContent = Math.floor(score); fragmentsEarnedDisplay.textContent = fragmentsThisRun;
                   gameOverModal.className = 'modal modal-visible'; // Show game over modal
+
+                  // Midgame interstitial. Death is the natural break — the run is over and
+                  // the score is already banked above, so an ad here interrupts nothing.
+                  //
+                  // The SDK rate-limits these itself (roughly one per 3 minutes) and reports
+                  // the refusal as an ordinary 'adCooldown' error, so no throttling is
+                  // needed on our side. onComplete fires on EVERY path — finished, errored,
+                  // no portal, or watchdog — which is what guarantees audio is restored.
+                  showGameOverAd();
               } else if (newState === 'observatory') {
                   updateObservatoryUI(); 
                   observatory.className = 'modal modal-visible'; // Show observatory
               }
           }
 
+          // --- MUTE STATE ---
+          // Two INDEPENDENT reasons the game can be silent, tracked separately so neither
+          // can clobber the other: the player's own site-level mute on the portal, and an
+          // ad currently on screen. Restoring after an ad by simply unmuting would undo a
+          // site-level mute the player deliberately set, so both feed one derived value.
+          let platformMuted = false;
+          let mutedByAd = false;
+          function applyMute() { audioManager.setMuted(platformMuted || mutedByAd); }
+
+          function showGameOverAd() {
+              portalSDK.showMidgameAd({
+                  onStart: () => { mutedByAd = true; applyMute(); },
+                  onComplete: () => { mutedByAd = false; applyMute(); }
+              });
+          }
+
           function initNewRun(isTutorial = false) {
               // console.log(`[DEBUG] initNewRun: Tutorial = ${isTutorial}`);
               score = 0; fragmentsThisRun = 0; maxDistanceReached = 0; lastZoneIndex = -1; cameraX = 0;
-              obstacles = []; powerUps = []; starFragments = []; particles = [];
+              audioManager.resetFragmentCombo();
+              slowMoFrames = 0; slowMoParity = false;
+              obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = [];
               nextObstacleSpawnX = VIRTUAL_WIDTH; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
               activePowerUp = { type: null, timer: 0 };
               runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
@@ -2249,8 +2513,20 @@
               if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent multiple loops
 
               if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
-                  if (gameState === 'playing') updateGame();
-                  else updateTutorial();
+                  // Slow-motion: keep rendering every frame, but step the simulation on
+                  // only every other one. updateGame() is frame-stepped rather than
+                  // dt-driven, so halving the step rate is what halves apparent speed.
+                  let stepSimulation = true;
+                  if (slowMoFrames > 0) {
+                      slowMoFrames--;
+                      slowMoParity = !slowMoParity;
+                      stepSimulation = slowMoParity;
+                  }
+
+                  if (stepSimulation) {
+                      if (gameState === 'playing') updateGame();
+                      else updateTutorial();
+                  }
                   drawGame();
               } else if (gameState === 'menu') {
                   updateMenu(); drawMenu();
@@ -2269,6 +2545,7 @@
                   playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
                   if (headstartTimer >= HEADSTART_DURATION) { isHeadstarting = false; activePowerUp.type = 'shield'; activePowerUp.timer = 300; }
               }
+              updateKeyboardWell();
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
               playerComet.update();
               manageObstacles(); managePowerUps(); manageStarFragments(); manageParticles();
@@ -2277,7 +2554,7 @@
               starFragments.forEach(sf => sf.update());
               const collisionResult = checkCollisions();
               if (collisionResult.obstacle) { if (hasRevive) revivePlayer(); else { setGameState('game-over'); return; } }
-              if (collisionResult.fragment) { fragmentsThisRun++; runFragmentsDisplay.textContent = fragmentsThisRun; audioManager.playFragmentSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 3, '#facc15'); }
+              if (collisionResult.fragment) { collectFragment(collisionResult.item); }
               if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[activePowerUp.type].main); }
               handleActivePowerUp();
               if (!isHeadstarting) {
@@ -2325,6 +2602,7 @@
               powerUps.forEach(p => p.draw()); 
               starFragments.forEach(sf => sf.draw()); 
               particles.forEach(p => p.draw());
+              shockRings.forEach(r => r.draw());
               if (gravityWell && !isHeadstarting) gravityWell.draw();
               
               // REMOVED: Old tutorial drawing logic.
@@ -2336,9 +2614,11 @@
           function updateTutorial() {
               if (!playerComet || !tutorialManager.isActive) return;
               
+              updateKeyboardWell();
+
               // Set camera for tutorial
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 4);
-              
+
               playerComet.update();
               obstacles.forEach(o => o.update());
               manageParticles();
@@ -2358,8 +2638,11 @@
               const collisionResult = checkCollisions();
               // Note: Obstacle collision is handled by the "unlosable" design,
               // but we still need to check for fragment collection.
-              if (collisionResult.fragment) { 
-                  audioManager.playFragmentSound(); 
+              if (collisionResult.fragment) {
+                  audioManager.playFragmentSound();
+                  // Full flourish: this is the player's first fragment ever, so it should
+                  // land hard. No run accounting here — the tutorial awards nothing.
+                  fragmentPickupFx(collisionResult.item, true);
                   // The tutorialManager.update() will detect this and advance the step.
               }
           }
@@ -2401,14 +2684,12 @@
                   const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance; 
                   
                   const width = Math.random() * 50 + 25;
-                  let height = Math.random() * 180 + 50;
+                  const height = Math.random() * 180 + 50;
 
-                  // --- NEW FLAIR (Obstacle Shape Spawning) ---
-                  const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
-                  if (skin.collisionShape === 'circle') {
-                      height = width; // Make circles proportional
-                  }
-                  // --- END FLAIR ---
+                  // Every skin now spawns at the SAME dimensions. Circular skins used to be
+                  // squashed to height === width here, which made them strictly easier to
+                  // dodge than the default pillar; they are stacked to fill the box instead
+                  // (see getCircleStack), so cosmetics are purely cosmetic again.
 
                   const y = Math.random() * (VIRTUAL_HEIGHT - height);
                   obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
@@ -2442,18 +2723,76 @@
                   const angle = (Math.random() - 0.5) * Math.PI / 4;
                   const potentialFragments = Array.from({length: clusterSize}, (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
                   if (!potentialFragments.some(pf => obstacles.some(obs => pf.x > obs.x && pf.x < obs.x + obs.width && pf.y > obs.y && pf.y < obs.y + obs.height))) {
-                      potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y)));
+                      const clusterId = ++fragmentClusterCounter;
+                      potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y, clusterId)));
                   }
                   nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
               }
           }
-          function createExplosion(x, y, count, color) { 
+          function createExplosion(x, y, count, color) {
               // Updated to use new Particle constructor
-              for (let i = 0; i < count; i++) { 
-                  particles.push(new Particle(x, y, color)); 
-              } 
+              for (let i = 0; i < count; i++) {
+                  particles.push(new Particle(x, y, color));
+              }
           }
-          function manageParticles() { particles = particles.filter(p => { p.update(); return p.lifespan > 0; }); }
+          function manageParticles() {
+              particles = particles.filter(p => { p.update(); return p.lifespan > 0; });
+              shockRings = shockRings.filter(r => { r.update(); return r.lifespan > 0; });
+          }
+
+          // --- FRAGMENT PICKUP JUICE ---
+          // The reward used to be a 3-particle puff and one fixed note, against a
+          // 10-particle explosion plus screen-shake on death — the punishment read louder
+          // than the reward. This escalates: every pickup pops, and CLEARING A WHOLE
+          // CLUSTER earns the ring, the bigger burst and a brief slow-mo.
+          //
+          // The flourish is deliberately reserved for cluster completion. Firing slow-mo
+          // on each of 3-6 fragments collected a few frames apart would read as stutter,
+          // not impact.
+          // Re-anchors the keyboard well to the comet every frame, so it keeps pulling in a
+          // consistent direction as the comet moves instead of being left behind.
+          function updateKeyboardWell() {
+              if (!playerComet || isHeadstarting) return;
+
+              let dx = 0, dy = 0;
+              if (heldDirections.has('up')) dy -= 1;
+              if (heldDirections.has('down')) dy += 1;
+              if (heldDirections.has('left')) dx -= 1;
+              if (heldDirections.has('right')) dx += 1;
+
+              if (dx === 0 && dy === 0) {
+                  // Only clear a well WE own — a pointer-held well must survive.
+                  if (keyboardWellActive) { gravityWell = null; keyboardWellActive = false; }
+                  return;
+              }
+
+              // Yield to the pointer if it is currently holding a well.
+              if (gravityWell && !keyboardWellActive) return;
+
+              const len = Math.hypot(dx, dy);
+              gravityWell = new GravityWell(
+                  playerComet.x + (dx / len) * KEYBOARD_WELL_DISTANCE,
+                  playerComet.y + (dy / len) * KEYBOARD_WELL_DISTANCE
+              );
+              keyboardWellActive = true;
+          }
+
+          function fragmentPickupFx(item, isFlourish) {
+              createExplosion(item.x, item.y, isFlourish ? 14 : 8, '#facc15');
+              if (playerComet) playerComet.flashFrames = isFlourish ? 6 : 3;
+              if (isFlourish) {
+                  shockRings.push(new ShockRing(item.x, item.y, '#fde047', 70, 24));
+                  slowMoFrames = 8;   // ~8 rendered frames at half speed = ~130ms dip
+              }
+          }
+
+          function collectFragment(item) {
+              fragmentsThisRun++;
+              runFragmentsDisplay.textContent = fragmentsThisRun;
+              audioManager.playFragmentSound();
+              // Flourish once the last fragment of this spawn-batch is gone.
+              fragmentPickupFx(item, !starFragments.some(sf => sf.clusterId === item.clusterId));
+          }
           function handleActivePowerUp() {
               if (activePowerUp.type && activePowerUp.timer > 0) {
                   activePowerUp.timer--;
@@ -2485,16 +2824,19 @@
                       const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
 
                       if (skin.collisionShape === 'circle') {
-                          // Circle Collision
-                          const obsRadius = obs.width / 2; // Assumes w == h
-                          const obsCenterX = obs.x + obsRadius;
-                          const obsCenterY = obs.y + obsRadius;
-                          
-                          const distSq = (playerComet.x - obsCenterX)**2 + (playerComet.y - obsCenterY)**2;
-                          const radiiSq = (playerComet.radius + obsRadius)**2;
-                          
-                          if (distSq < radiiSq) {
-                              return { obstacle: true };
+                          // Circle Collision, once per circle in the stack. Reads the same
+                          // getCircleStack() the renderer does, so the hitbox is exactly
+                          // the shape on screen.
+                          for (const c of getCircleStack(obs)) {
+                              const obsCenterX = obs.x + c.ox;
+                              const obsCenterY = obs.y + c.oy;
+
+                              const distSq = (playerComet.x - obsCenterX)**2 + (playerComet.y - obsCenterY)**2;
+                              const radiiSq = (playerComet.radius + c.r)**2;
+
+                              if (distSq < radiiSq) {
+                                  return { obstacle: true };
+                              }
                           }
                       } else {
                           // Default Rectangle (AABB) Collision
@@ -2577,9 +2919,10 @@
 
                   if ((gameState !== 'playing' && gameState !== 'tutorial') || isHeadstarting) return; 
                   
-                  e.preventDefault(); 
+                  e.preventDefault();
                   // This correctly converts SCREEN space to WORLD space
-                  gravityWell = new GravityWell(pos.x + cameraX, pos.y); 
+                  gravityWell = new GravityWell(pos.x + cameraX, pos.y);
+                  keyboardWellActive = false;   // the pointer now owns the well
               };
               
               const moveWell = (e) => { 
@@ -2616,37 +2959,95 @@
                   if ((gameState === 'playing' || gameState === 'tutorial')) {
                       e.preventDefault(); 
                   }
-                  gravityWell = null; 
+                  gravityWell = null;
+                  keyboardWellActive = false;
               };
-              
+
               // Canvas Listeners
               canvas.addEventListener('mousedown', startWell);
               canvas.addEventListener('mousemove', moveWell);
               canvas.addEventListener('touchstart', startWell, { passive: false });
               canvas.addEventListener('touchmove', moveWell, { passive: false });
-              
+
               // Global listeners for ending interaction reliably
-              document.addEventListener('mouseup', endWell); 
-              document.addEventListener('touchend', endWell); 
-              document.addEventListener('touchcancel', endWell); 
-              
-              window.addEventListener('resize', resizeCanvas); 
-              
+              document.addEventListener('mouseup', endWell);
+              document.addEventListener('touchend', endWell);
+              document.addEventListener('touchcancel', endWell);
+
+              // --- KEYBOARD CONTROL ---
+              // Portal traffic is desktop-heavy and the game was pointer-only. Arrows/WASD
+              // place the well in that DIRECTION relative to the comet rather than at a
+              // fixed spot, which is what keeps the taught backtracking move (a well
+              // BEHIND the comet) reachable without a pointer — Left does exactly that.
+              // Diagonals fall out for free by holding two keys.
+              const KEY_DIRECTIONS = {
+                  ArrowUp: 'up', KeyW: 'up',
+                  ArrowDown: 'down', KeyS: 'down',
+                  ArrowLeft: 'left', KeyA: 'left',
+                  ArrowRight: 'right', KeyD: 'right'
+              };
+
+              document.addEventListener('keydown', (e) => {
+                  if (e.repeat) return;
+
+                  if (e.code === 'Escape') {
+                      // Esc toggles pause, matching the on-screen pause button.
+                      if (gameState === 'playing') { audioManager.playClickSound(); setGameState('paused'); }
+                      else if (gameState === 'paused') { audioManager.playClickSound(); setGameState('playing'); }
+                      return;
+                  }
+
+                  const dir = KEY_DIRECTIONS[e.code];
+                  if (!dir) return;
+                  if (gameState !== 'playing' && gameState !== 'tutorial') return;
+                  // pos is null: there is no pointer position to test against the tutorial
+                  // spotlight, so only an explicit blockInput step suppresses the key.
+                  if (gameState === 'tutorial' && tutorialManager.isInputBlocked(null)) return;
+
+                  e.preventDefault();   // stop arrow keys scrolling the portal's iframe
+                  heldDirections.add(dir);
+              });
+
+              document.addEventListener('keyup', (e) => {
+                  const dir = KEY_DIRECTIONS[e.code];
+                  if (dir) heldDirections.delete(dir);
+              });
+
+              // Losing focus (portal overlay, ad, alt-tab) never delivers the keyup, which
+              // would otherwise strand a key "held" and leave the comet steering itself.
+              window.addEventListener('blur', () => {
+                  heldDirections.clear();
+                  if (keyboardWellActive) { gravityWell = null; keyboardWellActive = false; }
+              });
+
+              window.addEventListener('resize', resizeCanvas);
+
               const handlePlayClick = async (isTutorial) => {
                   // console.log(`[DEBUG] handlePlayClick: Tutorial = ${isTutorial}`);
                   // --- AUDIO FIX ---
                   // Access window.Tone directly, and check if it exists
-                  try { 
+                  try {
                       if (window.Tone && window.Tone.context.state !== 'running') {
-                          await window.Tone.start(); 
+                          // RACE, don't just await. Tone.start() rejects on some failures but
+                          // simply NEVER SETTLES when the AudioContext stays suspended — which
+                          // an iframe with a restrictive autoplay policy (this game ships inside
+                          // one on the portal) can cause even after a real click. A bare await
+                          // would then hang here forever and the finally block below would never
+                          // run, so pressing PLAY would silently do nothing at all: the game
+                          // would be unstartable. Losing audio is survivable; losing the button
+                          // is not.
+                          await Promise.race([
+                              window.Tone.start(),
+                              new Promise(resolve => setTimeout(resolve, 2000))
+                          ]);
                       }
                       if (!audioManager.isInitialized) {
-                          audioManager.init(); 
+                          audioManager.init();
                       }
-                      audioManager.playClickSound(); 
-                  } catch (error) { 
-                      console.error("Audio could not be initialized.", error); 
-                  } 
+                      audioManager.playClickSound();
+                  } catch (error) {
+                      console.error("Audio could not be initialized.", error);
+                  }
                   // --- END AUDIO FIX ---
                   finally { 
                       if (isTutorial) { 
@@ -2807,21 +3208,40 @@
 
 
           // --- Initialization ---
-          function init() { 
+          function init() {
               // console.log('[DEBUG] init: Initializing game...');
+              portalSDK.loadingStart();
               if (stars.length === 0) {
-                 for (let i = 0; i < 200; i++) stars.push(new Star()); 
+                 for (let i = 0; i < 200; i++) stars.push(new Star());
                  // console.log('[DEBUG] init: Created stars.');
               }
-              setupEventListeners(); 
-              loadPlayerData(); 
-              resizeCanvas(); 
-              setGameState('menu'); 
+              setupEventListeners();
+              loadPlayerData();
+              resizeCanvas();
+              setGameState('menu');
               // gameLoop(); // Removed: gameLoop is now started by setGameState('menu')
+
+              // Respect a site-level mute the player set on the portal BEFORE we ever make
+              // a sound. Fires once immediately with the current setting, then on change.
+              // No-ops off-portal, where nothing external can force-mute us.
+              portalSDK.onPlatformMuteChange(muted => { platformMuted = muted; applyMute(); });
+
+              // The game is interactive as soon as the menu is up. Everything heavy
+              // (Tone's audio graph) is built lazily on the first user gesture, so the
+              // load window genuinely closes here.
+              portalSDK.loadingStop();
           }
-          
+
           // START THE GAME
-          init();
+          //
+          // init() must not run until the portal probe settles, because loadPlayerData()
+          // reads through portalSDK — and on a logged-in portal account that backend is
+          // cloud save, not localStorage. Booting first and probing later would read an
+          // empty local save and then write it back over the real one.
+          //
+          // init() never rejects and self-limits to its own timeout, so an absent or
+          // hanging SDK delays boot by at most that long and then runs exactly as before.
+          portalSDK.init().then(init);
 
           // Helper for you to reset the tutorial flag in the console if needed
           window.resetTutorial = function() { 
