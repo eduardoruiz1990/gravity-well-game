@@ -147,6 +147,52 @@ Difficulty comes from how narrow (`getCorridorHalf`) and how mobile the lane is,
 whether a route exists. `scratchpad`-style reachability checks should be re-run after any
 change here; the invariant is **100% path existence at every zone**.
 
+### The collapsing rift (anti-idle pressure)
+
+Because the corridor is guaranteed and the comet advances by itself, a player could sit in
+an open lane and simply not die — disengaging had no cost. `updateRift()` runs a wall that
+chases from behind: it cruises slightly slower than the comet, accelerates the longer you go
+without collecting a fragment (`framesSinceFragment`), and is shoved back by
+`RIFT_FRAGMENT_PUSHBACK` on every pickup. Sustained idling kills in ~10s. This makes
+fragments load-bearing for *survival*, not just currency.
+
+Two constraints these constants must respect — the first attempt violated both and the
+mechanic did nothing at all:
+
+- **`RIFT_MAX_LAG` must keep the wall on screen.** The comet sits 1/3 into the view (screen
+  x ≈ 427), so a lag of 900 rendered at x = −473: invisible, therefore not a threat.
+- **The ramp must cross factor 1.0 quickly, then keep going.** At factor < 1 the rift falls
+  *further* behind and can never close, no matter how long the player idles.
+
+`revivePlayer()` must reset `riftX` — otherwise being caught re-triggers on the very next
+frame and burns the revive for nothing.
+
+### Headstart handover
+
+Collisions are disabled during the headstart flight, but the *handover* is what kills. The
+flight now eases `playerComet.y` toward `safeLaneY` and `endHeadstart()` snaps exactly onto
+it, clears any obstacle overlapping the comet, and grants `HEADSTART_GRACE_FRAMES` of shield.
+Before that, the comet was deposited wherever the idle wave left it while the corridor could
+be anywhere in 86–634 — with no player control during the flight to pre-position, and
+measurement showed it passing through 20 obstacles mid-flight, so it could land *inside* one.
+
+### Performance rules for the hot loop
+
+`gameLoop()` sets `frameTime` once per frame; animated draw code reads that, never
+`Date.now()` directly.
+
+- **Never `arr = arr.filter(...)` per frame.** Use `compact(arr, keep)` — in-place, preserves
+  array identity. Five entity lists were each allocating a fresh array every frame.
+- **Never construct a gradient in a draw call.** Build it once at the origin and position it
+  with `ctx.translate` (see `drawWellFalloff`, `Orbiter.draw`, `drawRift`), or cache it keyed
+  on whatever it actually depends on (see the theme renderer's `_cacheKey`, keyed on zone +
+  canvas size). The background alone was building 9 gradients per frame; steady state is now
+  **0**, verified by patching `CanvasRenderingContext2D.prototype`.
+- **Hoist invariants out of per-entity loops** — the equipped-skin lookup ran once per
+  obstacle per frame in `checkCollisions()`.
+- Don't allocate to read a constant: `POWERUP_COLORS` is module-level because code was
+  constructing throwaway `PowerUp` instances just to read one hex string.
+
 ### Tutorial: real collisions with a soft rewind
 
 Collisions are **live** during the tutorial. They previously were not — `checkCollisions()`

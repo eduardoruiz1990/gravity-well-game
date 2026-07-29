@@ -1259,28 +1259,53 @@
                   };
               };
 
-              const render = (c, w, h2, zone = 0, camX = 0) => {
-                  const p = paletteFor(zone);
-                  const sx = w / VIRTUAL_WIDTH, sy = h2 / VIRTUAL_HEIGHT;
+              // CACHES. This function runs every frame, and used to rebuild one linear
+              // gradient plus one radial gradient PER HAZE BLOB on every frame — nine gradient
+              // objects and a fresh palette at 60fps for values that only change with the zone.
+              //
+              // Caching the gradient OBJECTS was only half the win: filling eight large radial
+              // gradients still costs a per-pixel gradient evaluation over most of the screen
+              // every frame, which is the expensive part on software rasterisers and low-end
+              // GPUs. The haze is therefore pre-rendered ONCE to a small sprite and blitted
+              // with drawImage, which is dramatically cheaper and visually identical (a soft
+              // radial blob upscales without any visible artefact).
+              let _cacheKey = null, _pal = null, _bgGrad = null, _hazeSprite = null;
+              const HAZE_SPRITE_PX = 128;   // upscaled per blob; smoothness hides the low res
 
-                  const grad = c.createLinearGradient(0, flip ? h2 : 0, 0, flip ? 0 : h2);
-                  grad.addColorStop(0, p.top);
-                  grad.addColorStop(1, p.bottom);
-                  c.fillStyle = grad;
+              const render = (c, w, h2, zone = 0, camX = 0) => {
+                  const sx = w / VIRTUAL_WIDTH, sy = h2 / VIRTUAL_HEIGHT;
+                  const key = zone + '|' + w + 'x' + h2 + '|' + (c === ctx ? 'game' : 'preview');
+                  if (key !== _cacheKey) {
+                      _cacheKey = key;
+                      _pal = paletteFor(zone);
+                      _bgGrad = c.createLinearGradient(0, flip ? h2 : 0, 0, flip ? 0 : h2);
+                      _bgGrad.addColorStop(0, _pal.top);
+                      _bgGrad.addColorStop(1, _pal.bottom);
+
+                      _hazeSprite = document.createElement('canvas');
+                      _hazeSprite.width = _hazeSprite.height = HAZE_SPRITE_PX;
+                      const hc = _hazeSprite.getContext('2d');
+                      const half = HAZE_SPRITE_PX / 2;
+                      const g = hc.createRadialGradient(half, half, 0, half, half, half);
+                      g.addColorStop(0, _pal.accent);
+                      g.addColorStop(1, 'transparent');
+                      hc.fillStyle = g;
+                      hc.fillRect(0, 0, HAZE_SPRITE_PX, HAZE_SPRITE_PX);
+                  }
+                  const p = _pal;
+
+                  c.fillStyle = _bgGrad;
                   c.fillRect(0, 0, w, h2);
 
-                  // FAR: haze clouds
+                  // FAR: haze clouds — one scaled blit each.
                   c.save();
-                  for (const item of bgHaze) {
+                  for (let i = 0; i < bgHaze.length; i++) {
+                      const item = bgHaze[i];
                       const x = parallaxX(item, camX, VIRTUAL_WIDTH) * sx;
                       const y = item.y * sy;
                       const r = item.r * Math.min(sx, sy);
-                      const g = c.createRadialGradient(x, y, 0, x, y, r);
-                      g.addColorStop(0, p.accent);
-                      g.addColorStop(1, 'transparent');
                       c.globalAlpha = item.alpha;
-                      c.fillStyle = g;
-                      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+                      c.drawImage(_hazeSprite, x - r, y - r, r * 2, r * 2);
                   }
                   c.restore();
 
@@ -1414,7 +1439,7 @@
                       ctx.strokeRect(x, y, w, h);
                       
                       // Add pulsating glow using a time-based sine wave
-                      const glowAlpha = 0.5 + Math.sin(Date.now() * 0.005) * 0.5; // 0.0 to 1.0
+                      const glowAlpha = 0.5 + Math.sin(frameTime * 0.005) * 0.5; // 0.0 to 1.0
                       ctx.shadowColor = '#0ea5e9';
                       ctx.shadowBlur = 10 + glowAlpha * 10; // 10 to 20
                       ctx.strokeStyle = `rgba(100, 180, 255, ${glowAlpha})`;
@@ -1516,6 +1541,95 @@
           let keyboardWellActive = false;
 
           let fragmentClusterCounter = 0;
+
+          // --- PERFORMANCE PRIMITIVES ---
+          //
+          // One timestamp per frame. Animated draw code was calling Date.now() individually
+          // (per obstacle, per streak line), which is both wasted work and a source of
+          // sub-frame skew between elements that should be in lockstep.
+          let frameTime = 0;
+
+          // In-place array compaction. `arr = arr.filter(...)` allocates a brand-new array
+          // every frame for every entity list — obstacles, powerups, fragments, particles,
+          // rings — which at 60fps is thousands of throwaway arrays per second and was the
+          // largest single source of GC churn in the hot loop. This mutates in place and
+          // preserves array identity.
+          function compact(arr, keep) {
+              let w = 0;
+              for (let i = 0; i < arr.length; i++) {
+                  const v = arr[i];
+                  if (keep(v)) { if (w !== i) arr[w] = v; w++; }
+              }
+              arr.length = w;
+              return arr;
+          }
+
+          // Gradients are expensive to construct and were being rebuilt every frame. These
+          // are built ONCE at the origin and positioned with a translate at draw time.
+          function originRadial(c, r, inner, outer) {
+              const g = c.createRadialGradient(0, 0, 0, 0, 0, r);
+              g.addColorStop(0, inner);
+              g.addColorStop(1, outer);
+              return g;
+          }
+
+          // The gravity well's falloff gradient. Fixed radius, so it is built once for the
+          // lifetime of the page rather than on every frame the well is visible. Gradients
+          // live in user space, hence the translate: the disc is drawn around the origin.
+          let _wellGrad = null;
+          let _riftGrad = null;
+          let _vignetteSprite = null;
+
+          function drawWellFalloff(x, y, r) {
+              if (!_wellGrad) {
+                  _wellGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
+                  _wellGrad.addColorStop(0, 'rgba(196, 181, 253, 0.42)');
+                  _wellGrad.addColorStop(0.45, 'rgba(167, 139, 250, 0.20)');
+                  _wellGrad.addColorStop(1, 'rgba(139, 92, 246, 0.02)');
+              }
+              ctx.translate(x, y);
+              ctx.beginPath();
+              ctx.arc(0, 0, r, 0, Math.PI * 2);
+              ctx.fillStyle = _wellGrad;
+              ctx.fill();
+              ctx.translate(-x, -y);
+          }
+
+          // --- THE COLLAPSING RIFT (anti-idle pressure) ---
+          //
+          // The problem it solves: because the corridor is guaranteed and the comet advances
+          // on its own, a player could sit in an open lane doing nothing and simply not die.
+          // There was no cost to disengaging, which is what made long runs feel passive.
+          //
+          // A wall of collapsing space now chases from behind. It drifts slightly SLOWER
+          // than the comet while the player is engaged, but the longer they go without
+          // collecting a fragment the faster it gains — so ignoring the fragments is
+          // survivable for a while and then abruptly is not. Collecting one shoves it back.
+          //
+          // This also makes fragments load-bearing for SURVIVAL rather than just currency,
+          // which ties the economy to the moment-to-moment play instead of running beside it.
+          let riftX = 0;
+          let framesSinceFragment = 0;
+
+          // Tuning notes, because the first pass at these numbers did nothing at all:
+          //
+          // RIFT_MAX_LAG was 900px. The comet sits 1/3 into a 1280px view (screen x 427), so
+          // a wall 900px behind it renders at screen x -473 — permanently off-screen. A
+          // threat the player cannot see is not a threat. 430 parks it right on the left edge,
+          // so it is always visible and always reads as gaining or losing ground.
+          //
+          // RIFT_IDLE_RAMP was 0.00055/frame from a 0.86 base, which after five seconds of
+          // idling still only reached factor 0.95 — below 1.0, meaning the rift was still
+          // falling behind and could never close. It now crosses 1.0 shortly after the grace
+          // period and closes the full gap in ~6s, so sustained disengagement is fatal in
+          // ~10s total while a single fragment buys real breathing room.
+          const RIFT_TRAIL_FACTOR = 0.90;      // cruising speed as a fraction of the comet's
+          const RIFT_IDLE_RAMP = 0.0024;       // extra speed per frame without a fragment
+          const RIFT_MAX_FACTOR = 1.5;         // cap, so a good run can always claw back
+          const RIFT_FRAGMENT_PUSHBACK = 150;  // px the rift loses per fragment collected
+          const RIFT_MAX_LAG = 430;            // never idles further back than this
+          const RIFT_GRACE_FRAMES = 120;       // 2s of slack after each pickup
+
           // Zone-advance feedback (see onZoneAdvanced).
           let zoneFlashFrames = 0;
           let zoneBannerText = '';
@@ -1559,9 +1673,16 @@
           // TURN_AUTHORITY_EXPONENT is the tuning knob:
           //   1.0  -> turn radius is identical at every speed
           //   0.75 -> radius still widens gently with speed, keeping some difficulty ramp
-          const GRAVITY_INFLUENCE_BASE = 0.2;
+          // 0.34, up from 0.2: the well read as a suggestion rather than a force. This is
+          // the single number that decides how much authority the one mechanic has.
+          const GRAVITY_INFLUENCE_BASE = 0.34;
           const TURN_AUTHORITY_EXPONENT = 0.75;
           const WELL_STRENGTH_PER_LEVEL = 0.12;
+          // Distance falloff. The pull used to be flat across the whole radius, which is
+          // what made it feel mushy — placing the well precisely gained you nothing. It is
+          // now strongest at the centre and weakest at the rim, so aiming is rewarded and
+          // the well reads as an actual gravitational body.
+          const WELL_FALLOFF_MIN = 0.55;   // multiplier at the very edge of the radius
 
           function getGravityInfluence(baseSpeed) {
               const speed = Math.max(baseSpeed, INITIAL_SPEED);
@@ -2201,7 +2322,10 @@
                       const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
                       const dist = Math.sqrt(dx * dx + dy * dy);
                       if (dist > 0.01 && dist < gravityWell.radius) {
-                          const influence = getGravityInfluence(this.baseSpeed);
+                          // Falloff: full strength at the core, WELL_FALLOFF_MIN at the rim.
+                          const closeness = 1 - (dist / gravityWell.radius);
+                          const falloff = WELL_FALLOFF_MIN + (1 - WELL_FALLOFF_MIN) * closeness;
+                          const influence = getGravityInfluence(this.baseSpeed) * falloff;
                           this.vx += (dx / dist) * influence;
                           this.vy += (dy / dist) * influence;
                       }
@@ -2350,7 +2474,7 @@
                       ctx.strokeStyle = 'rgba(253, 224, 71, 0.55)';
                       ctx.lineWidth = 2;
                       for (let i = 0; i < 7; i++) {
-                          const phase = (Date.now() * 0.0016 + i * 0.53) % 1;
+                          const phase = (frameTime * 0.0016 + i * 0.53) % 1;
                           const sx = screenX + 40 - phase * 420;
                           const sy = this.y + Math.sin(i * 2.1) * 46;
                           ctx.globalAlpha = 0.5 * (1 - phase);
@@ -2383,22 +2507,59 @@
           class Orbiter {
               constructor(distance, color) { this.distance = distance; this.color = color; this.angle = Math.random() * Math.PI * 2; this.speed = 0.02 + Math.random() * 0.02; }
               update() { this.angle += this.speed; }
+              // The glow gradient is built once per orbiter and positioned with a translate.
+              // It used to be rebuilt every frame — and since the player gains an orbiter per
+              // zone, that cost grew with progress: by zone 8 it was nine gradient
+              // constructions per frame purely for decoration.
               draw(cometX, cometY) {
-                  const x = cometX + Math.cos(this.angle) * this.distance; const y = cometY + Math.sin(this.angle) * this.distance;
-                  const gradient = ctx.createRadialGradient(x, y, 0, x, y, 10);
-                  gradient.addColorStop(0, this.color); gradient.addColorStop(0.5, this.color); gradient.addColorStop(1, 'transparent');
-                  ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
-                  ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+                  const x = cometX + Math.cos(this.angle) * this.distance;
+                  const y = cometY + Math.sin(this.angle) * this.distance;
+                  if (!this._grad) {
+                      this._grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 10);
+                      this._grad.addColorStop(0, this.color);
+                      this._grad.addColorStop(0.5, this.color);
+                      this._grad.addColorStop(1, 'transparent');
+                  }
+                  ctx.translate(x, y);
+                  ctx.fillStyle = this._grad;
+                  ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+                  ctx.fillStyle = 'white';
+                  ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+                  ctx.translate(-x, -y);
               }
           }
 
           // Ensure GravityWell class is defined only ONCE
           class GravityWell {
               constructor(worldX, y) { this.x = worldX; this.y = y; this.radius = GRAVITY_WELL_RADIUS; }
+              // Two flat discs read as a vague haze and gave no clue that the centre pulls
+              // harder than the rim. A falloff gradient plus rotating accretion rings makes
+              // the shape of the force visible, so aiming the core is an obvious play.
               draw() {
                   const screenX = this.x - cameraX;
-                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.15)'; ctx.fill();
-                  ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * 0.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(196, 181, 253, 0.1)'; ctx.fill();
+                  const t = frameTime * 0.001;
+
+                  ctx.save();
+                  drawWellFalloff(screenX, this.y, this.radius);
+
+                  // Accretion rings, contracting toward the core.
+                  ctx.strokeStyle = 'rgba(196, 181, 253, 0.30)';
+                  ctx.lineWidth = 2;
+                  for (let i = 0; i < 3; i++) {
+                      const phase = (t * 0.55 + i / 3) % 1;
+                      const r = this.radius * (1 - phase) * 0.92;
+                      ctx.globalAlpha = 0.42 * phase;
+                      ctx.beginPath(); ctx.arc(screenX, this.y, r, 0, Math.PI * 2); ctx.stroke();
+                  }
+                  ctx.globalAlpha = 1;
+
+                  // Bright core marking where the pull is strongest.
+                  ctx.globalCompositeOperation = 'lighter';
+                  ctx.beginPath();
+                  ctx.arc(screenX, this.y, 9 + Math.sin(t * 4) * 2, 0, Math.PI * 2);
+                  ctx.fillStyle = 'rgba(221, 214, 254, 0.85)';
+                  ctx.fill();
+                  ctx.restore();
               }
           }
 
@@ -2529,10 +2690,19 @@
               } // <-- This closes draw()
           } // <-- This brace closes class Obstacle.
           
+          // Shared, module-level table. Every PowerUp instance used to carry its own copy of
+          // this identical object literal, allocating three nested objects per spawn, and
+          // other code constructed throwaway PowerUps just to read a colour out of it.
+          const POWERUP_COLORS = {
+              shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' },
+              shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' },
+              boost:  { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' }
+          };
+
           class PowerUp {
-              constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.colors = { shield: { main: '#0ea5e9', glow: 'rgba(125, 211, 252, 0.5)' }, shrink: { main: '#16a34a', glow: 'rgba(134, 239, 172, 0.5)' }, boost: { main: '#facc15', glow: 'rgba(253, 224, 71, 0.5)' } }; this.animation = Math.random() * Math.PI * 2; }
+              constructor(x, y, type) { this.x = x; this.y = y; this.type = type; this.radius = 12; this.animation = Math.random() * Math.PI * 2; }
               draw() {
-                  this.animation += 0.05; const pulse = 0.9 + Math.sin(this.animation) * 0.1; const colorSet = this.colors[this.type]; const screenX = this.x - cameraX;
+                  this.animation += 0.05; const pulse = 0.9 + Math.sin(this.animation) * 0.1; const colorSet = POWERUP_COLORS[this.type]; const screenX = this.x - cameraX;
                   ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse * 1.5, 0, Math.PI * 2); ctx.fillStyle = colorSet.glow; ctx.fill();
                   ctx.beginPath(); ctx.arc(screenX, this.y, this.radius * pulse, 0, Math.PI * 2); ctx.fillStyle = colorSet.main; ctx.fill();
               }
@@ -2935,6 +3105,45 @@
               }
           }
 
+          // --- HEADSTART HANDOVER ---
+          //
+          // The bug: collisions are disabled *during* the headstart flight, but the comet was
+          // dropped out of it wherever the idle wave happened to leave it (y ~360) while the
+          // guaranteed safe corridor could be anywhere from y=86 to y=634 — and the player has
+          // no control during the flight, so they could not pre-position. Measurement showed
+          // the comet physically passing through 20 obstacles mid-flight, so it could also be
+          // deposited *inside* a solid block. The 300-frame shield then expired with the comet
+          // still buried or nowhere near the corridor, and the run ended for reasons the
+          // player could neither see nor influence.
+          //
+          // Fix, in the order that matters:
+          //   1. the flight tracks safeLaneY, so it lands ON the navigable lane
+          //   2. anything still overlapping the comet at handover is cleared outright
+          //   3. the grace shield is long enough to actually read the field and react
+          const HEADSTART_GRACE_FRAMES = 480;   // 8s at 60fps, was 300
+
+          function endHeadstart() {
+              isHeadstarting = false;
+
+              // Snap onto the corridor. The easing during flight gets close, but "close" is
+              // not a guarantee and this handover has to be one.
+              playerComet.y = safeLaneY;
+              playerComet.vy = 0;
+
+              // Nothing may be inside the player at the moment control is handed back.
+              // Cheaper and far more legible than trying to nudge the comet back out.
+              const r = playerComet.radius + 6;
+              obstacles = obstacles.filter(o => !(
+                  playerComet.x + r > o.x && playerComet.x - r < o.x + o.width &&
+                  playerComet.y + r > o.y && playerComet.y - r < o.y + o.height
+              ));
+
+              // Grace shield so the player can orient before anything can kill them.
+              activePowerUp.type = 'shield';
+              activePowerUp.timer = HEADSTART_GRACE_FRAMES;
+              shockRings.push(new ShockRing(playerComet.x, playerComet.y, '#38bdf8', 200, 26));
+          }
+
           // --- MUTE STATE ---
           // Two INDEPENDENT reasons the game can be silent, tracked separately so neither
           // can clobber the other: the player's own site-level mute on the portal, and an
@@ -2958,6 +3167,7 @@
               slowMoFrames = 0; slowMoParity = false;
               zoneFlashFrames = 0; zoneBannerFrames = 0;
               safeLaneY = VIRTUAL_HEIGHT / 2;   // corridor starts level with the comet
+              riftX = 150 - RIFT_MAX_LAG; framesSinceFragment = 0;
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = [];
               // 0.45 rather than a full screen-width: at VIRTUAL_WIDTH the first formation
               // could not spawn until the camera had caught up, leaving several seconds of
@@ -2988,6 +3198,11 @@
 
           function gameLoop() {
               if (animationFrameId) cancelAnimationFrame(animationFrameId); // Prevent multiple loops
+
+              // One clock read per frame, shared by every animated draw. Individual
+              // Date.now() calls scattered through render code both waste work and let
+              // elements that should move in lockstep drift apart within a frame.
+              frameTime = performance.now();
 
               if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
                   // Slow-motion: keep rendering every frame, but step the simulation on
@@ -3020,7 +3235,12 @@
               if (isHeadstarting) {
                   headstartTimer++; const progress = headstartTimer / HEADSTART_DURATION;
                   playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_BASE_SCORE * SCORE_DIVISOR);
-                  if (headstartTimer >= HEADSTART_DURATION) { isHeadstarting = false; activePowerUp.type = 'shield'; activePowerUp.timer = 300; }
+                  // Ride the corridor during the flight so the comet is never deposited
+                  // across a wall. Collisions are already disabled while headstarting, but
+                  // WHERE it ends up decides whether the player survives the handover.
+                  playerComet.y += (safeLaneY - playerComet.y) * 0.08;
+                  playerComet.vy = 0;
+                  if (headstartTimer >= HEADSTART_DURATION) endHeadstart();
               }
               updateKeyboardWell();
               audioManager.tickFragmentCombo();
@@ -3030,10 +3250,24 @@
               stars.forEach(s => s.update(playerComet.vx));
               obstacles.forEach(o => o.update());
               starFragments.forEach(sf => sf.update());
+              // The rift is checked alongside obstacles so a revive covers it too.
+              const caughtByRift = updateRift();
               const collisionResult = checkCollisions();
-              if (collisionResult.obstacle) { if (hasRevive) revivePlayer(); else { setGameState('game-over'); return; } }
+              if (collisionResult.obstacle || caughtByRift) {
+                  if (hasRevive) revivePlayer();
+                  else { setGameState('game-over'); return; }
+              }
               if (collisionResult.fragment) { collectFragment(collisionResult.item); }
-              if (collisionResult.powerUp) { activePowerUp.type = collisionResult.powerUp; let shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1); activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type]; audioManager.playPowerUpSound(); createExplosion(collisionResult.item.x, collisionResult.item.y, 5, new PowerUp(0, 0, collisionResult.powerUp).colors[activePowerUp.type].main); }
+              if (collisionResult.powerUp) {
+                  activePowerUp.type = collisionResult.powerUp;
+                  const shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1);
+                  activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type];
+                  audioManager.playPowerUpSound();
+                  // Reads the shared colour table. This used to construct a throwaway PowerUp
+                  // instance purely to look up one hex string.
+                  createExplosion(collisionResult.item.x, collisionResult.item.y, 8, POWERUP_COLORS[activePowerUp.type].main);
+                  shockRings.push(new ShockRing(collisionResult.item.x, collisionResult.item.y, POWERUP_COLORS[activePowerUp.type].main, 90, 22));
+              }
               handleActivePowerUp();
               if (!isHeadstarting) {
                   if (playerComet.vx > 0) {
@@ -3078,6 +3312,8 @@
               particles.forEach(p => p.draw());
               shockRings.forEach(r => r.draw());
               if (gravityWell && !isHeadstarting) gravityWell.draw();
+              drawRift();
+              drawRiftWarning();
 
               // REMOVED: Old tutorial drawing logic.
               // The new spotlight is a DOM element, not a canvas drawing.
@@ -3281,7 +3517,7 @@
 
           function manageObstacles() {
               if (!playerComet || gameState === 'tutorial') return;
-              obstacles = obstacles.filter(o => o.x + o.width > cameraX);
+              compact(obstacles, o => o.x + o.width > cameraX);
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextObstacleSpawnX >= spawnAheadPoint) return;
 
@@ -3369,7 +3605,7 @@
           }
           function managePowerUps() {
               if (!playerComet || gameState === 'tutorial') return;
-              powerUps = powerUps.filter(p => p.x + p.radius > cameraX);
+              compact(powerUps, p => p.x + p.radius > cameraX);
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextPowerUpSpawnX < spawnAheadPoint) {
                   for (let attempts = 0; attempts < 5; attempts++) {
@@ -3385,7 +3621,7 @@
           }
           function manageStarFragments() {
               if (!playerComet || gameState === 'tutorial') return;
-              starFragments = starFragments.filter(sf => sf.x + sf.radius > cameraX);
+              compact(starFragments, sf => sf.x + sf.radius > cameraX);
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextFragmentSpawnX < spawnAheadPoint) {
                   const clusterSize = Math.floor(Math.random() * 4) + 3;
@@ -3445,8 +3681,8 @@
               }
           }
           function manageParticles() {
-              particles = particles.filter(p => { p.update(); return p.lifespan > 0; });
-              shockRings = shockRings.filter(r => { r.update(); return r.lifespan > 0; });
+              compact(particles, p => { p.update(); return p.lifespan > 0; });
+              compact(shockRings, r => { r.update(); return r.lifespan > 0; });
           }
 
           // --- FRAGMENT PICKUP JUICE ---
@@ -3478,12 +3714,123 @@
               // Yield to the pointer if it is currently holding a well.
               if (gravityWell && !keyboardWellActive) return;
 
+              // MUTATE, don't allocate. This runs every frame a direction key is held, and
+              // used to construct a brand-new GravityWell each time — an object per frame for
+              // the entire duration of every input.
               const len = Math.hypot(dx, dy);
-              gravityWell = new GravityWell(
-                  playerComet.x + (dx / len) * KEYBOARD_WELL_DISTANCE,
-                  playerComet.y + (dy / len) * KEYBOARD_WELL_DISTANCE
-              );
+              const wx = playerComet.x + (dx / len) * KEYBOARD_WELL_DISTANCE;
+              const wy = playerComet.y + (dy / len) * KEYBOARD_WELL_DISTANCE;
+              if (gravityWell && keyboardWellActive) {
+                  gravityWell.x = wx; gravityWell.y = wy;
+              } else {
+                  gravityWell = new GravityWell(wx, wy);
+              }
               keyboardWellActive = true;
+          }
+
+          // Advances the rift. Returns true if it has caught the comet.
+          function updateRift() {
+              if (!playerComet) return false;
+              if (isHeadstarting) {
+                  // Keep it pinned behind during the headstart flight, or the teleport would
+                  // leave it thousands of pixels back and neuter it for the rest of the run.
+                  riftX = playerComet.x - RIFT_MAX_LAG;
+                  return false;
+              }
+              framesSinceFragment++;
+
+              // Idle pressure: harmless at first, then it starts gaining on you.
+              const idleFactor = Math.min(RIFT_MAX_FACTOR,
+                  RIFT_TRAIL_FACTOR + Math.max(0, framesSinceFragment - RIFT_GRACE_FRAMES) * RIFT_IDLE_RAMP);
+              riftX += playerComet.baseSpeed * idleFactor;
+
+              // Never let it drift so far back that it stops being a threat.
+              if (riftX < playerComet.x - RIFT_MAX_LAG) riftX = playerComet.x - RIFT_MAX_LAG;
+
+              return riftX > playerComet.x - playerComet.radius;
+          }
+
+          // How close the rift is, 0 (far) to 1 (touching). Drives the warning vignette.
+          function riftPressure() {
+              if (!playerComet) return 0;
+              return Math.max(0, Math.min(1, 1 - (playerComet.x - riftX) / RIFT_MAX_LAG));
+          }
+
+          function drawRift() {
+              const sx = riftX - cameraX;
+              if (sx < -80) return;
+
+              const t = frameTime * 0.004;
+              // The consumed region behind the wall. Gradient is built ONCE at the origin and
+              // positioned with a translate — it was previously rebuilt every frame because
+              // its coordinates move with the camera.
+              ctx.save();
+              if (!_riftGrad) {
+                  _riftGrad = ctx.createLinearGradient(-220, 0, 0, 0);
+                  _riftGrad.addColorStop(0, 'rgba(2, 6, 23, 0)');
+                  _riftGrad.addColorStop(0.55, 'rgba(30, 6, 40, 0.75)');
+                  _riftGrad.addColorStop(1, 'rgba(12, 2, 20, 0.96)');
+              }
+              ctx.translate(sx, 0);
+              ctx.fillStyle = _riftGrad;
+              ctx.fillRect(-220, 0, 220, VIRTUAL_HEIGHT);
+              ctx.translate(-sx, 0);
+
+              // Solid consumed region, CLIPPED TO THE VIEWPORT. This previously filled from
+              // x = -VIRTUAL_WIDTH, i.e. 1280px of rect entirely off-screen, every frame.
+              const solidRight = sx - 220;
+              if (solidRight > 0) {
+                  ctx.fillStyle = 'rgba(6, 2, 12, 0.98)';
+                  ctx.fillRect(0, 0, solidRight, VIRTUAL_HEIGHT);
+              }
+
+              // Torn leading edge.
+              ctx.beginPath();
+              ctx.moveTo(sx - 6, 0);
+              for (let y = 0; y <= VIRTUAL_HEIGHT; y += 24) {
+                  const wob = Math.sin(y * 0.035 + t * 2.2) * 9 + Math.sin(y * 0.011 - t * 1.3) * 13;
+                  ctx.lineTo(sx + wob, y);
+              }
+              ctx.lineTo(sx - 60, VIRTUAL_HEIGHT);
+              ctx.lineTo(sx - 60, 0);
+              ctx.closePath();
+              ctx.fillStyle = 'rgba(10, 2, 18, 0.98)';
+              ctx.fill();
+              ctx.strokeStyle = `rgba(244, 63, 94, ${0.55 + 0.35 * Math.sin(t * 5)})`;
+              ctx.lineWidth = 3;
+              ctx.stroke();
+              ctx.restore();
+          }
+
+          // Red vignette that tightens as the rift closes — the warning the player reads
+          // before they can see the wall itself.
+          function drawRiftWarning() {
+              const p = riftPressure();
+              if (p < 0.35) return;
+              const a = (p - 0.35) / 0.65;
+              ctx.save();
+              // A LEFT-WEIGHTED band, not a full-screen vignette. Two reasons:
+              //   - it points at the threat. The rift comes from the left, so warning glow on
+              //     the left edge tells the player where to look; a centred vignette does not.
+              //   - a full-viewport gradient fill every frame roughly doubled frame time when
+              //     the rift was close. This covers ~45% of the width instead.
+              // Pre-rendered small and upscaled — the gradient is smooth, so the interpolation
+              // is invisible. Intensity comes from globalAlpha.
+              const BAND_W = VIRTUAL_WIDTH * 0.45;
+              if (!_vignetteSprite) {
+                  const W = 64, H = 8;
+                  _vignetteSprite = document.createElement('canvas');
+                  _vignetteSprite.width = W; _vignetteSprite.height = H;
+                  const vc = _vignetteSprite.getContext('2d');
+                  const g = vc.createLinearGradient(0, 0, W, 0);
+                  g.addColorStop(0, 'rgba(244, 63, 94, 0.55)');
+                  g.addColorStop(1, 'rgba(244, 63, 94, 0)');
+                  vc.fillStyle = g;
+                  vc.fillRect(0, 0, W, H);
+              }
+              ctx.globalAlpha = a;
+              ctx.drawImage(_vignetteSprite, 0, 0, BAND_W, VIRTUAL_HEIGHT);
+              ctx.restore();
           }
 
           function fragmentPickupFx(item, isFlourish) {
@@ -3499,6 +3846,10 @@
               fragmentsThisRun++;
               runFragmentsDisplay.textContent = fragmentsThisRun;
               audioManager.playFragmentSound();
+              // Collecting shoves the rift back and resets the idle ramp — this is the loop
+              // that keeps the player engaged rather than coasting.
+              framesSinceFragment = 0;
+              riftX -= RIFT_FRAGMENT_PUSHBACK;
               // Flourish once the last fragment of this spawn-batch is gone.
               fragmentPickupFx(item, !starFragments.some(sf => sf.clusterId === item.clusterId));
           }
@@ -3533,15 +3884,28 @@
               // and rewinds instead of ending the run, so it stays unloseable while a
               // mistake finally means something.
               if (activePowerUp.type !== 'shield' && !isHeadstarting) {
-                  if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
+                  // Top/bottom walls only. The old third clause tested
+                  // `playerComet.x - radius < cameraX`, but cameraX is derived as
+                  // `playerComet.x - VIRTUAL_WIDTH/3`, so it could never be true — dead code
+                  // pretending to be a left-edge hazard. The collapsing rift is that hazard now.
+                  if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT) { return { obstacle: true }; }
                   
                   // --- COLLISION REFACTOR ---
+                  // The equipped skin is hoisted OUT of the loop. It was being looked up
+                  // (two property chains plus a fallback) once per obstacle per frame even
+                  // though it cannot change mid-frame.
+                  const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+                  const isCircleSkin = skin.collisionShape === 'circle';
+                  const cometX = playerComet.x, cometY = playerComet.y, cometR = playerComet.radius;
+
                   for (const obs of obstacles) {
                       if (!obs.isActive) continue; // Skip phasing obstacles
 
-                      const skin = cosmeticItems[playerData.cosmetics.equipped.obstacle] || cosmeticItems['obstacle_default'];
+                      // Cheap horizontal reject before any per-shape maths. Most obstacles on
+                      // screen are nowhere near the comet horizontally.
+                      if (obs.x - cometR > cometX || obs.x + obs.width + cometR < cometX) continue;
 
-                      if (skin.collisionShape === 'circle') {
+                      if (isCircleSkin) {
                           // Circle Collision, once per circle in the stack. Reads the same
                           // getCircleStack() the renderer does, so the hitbox is exactly
                           // the shape on screen.
@@ -3570,7 +3934,16 @@
               }
               return {};
           }
-          function revivePlayer() { hasRevive = false; updateUpgradeIndicators(); createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9'); activePowerUp.type = 'shield'; activePowerUp.timer = 180; obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH); }
+          function revivePlayer() {
+              hasRevive = false; updateUpgradeIndicators();
+              createExplosion(playerComet.x, playerComet.y, 30, '#0ea5e9');
+              activePowerUp.type = 'shield'; activePowerUp.timer = 180;
+              obstacles = obstacles.filter(o => o.x < cameraX || o.x > cameraX + VIRTUAL_WIDTH);
+              // A revive has to reset the rift too, or being caught by it would immediately
+              // re-trigger on the very next frame and burn the revive for nothing.
+              riftX = playerComet.x - RIFT_MAX_LAG;
+              framesSinceFragment = 0;
+          }
           
           // --- REFACTORED SPEED CALCULATION ---
           function calculateCurrentSpeed() { 
@@ -4023,6 +4396,23 @@
                   fragments: starFragments.length,
                   gateGapNow: getGateGap(getZoneForScore(score)),
                   nextGap,
+                  headstarting: isHeadstarting,
+                  headstartTimer,
+                  rift: {
+                      x: Math.round(riftX),
+                      lag: playerComet ? Math.round(playerComet.x - riftX) : null,
+                      framesSinceFragment,
+                      pressure: +riftPressure().toFixed(2)
+                  },
+                  activePowerUp: activePowerUp.type,
+                  activePowerUpTimer: activePowerUp.timer,
+                  safeLaneY: Math.round(safeLaneY),
+                  overlappingObstacle: (() => {
+                      if (!playerComet) return false;
+                      return obstacles.some(o => o.isActive &&
+                          playerComet.x + playerComet.radius > o.x && playerComet.x - playerComet.radius < o.x + o.width &&
+                          playerComet.y + playerComet.radius > o.y && playerComet.y - playerComet.radius < o.y + o.height);
+                  })(),
                   tutorialStep: tutorialManager.isActive ? tutorialManager.currentStep : null,
                   tutorialRetries: tutorialManager.retries,
                   audio: (() => {
