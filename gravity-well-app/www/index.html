@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Gravity Well: Pro Edition</title>
+    <!-- Use reliable CDNs with specific versions for stability -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <style>
@@ -21,7 +22,7 @@
             background-color: var(--bg-deep);
             font-family: 'Rajdhani', sans-serif;
             color: #e0f2fe;
-            touch-action: none;
+            touch-action: none; /* Critical: Stops system gestures from stealing touches */
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
@@ -34,7 +35,6 @@
             z-index: 1;
         }
 
-        /* Professional UI Overlays */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -50,19 +50,19 @@
         }
 
         .screen {
-            pointer-events: auto;
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+            pointer-events: auto; /* Buttons only work if this is enabled */
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 1));
             backdrop-filter: blur(16px);
             padding: 2.5rem;
             border-radius: 2rem;
             border: 1px solid rgba(56, 189, 248, 0.3);
-            box-shadow: 0 0 60px rgba(0, 0, 0, 0.9), 0 0 20px rgba(56, 189, 248, 0.1);
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.9);
             text-align: center;
             max-width: 90%;
             width: 440px;
             opacity: 0;
-            transform: scale(0.85);
-            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            transform: scale(0.95);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: none;
         }
 
@@ -79,7 +79,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: 6px;
-            filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.4));
         }
 
         .btn-main {
@@ -95,16 +94,13 @@
             border-radius: 12px;
             cursor: pointer;
             width: 100%;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
+            display: block;
         }
 
-        .btn-main:active { transform: translateY(2px) scale(0.98); box-shadow: 0 2px 10px rgba(37, 99, 235, 0.2); }
+        .btn-main:active { background: #1d4ed8; transform: scale(0.98); }
         
         .btn-sec {
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.05);
             border: 1px solid rgba(56, 189, 248, 0.2);
             padding: 14px;
             margin: 10px 0;
@@ -113,12 +109,8 @@
             border-radius: 10px;
             width: 100%;
             font-size: 0.85rem;
-            transition: background 0.3s;
         }
 
-        .btn-sec:hover { background: rgba(56, 189, 248, 0.1); }
-
-        /* HUD */
         #hud {
             position: absolute;
             top: env(safe-area-inset-top, 24px);
@@ -144,15 +136,14 @@
             font-size: 1.4rem;
             font-weight: 900;
             color: #fff;
-            text-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
         }
 
-        /* Screen FX */
         #fx-overlay {
             position: absolute;
             inset: 0;
             pointer-events: none;
             z-index: 5;
+            transition: background 0.1s;
         }
 
         .loader {
@@ -164,7 +155,6 @@
             animation: spin 0.8s linear infinite;
             margin: 24px auto;
         }
-
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -179,17 +169,16 @@
             <div id="score-display" class="hud-value">0 LY</div>
         </div>
         <div class="hud-card text-right">
-            <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.2em] mb-1">Zone Intensity</div>
+            <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.2em] mb-1">Zone</div>
             <div id="zone-display" class="hud-value">01</div>
         </div>
     </div>
 
     <div id="ui-layer">
-        
         <div id="menu-screen" class="screen active">
             <h1 class="text-5xl mb-1">GRAVITY</h1>
             <h1 class="text-5xl mb-6">WELL</h1>
-            <div class="h-1 w-32 bg-blue-600 mx-auto mb-10 rounded-full shadow-[0_0_15px_rgba(37,99,235,0.8)]"></div>
+            <div class="h-1 w-32 bg-blue-600 mx-auto mb-10 rounded-full"></div>
             <button id="btn-start" class="btn-main">Launch Engine</button>
             <button id="btn-observatory" class="btn-sec">Global Records</button>
             <button id="btn-settings" class="btn-sec">System Maintenance</button>
@@ -197,49 +186,33 @@
 
         <div id="settings-screen" class="screen">
             <h2 class="text-2xl font-black mb-10 text-white tracking-[0.3em] uppercase">Settings</h2>
-            
             <div class="mb-8 text-left">
                 <div class="flex justify-between mb-3">
                     <label class="text-xs text-blue-300 uppercase font-black tracking-widest">Master Amplitude</label>
                     <span id="val-master-txt" class="text-xs text-white">70%</span>
                 </div>
-                <input type="range" id="vol-master" min="-40" max="0" step="1" value="-10" class="w-full accent-blue-500 bg-slate-800 rounded-lg h-2 appearance-none">
+                <input type="range" id="vol-master" min="-40" max="0" step="1" value="-10" class="w-full">
             </div>
-            
-            <div class="mb-10 text-left">
-                <div class="flex justify-between mb-3">
-                    <label class="text-xs text-blue-300 uppercase font-black tracking-widest">BGM Gain</label>
-                    <span id="val-music-txt" class="text-xs text-white">60%</span>
-                </div>
-                <input type="range" id="vol-music" min="-40" max="0" step="1" value="-12" class="w-full accent-blue-500 bg-slate-800 rounded-lg h-2 appearance-none">
-            </div>
-
             <button id="btn-settings-back" class="btn-main mt-4">Commit Changes</button>
         </div>
 
         <div id="gameover-screen" class="screen">
-            <div class="text-rose-500 font-black tracking-[0.4em] text-[0.7rem] mb-3 uppercase">Critial Integrity Failure</div>
             <h2 class="text-4xl font-black mb-10 text-white uppercase italic tracking-tighter">Signal Lost</h2>
-            
             <div class="bg-blue-950/40 border-y border-blue-500/30 py-8 mb-10">
-                <div class="text-[0.6rem] text-blue-400 uppercase font-black tracking-[0.5em] mb-2">Final Telemetry</div>
                 <div id="final-score" class="text-5xl text-white font-black tracking-tighter">0 LY</div>
             </div>
-
-            <div id="upload-status" class="text-[0.6rem] mb-8 h-4 text-blue-300 font-bold uppercase tracking-widest animate-pulse"></div>
-
+            <div id="upload-status" class="text-[0.6rem] mb-8 h-4 text-blue-300 font-bold uppercase tracking-widest"></div>
             <button id="btn-restart" class="btn-main">Re-Initialize</button>
             <button id="btn-home" class="btn-sec">Abort Project</button>
         </div>
 
         <div id="observatory-screen" class="screen">
             <h2 class="text-2xl font-black mb-8 text-white uppercase tracking-[0.2em]">Observatory</h2>
-            <div id="leaderboard-list" class="w-full mb-10 bg-black/50 p-6 rounded-2xl h-72 overflow-y-auto text-left space-y-3 border border-blue-500/20 scrollbar-hide">
+            <div id="leaderboard-list" class="w-full mb-10 bg-black/50 p-6 rounded-2xl h-72 overflow-y-auto text-left space-y-3">
                 <div class="loader"></div>
             </div>
             <button id="btn-observatory-back" class="btn-main">Exit Uplink</button>
         </div>
-
     </div>
 
     <script type="module">
@@ -247,35 +220,33 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
         import { getFirestore, collection, addDoc, query, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
-        // --- PRODUCTION CONSTANTS ---
+        // --- SENIOR GUARD: Check if Firebase Config is defined to prevent crash on Android ---
+        let db, auth, appId;
+        try {
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+            if (firebaseConfig) {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+            }
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'gravity-well-pro-local';
+        } catch (e) {
+            console.warn("Firebase failed to init. Offline mode enabled.");
+        }
+
         const CONFIG = {
             baseSpeed: 5.5,
             accel: 1.00035,
             maxSpeed: 25,
             damping: 0.93,
             attraction: 0.95,
-            colors: {
-                ship: '#38bdf8',
-                accent: '#f43f5e',
-                thruster: '#7dd3fc',
-                star: 'rgba(255, 255, 255, 0.9)'
-            },
-            zones: [0, 2000, 5000, 10000, 20000]
+            colors: { ship: '#38bdf8', accent: '#f43f5e', thruster: '#7dd3fc', star: 'rgba(255, 255, 255, 0.9)' }
         };
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gravity-well-pro';
-
-        let currentUser = null;
-
-        // --- SENIOR DEV PARTICLE ENGINE ---
+        // --- PARTICLE CLASS ---
         class Particle {
             constructor(x, y, options = {}) {
-                this.x = x;
-                this.y = y;
+                this.x = x; this.y = y;
                 this.vx = options.vx || (Math.random() - 0.5) * 5;
                 this.vy = options.vy || (Math.random() - 0.5) * 5;
                 this.life = options.life || 1000;
@@ -285,420 +256,195 @@
                 this.friction = options.friction || 0.98;
             }
             update(dt) {
-                this.x += this.vx * (dt/16);
-                this.y += this.vy * (dt/16);
-                this.vx *= this.friction;
-                this.vy *= this.friction;
+                this.x += this.vx * (dt/16); this.y += this.vy * (dt/16);
+                this.vx *= this.friction; this.vy *= this.friction;
                 this.life -= dt;
             }
             draw(ctx) {
                 const alpha = Math.max(0, this.life / this.maxLife);
-                ctx.globalAlpha = alpha;
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1;
+                ctx.globalAlpha = alpha; ctx.fillStyle = this.color; ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * alpha, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
             }
         }
 
-        // --- ROBUST AUDIO MIXER ---
+        // --- AUDIO CONTROLLER (Fixed for Android) ---
         const Audio = {
+            ready: false,
             init: async function() {
                 if (this.ready) return;
-                await Tone.start();
-                this.master = new Tone.Volume(-10).toDestination();
-                this.music = new Tone.Volume(-12).connect(this.master);
-                
-                // Procedural Drone (Physicality)
-                this.lowDrone = new Tone.Oscillator(45, "sine").connect(new Tone.Filter(150, "lowpass").connect(this.music));
-                this.highDrone = new Tone.Oscillator(90, "sawtooth").connect(new Tone.Filter(400, "lowpass").connect(this.music));
-                
-                this.lowDrone.start();
-                this.highDrone.start();
-                
-                this.ready = true;
-                this.syncUI();
+                try {
+                    await Tone.start();
+                    this.master = new Tone.Volume(-10).toDestination();
+                    this.music = new Tone.Volume(-15).connect(this.master);
+                    
+                    // Drone oscillators with lowpass filters to prevent "static" noise
+                    this.drone = new Tone.Oscillator(55, "sine").connect(new Tone.Filter(100, "lowpass").connect(this.music));
+                    this.drone.start();
+                    
+                    this.ready = true;
+                    this.syncUI();
+                } catch(e) { console.error("Audio init failed", e); }
             },
             syncUI() {
-                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10, music: -12 };
-                this.master.volume.value = saved.master;
-                this.music.volume.value = saved.music;
-                document.getElementById('vol-master').value = saved.master;
-                document.getElementById('vol-music').value = saved.music;
-                this.updateLabel('master', saved.master);
-                this.updateLabel('music', saved.music);
-            },
-            updateLabel(key, val) {
-                const percent = Math.floor(((val + 40) / 40) * 100);
-                document.getElementById(`val-${key}-txt`).innerText = `${percent}%`;
+                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10 };
+                if(this.master) this.master.volume.value = saved.master;
             },
             save(key, val) {
-                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10, music: -12 };
+                const saved = JSON.parse(localStorage.getItem('gw_pro_audio')) || { master: -10 };
                 saved[key] = parseFloat(val);
                 localStorage.setItem('gw_pro_audio', JSON.stringify(saved));
-                if (key === 'master') this.master.volume.rampTo(val, 0.1);
-                if (key === 'music') this.music.volume.rampTo(val, 0.1);
-                this.updateLabel(key, val);
+                if (this.master) this.master.volume.rampTo(val, 0.1);
+                document.getElementById('val-master-txt').innerText = `${Math.floor(((parseFloat(val)+40)/40)*100)}%`;
             }
         };
 
-        // --- GAME ENGINE CORE ---
         const canvas = document.getElementById('game-canvas');
         const ctx = canvas.getContext('2d');
         const fxOverlay = document.getElementById('fx-overlay');
 
-        let state = 'MENU';
-        let score = 0;
-        let speed = CONFIG.baseSpeed;
-        let lastTime = 0;
-        let particles = [];
-        let stars = [];
-        let obstacles = [];
-        let shake = 0;
-        let chromatic = 0;
+        let state = 'MENU'; let score = 0; let speed = CONFIG.baseSpeed; let lastTime = 0;
+        let particles = []; let stars = []; let obstacles = []; let shake = 0;
 
-        const player = {
-            x: 0, y: 0, vx: 0, vy: 0, 
-            radius: 12, angle: 0, 
-            targetY: 0, targetX: 0, active: false
-        };
+        const player = { x: 0, y: 0, vx: 0, vy: 0, radius: 12, angle: 0, targetY: 0, targetX: 0, active: false };
 
         function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            player.x = canvas.width * 0.2;
-            player.y = canvas.height / 2;
-            initParallax();
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            player.x = canvas.width * 0.2; player.y = canvas.height / 2;
+            stars = [];
+            for(let i=0; i<100; i++) {
+                stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, z: Math.random()*4+0.5, o: Math.random()*0.7+0.1 });
+            }
         }
         window.addEventListener('resize', resize);
 
-        function initParallax() {
-            stars = [];
-            for(let i=0; i<150; i++) {
-                stars.push({
-                    x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height,
-                    z: Math.random() * 4 + 0.5,
-                    o: Math.random() * 0.7 + 0.1
-                });
-            }
-        }
-
         function launchGame() {
-            Audio.init();
-            state = 'PLAYING';
-            score = 0;
-            speed = CONFIG.baseSpeed;
-            obstacles = [];
-            particles = [];
-            player.vy = 0; player.vx = 0;
-            switchScreen(null);
-            document.getElementById('hud').style.opacity = 1;
-            lastTime = performance.now();
-            requestAnimationFrame(engineLoop);
+            Audio.init(); 
+            state = 'PLAYING'; score = 0; speed = CONFIG.baseSpeed;
+            obstacles = []; particles = []; player.vy = 0; player.vx = 0;
+            switchScreen(null); document.getElementById('hud').style.opacity = 1;
+            lastTime = performance.now(); requestAnimationFrame(engineLoop);
         }
 
         function onCollision() {
-            state = 'GAMEOVER';
-            shake = 40;
-            chromatic = 15;
-            
-            // Visual Flash
+            state = 'GAMEOVER'; shake = 40;
             fxOverlay.style.background = 'rgba(244, 63, 94, 0.5)';
             setTimeout(() => fxOverlay.style.background = 'transparent', 100);
-            
             document.getElementById('final-score').innerText = Math.floor(score) + " LY";
             document.getElementById('hud').style.opacity = 0;
-            switchScreen('gameover-screen');
-            commitTelemetry(Math.floor(score));
+            switchScreen('gameover-screen'); 
+            if (db) commitTelemetry(Math.floor(score));
         }
 
-        // --- UPDATER ---
         function update(dt) {
             if (state !== 'PLAYING') return;
-
-            // Complexity Scaling
-            speed *= CONFIG.accel;
-            if (speed > CONFIG.maxSpeed) speed = CONFIG.maxSpeed;
+            speed *= CONFIG.accel; if (speed > CONFIG.maxSpeed) speed = CONFIG.maxSpeed;
             score += speed * (dt/40);
 
-            // Gravity Well Input
             if (player.active) {
-                const dy = player.targetY - player.y;
-                const dx = player.targetX - player.x;
-                player.vy += dy * 0.0012 * CONFIG.attraction * (dt/16);
-                player.vx += dx * 0.0006 * CONFIG.attraction * (dt/16);
-                
-                // Active Thruster Particles
-                particles.push(new Particle(player.x - 10, player.y, {
-                    vx: -speed - Math.random() * 5,
-                    vy: (Math.random()-0.5) * 4,
-                    color: CONFIG.colors.thruster,
-                    life: 400,
-                    size: 3
-                }));
-            } else {
-                // Natural Center Attraction (The Well)
-                player.vy += (canvas.height/2 - player.y) * 0.0003 * (dt/16);
-            }
+                const dy = player.targetY - player.y; const dx = player.targetX - player.x;
+                player.vy += dy * 0.0012 * CONFIG.attraction * (dt/16); player.vx += dx * 0.0006 * CONFIG.attraction * (dt/16);
+                particles.push(new Particle(player.x - 10, player.y, { vx: -speed - 2, vy: (Math.random()-0.5)*3, color: CONFIG.colors.thruster, life: 300, size: 2 }));
+            } else { player.vy += (canvas.height/2 - player.y) * 0.0003 * (dt/16); }
 
-            player.vx *= CONFIG.damping;
-            player.vy *= CONFIG.damping;
-            player.y += player.vy;
-            player.x += player.vx;
-
-            // Soft Boundaries
-            if (player.y < 40 || player.y > canvas.height - 40) player.vy *= -0.5;
-            player.x = Math.max(60, Math.min(canvas.width * 0.35, player.x));
-
-            // Ship Orientation (The Lean)
+            player.vx *= CONFIG.damping; player.vy *= CONFIG.damping; player.y += player.vy; player.x += player.vx;
+            if (player.y < 20 || player.y > canvas.height - 20) player.vy *= -0.5;
+            player.x = Math.max(50, Math.min(canvas.width * 0.35, player.x));
             player.angle = Math.atan2(player.vy, speed * 1.5);
 
-            // Parallax Update
-            stars.forEach(s => {
-                s.x -= speed * 0.15 * s.z;
-                if (s.x < 0) s.x = canvas.width;
-            });
+            stars.forEach(s => { s.x -= speed * 0.15 * s.z; if (s.x < 0) s.x = canvas.width; });
 
-            // Procedural Obstacle Wave
             if (Math.random() < 0.03 + (score/150000)) {
-                obstacles.push({
-                    x: canvas.width + 150,
-                    y: Math.random() * canvas.height,
-                    r: 20 + Math.random() * 45,
-                    v: 0.8 + Math.random() * 0.8,
-                    rot: Math.random() * Math.PI,
-                    rotV: (Math.random()-0.5) * 0.1
-                });
+                obstacles.push({ x: canvas.width + 150, y: Math.random()*canvas.height, r: 20 + Math.random()*40, v: 0.8 + Math.random()*0.8 });
             }
 
             obstacles.forEach(o => {
                 o.x -= speed * o.v;
-                o.rot += o.rotV;
-                
-                // Precise Circle Collision
-                const dx = player.x - o.x;
-                const dy = player.y - o.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < player.radius + o.r * 0.85) onCollision();
+                const dist = Math.sqrt((player.x - o.x)**2 + (player.y - o.y)**2);
+                if (dist < player.radius + o.r * 0.8) onCollision();
             });
             obstacles = obstacles.filter(o => o.x > -200);
-
-            // Particles Life Cycle
-            particles.forEach(p => p.update(dt));
-            particles = particles.filter(p => p.life > 0);
-            
-            // Post-FX decay
+            particles.forEach(p => p.update(dt)); particles = particles.filter(p => p.life > 0);
             if (shake > 0) shake *= 0.9;
-            chromatic = (speed / CONFIG.maxSpeed) * 5;
-
-            // HUD Refresh
             document.getElementById('score-display').innerText = `${Math.floor(score).toLocaleString()} LY`;
-            const zoneNum = Math.floor(score / 3000) + 1;
-            document.getElementById('zone-display').innerText = zoneNum.toString().padStart(2, '0');
+            document.getElementById('zone-display').innerText = (Math.floor(score / 3000) + 1).toString().padStart(2, '0');
         }
 
-        // --- RENDERER ---
         function draw() {
-            // Dark base
-            ctx.fillStyle = '#020617';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            ctx.save();
-            if (shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
-
-            // Stars (2.5D)
-            stars.forEach(s => {
-                ctx.fillStyle = `rgba(255,255,255,${s.o})`;
-                ctx.beginPath();
-                ctx.arc(s.x, s.y, s.z/2, 0, Math.PI*2);
-                ctx.fill();
-            });
-
-            // Particle Layer
+            ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.save(); if (shake > 1) ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+            stars.forEach(s => { ctx.fillStyle = `rgba(255,255,255,${s.o})`; ctx.beginPath(); ctx.arc(s.x, s.y, s.z/2, 0, Math.PI*2); ctx.fill(); });
             particles.forEach(p => p.draw(ctx));
-
-            // Ship (Vector-Heavy High Detail)
-            ctx.save();
-            ctx.translate(player.x, player.y);
-            ctx.rotate(player.angle);
-            
-            // Bloom Effect
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = CONFIG.colors.ship;
-            
-            // Ship Body
-            ctx.fillStyle = CONFIG.colors.ship;
-            ctx.beginPath();
-            ctx.moveTo(20, 0);
-            ctx.lineTo(-12, -12);
-            ctx.lineTo(-6, 0);
-            ctx.lineTo(-12, 12);
-            ctx.closePath();
-            ctx.fill();
-            
-            // Detail Lines
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
+            ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle);
+            ctx.shadowBlur = 15; ctx.shadowColor = CONFIG.colors.ship; ctx.fillStyle = CONFIG.colors.ship;
+            ctx.beginPath(); ctx.moveTo(18, 0); ctx.lineTo(-10, -10); ctx.lineTo(-5, 0); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill();
             ctx.restore();
-
-            // Obstacles (Tech-Asteroids)
             obstacles.forEach(o => {
-                ctx.save();
-                ctx.translate(o.x, o.y);
-                ctx.rotate(o.rot);
-                
-                // Deep Core
-                ctx.fillStyle = '#1e293b';
-                ctx.strokeStyle = '#475569';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                // Hexagonal shape for technical look
-                for(let i=0; i<6; i++) {
-                    const angle = (i/6) * Math.PI * 2;
-                    const rx = Math.cos(angle) * o.r;
-                    const ry = Math.sin(angle) * o.r;
-                    if(i === 0) ctx.moveTo(rx, ry);
-                    else ctx.lineTo(rx, ry);
-                }
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
-                
-                // Tech Overlay (Circuit lines)
-                ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(-o.r, 0); ctx.lineTo(o.r, 0);
-                ctx.stroke();
-                
-                ctx.restore();
+                ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#475569'; ctx.lineWidth = 2; ctx.beginPath();
+                ctx.arc(o.x, o.y, o.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
             });
-
             ctx.restore();
-            
-            // Chromatic Aberration Simulation (Screen border)
-            if (chromatic > 1) {
-                ctx.strokeStyle = `rgba(244, 63, 94, ${chromatic/20})`;
-                ctx.lineWidth = chromatic;
-                ctx.strokeRect(0,0,canvas.width, canvas.height);
-            }
         }
 
-        function engineLoop(ts) {
-            if (state !== 'PLAYING') return;
-            const dt = ts - lastTime;
-            lastTime = ts;
-            update(dt);
-            draw();
-            requestAnimationFrame(engineLoop);
-        }
+        function engineLoop(ts) { if (state !== 'PLAYING') return; const dt = ts - lastTime; lastTime = ts; update(dt); draw(); requestAnimationFrame(engineLoop); }
 
-        // --- INPUT ABSTRACTION ---
         const handleInteraction = (e, active) => {
             player.active = active;
-            if (active) {
+            if (active) { 
                 const t = e.touches ? e.touches[0] : e;
-                player.targetX = t.clientX;
-                player.targetY = t.clientY;
+                player.targetX = t.clientX; player.targetY = t.clientY; 
+                if (state === 'MENU') { /* Ensure init on first touch if buttons fail */ }
             }
         };
 
         canvas.addEventListener('mousedown', e => handleInteraction(e, true));
         canvas.addEventListener('mousemove', e => player.active && handleInteraction(e, true));
         window.addEventListener('mouseup', () => player.active = false);
-
         canvas.addEventListener('touchstart', e => { e.preventDefault(); handleInteraction(e, true); }, {passive: false});
         canvas.addEventListener('touchmove', e => { e.preventDefault(); handleInteraction(e, true); }, {passive: false});
         window.addEventListener('touchend', () => player.active = false);
 
-        // --- UI ROUTER ---
         function switchScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            setTimeout(() => {
-                document.querySelectorAll('.screen').forEach(s => {
-                    if (!s.classList.contains('active')) s.style.display = 'none';
-                });
-            }, 500);
-            
-            if (id) {
-                const target = document.getElementById(id);
-                target.style.display = 'block';
-                setTimeout(() => target.classList.add('active'), 50);
-            }
+            setTimeout(() => { document.querySelectorAll('.screen').forEach(s => { if (!s.classList.contains('active')) s.style.display = 'none'; }); }, 450);
+            if (id) { const target = document.getElementById(id); target.style.display = 'block'; setTimeout(() => target.classList.add('active'), 50); }
         }
 
-        document.getElementById('btn-start').onclick = launchGame;
-        document.getElementById('btn-restart').onclick = launchGame;
+        document.getElementById('btn-start').addEventListener('click', launchGame);
+        document.getElementById('btn-restart').addEventListener('click', launchGame);
         document.getElementById('btn-home').onclick = () => switchScreen('menu-screen');
         document.getElementById('btn-settings').onclick = () => switchScreen('settings-screen');
         document.getElementById('btn-settings-back').onclick = () => switchScreen('menu-screen');
-        
         document.getElementById('vol-master').oninput = e => Audio.save('master', e.target.value);
-        document.getElementById('vol-music').oninput = e => Audio.save('music', e.target.value);
-
-        document.getElementById('btn-observatory').onclick = () => {
-            switchScreen('observatory-screen');
-            fetchGlobalRecords();
-        };
+        document.getElementById('btn-observatory').onclick = () => { switchScreen('observatory-screen'); if (db) fetchGlobalRecords(); };
         document.getElementById('btn-observatory-back').onclick = () => switchScreen('menu-screen');
 
-        // --- CLOUD TELEMETRY (FIREBASE) ---
-        onAuthStateChanged(auth, user => {
-            currentUser = user || signInAnonymously(auth);
-        });
+        if (auth) {
+            onAuthStateChanged(auth, async (u) => { if (!u) try { await signInAnonymously(auth); } catch(e) {} });
+        }
 
         async function commitTelemetry(s) {
-            if (!currentUser) return;
-            const status = document.getElementById('upload-status');
-            status.innerText = "Synchronizing Data...";
-            try {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), {
-                    uid: currentUser.uid, score: s, ts: serverTimestamp()
-                });
-                status.innerText = "Telemetry Saved.";
-            } catch (e) {
-                status.innerText = "Link Failure.";
-            }
+            if (!auth || !auth.currentUser) return;
+            try { await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), { uid: auth.currentUser.uid, score: s, ts: serverTimestamp() }); } catch (e) {}
         }
 
         async function fetchGlobalRecords() {
-            const list = document.getElementById('leaderboard-list');
-            list.innerHTML = '<div class="loader"></div>';
+            const list = document.getElementById('leaderboard-list'); list.innerHTML = '<div class="loader"></div>';
             try {
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'scores'), orderBy('score', 'desc'), limit(15));
-                const snap = await getDocs(q);
-                list.innerHTML = '';
-                if (snap.empty) {
-                    list.innerHTML = '<div class="text-center text-slate-500 pt-10 uppercase tracking-widest text-xs">No Records Found</div>';
-                    return;
-                }
+                const snap = await getDocs(q); list.innerHTML = '';
                 snap.forEach((doc, i) => {
                     const d = doc.data();
-                    const isMe = currentUser && d.uid === currentUser.uid;
                     const row = document.createElement('div');
-                    row.className = `flex justify-between items-center p-3 rounded-lg border border-white/5 ${isMe ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/5'}`;
-                    row.innerHTML = `
-                        <div class="flex items-center gap-3">
-                            <span class="text-[0.6rem] font-black text-blue-400">#${(i+1).toString().padStart(2,'0')}</span>
-                            <span class="text-xs font-bold tracking-widest uppercase">UNIT-${d.uid.slice(0,6)}</span>
-                        </div>
-                        <span class="font-black text-white">${d.score.toLocaleString()} LY</span>
-                    `;
+                    row.className = `flex justify-between items-center p-3 rounded-lg border border-white/5 bg-white/5`;
+                    row.innerHTML = `<span class="text-xs font-bold uppercase tracking-widest">UNIT-${d.uid.slice(0,6)}</span><span class="font-black text-white">${d.score.toLocaleString()} LY</span>`;
                     list.appendChild(row);
                 });
-            } catch (e) {
-                list.innerHTML = '<div class="text-rose-500 text-center pt-10 uppercase text-xs">Encryption Error</div>';
-            }
+            } catch (e) { list.innerHTML = '<div class="text-xs uppercase">Uplink Error</div>'; }
         }
 
-        // Initialize Boot
         resize();
-        Audio.syncUI();
+        // Force a resize check for Android address bar issues
+        setTimeout(resize, 500);
     </script>
 </body>
 </html>
