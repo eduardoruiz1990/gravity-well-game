@@ -78,6 +78,29 @@ All drawing happens in a fixed `VIRTUAL_WIDTH` x `VIRTUAL_HEIGHT` (1280x720) spa
 Careful: `StarFragment.draw()` declares a **local** `const pulse` that used to be named
 `scale` and shadowed the module-level one. It is an idle animation, not the canvas scale.
 
+### Zone pacing is a growing threshold, not a divisor
+
+Do **not** reintroduce `Math.floor(score / SOME_CONSTANT)`. Score accrues faster every zone
+(speed rises), so a flat threshold makes each zone *shorter* than the last — at a flat 600
+a player hit zone 5 by 2,700 points. `zoneThreshold(n)` charges `ZONE_GROWTH` more per zone
+to cancel that, and `getZoneForScore(s)` is its closed-form inverse (cheap enough to call
+every frame). Zones land roughly 30-45s apart throughout.
+
+### Audio: mind the gain structure
+
+Output was once measured at **-21.9 dBFS peak** with the bed inaudible, because bus
+attenuations stacked (master -6 → musicBus -12 → drone -8 = -26 dB) and the sub sat at 55Hz,
+below what laptop/phone speakers reproduce at all. Now ~-10 dBFS peak, sub at 110Hz.
+When adding a voice, check the *cumulative* path to `master`, not just its own Volume.
+
+`audioManager` runs three synchronised loops (`musicLoop` bass, `padLoop`, `arpLoop`) plus a
+drone. `updateMusicLayers(zone)` fades the arp in from zone 2 and opens the pad filter, so
+progression is audible. `window.gwStats().audio` reports the whole graph's live state.
+
+The fragment pitch ladder **wraps** (`combo % length`) and decays after
+`FRAGMENT_COMBO_DECAY_FRAMES` of no pickups. Clamping instead of wrapping meant every pickup
+past the top of the ladder fired the same shrill note for the rest of the run.
+
 ### Core feel: turn authority, not damping
 
 The well applies a **constant-magnitude** steering force, while `PlayerComet.update()`
@@ -97,6 +120,49 @@ not reasoning.**
 when `dist < gravityWell.radius`, so a keyboard well parked outside it is silently inert.
 Both are derived from `VIRTUAL_HEIGHT` for that reason; don't hardcode either.
 
+### World generation: formations on a guaranteed corridor
+
+`manageObstacles()` spawns **formations**, not single blocks: `single`, `cluster` (2-3
+scattered pieces) and `gate` (walls welded to the top and bottom edges with a gap). The mix
+shifts toward gates with zone. Gates run from zone 0 with a very wide gap — the game is
+made engaging early by requiring you to *aim*, not by adding debris.
+
+**`safeLaneY` is load-bearing — do not place obstacles without consulting it.** A
+reachability sweep over independently-placed formations found that from zone 2 onward some
+generated fields had *no navigable path at all* (a cluster block landing in front of a
+gate's opening; two formations overlapping in x and jointly sealing the column), rising to
+every field by zone 12. Players would have died to the RNG rather than to a mistake.
+
+So the corridor is guaranteed by construction:
+- `advanceSafeLane(dx, zone)` drifts the lane by at most `0.5 * dx`, because the comet
+  trades forward speed for vertical speed (velocity is pinned to `baseSpeed`), making ~45°
+  its practical limit. The lane can therefore always be followed.
+- Gate openings are **centred on `safeLaneY`**, never placed randomly.
+- `placeBlockAvoidingLane(height, zone, extraMargin)` keeps freestanding blocks out of the
+  corridor, and returns `null` when neither side has room (caller skips the piece). Pass
+  `extraMargin` for obstacle types that *move after placement* — `vertical` oscillates ±50px
+  and would otherwise wander into a corridor that was clear at spawn time.
+
+Difficulty comes from how narrow (`getCorridorHalf`) and how mobile the lane is, never from
+whether a route exists. `scratchpad`-style reachability checks should be re-run after any
+change here; the invariant is **100% path existence at every zone**.
+
+### Tutorial: real collisions with a soft rewind
+
+Collisions are **live** during the tutorial. They previously were not — `checkCollisions()`
+returned early for `gameState === 'tutorial'` and the obstacle step completed on the comet's
+x passing the obstacle's right edge, so a player could fly straight through and be
+congratulated for dodging. (An automated walkthrough passed it by coasting with no input.)
+
+Now `updateTutorial()` catches `collisionResult.obstacle` and calls
+`tutorialManager.handleCrash()`, which rewinds to `checkpoint`, shows the step's
+`onCrashText` for ~2.5s and lets the player retry. It stays unloseable while a mistake
+finally means something. `renderText()` is the single owner of the banner so step text and
+retry coaching cannot fight over the element.
+
+The tutorial gate's gap is deliberately offset ~150px from the comet's line — centring it
+would let the player coast through and re-create the fake success.
+
 ### Save data: merge `upgrades` key-by-key
 
 `loadPlayerData()` spreads the loaded save over defaults. A top-level spread replaces the
@@ -106,6 +172,31 @@ whole `upgrades` object, so a save written before a new upgrade existed leaves t
 `upgradeCosts`, to both `defaultPlayerData` literals, and give it an `#upgrade-<id>` row
 in the shop markup.** `updateObservatoryUI()` and the buy handler are both generic and
 need no further wiring.
+
+### Backgrounds are data + one shared renderer
+
+`makeBackgroundTheme(id, name, cost, cfg)` builds every background theme from a hue band.
+One `render(ctx, w, h, zone, camX)` serves all of them, so **themes drift with the zone** and
+all get the parallax layers (`bgHaze` far / `stars` mid / `bgDust` near, all driven off
+`cameraX`) for free.
+
+This replaced seven hardcoded closures that each painted one flat gradient. Zone changes
+used to be invisible: `checkZoneTransition()` only recoloured the background inside
+`if (!equippedBackgroundTheme.render)`, and every theme defined `render()`, so that branch
+**never executed**. Combined with the zone hue only applying to `obstacle_default`, buying
+any obstacle skin erased the last visual trace of progression. `onZoneAdvanced()` now also
+fires a screen wash, a ring and a "ZONE n" banner.
+
+When adding a theme, add a `makeBackgroundTheme(...)` entry — do not hand-roll a `render`.
+
+### Shop previews must come from the game's own renderers
+
+`renderCosmeticPreview(item)` returns a `<canvas>` painted by the **same** functions
+gameplay uses (`skin.draw`, `theme.render`, `getCircleStack` for stacked skins), at the
+aspect the item actually has in play. Previews were CSS boxes while gameplay was canvas —
+two implementations with nothing keeping them in sync, and they had drifted badly (Asteroid
+previewed as a smooth oval but drew as a cratered polygon; Crystal Spires previewed as a
+hexagon but drew as a spire). Never reintroduce a CSS-only `previewStyle` path.
 
 ### Obstacle cosmetics own their own rendering
 

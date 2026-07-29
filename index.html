@@ -545,14 +545,16 @@
             flex-grow: 1;
             padding: 1.5rem; /* p-6 */
             overflow-y: auto;
-            /* Custom Scrollbar */
+            /* Custom Scrollbar. Was a saturated orange (#f97316) on a light slate track,
+               which read as a warning stripe down the side of an otherwise blue/slate
+               panel. Muted to sit in the surface instead of competing with it. */
             scrollbar-width: thin;
-            scrollbar-color: #f97316 #334155;
+            scrollbar-color: #475569 transparent;
         }
         .tab-content::-webkit-scrollbar { width: 8px; }
-        .tab-content::-webkit-scrollbar-track { background: #334155; border-radius: 4px; }
-        .tab-content::-webkit-scrollbar-thumb { background: #f97316; border-radius: 4px; }
-        .tab-content::-webkit-scrollbar-thumb:hover { background: #ea580c; }
+        .tab-content::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); border-radius: 4px; }
+        .tab-content::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        .tab-content::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 
         .tab-content.active {
@@ -677,7 +679,9 @@
         /* Cosmetics */
         .cosmetic-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            /* 164px, not 150px: at 150px the "Buy (5000 ★)" label wrapped onto two lines
+               and blew out tile heights unevenly across the grid. */
+            grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
             gap: 1rem; /* gap-4 */
         }
 
@@ -685,30 +689,45 @@
             background-color: #1e293b; /* slate-800 */
             border: 1px solid #334155; /* border-slate-700 */
             border-radius: 0.5rem; /* rounded-lg */
-            padding: 1rem;
+            padding: 0.85rem;
             display: flex;
             flex-direction: column;
             align-items: center;
             text-align: center;
         }
+        /* Fixed rhythm for name + button so tiles align even when a name wraps. */
+        .cosmetic-item > strong {
+            width: 100%;
+            font-size: 0.9rem;
+            line-height: 1.2;
+            min-height: 2.4em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cosmetic-item > button {
+            width: 100%;
+            margin-top: auto;
+            white-space: nowrap;      /* never break "Buy (5000 ★)" across lines */
+            font-size: 0.85rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
 
+        /* Now a <canvas>, painted by the game's own renderers. Sized in CSS while the
+           backing store is 2x for hidpi crispness. */
         .cosmetic-preview {
+            display: block;
             width: 100%;
             height: 6rem; /* h-24 */
             border-radius: 0.5rem; /* rounded-lg */
             margin-bottom: 0.75rem; /* mb-3 */
-            border: none;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            border: 1px solid rgba(148, 163, 184, 0.18);
             background-color: #0f172a; /* slate-900 */
             box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-            --glow-color: transparent;
-            animation: pulse-glow 3s infinite ease-in-out;
             transition: transform 0.2s ease;
-            position: relative; /* For custom canvas draws */
-            overflow: hidden;
         }
+        .cosmetic-item:hover .cosmetic-preview { transform: scale(1.03); }
         
         /* Specific preview styles for non-comet types */
         .cosmetic-preview.obstacle-preview {
@@ -1176,6 +1195,133 @@
               revive: 250
           };
 
+          // --- PARALLAX BACKGROUND LAYERS ---
+          // Three depths, all driven off cameraX so they genuinely separate as the player
+          // moves. The old background was one flat gradient fill plus the starfield, which
+          // gave no depth cue at all beyond the stars' own speed variation.
+          //
+          //   haze  — huge, near-static soft clouds (depth 0.04-0.14)
+          //   stars — the existing Star field (self-scrolling, depth-coupled)
+          //   dust  — small bright motes that whip past (depth 0.45-1.0)
+          let bgHaze = [];
+          let bgDust = [];
+
+          function initBackgroundLayers() {
+              bgHaze = [];
+              for (let i = 0; i < 8; i++) {
+                  bgHaze.push({
+                      x: Math.random() * VIRTUAL_WIDTH,
+                      y: Math.random() * VIRTUAL_HEIGHT,
+                      r: 150 + Math.random() * 230,
+                      depth: 0.04 + Math.random() * 0.10,
+                      alpha: 0.05 + Math.random() * 0.10
+                  });
+              }
+              bgDust = [];
+              for (let i = 0; i < 70; i++) {
+                  bgDust.push({
+                      x: Math.random() * VIRTUAL_WIDTH,
+                      y: Math.random() * VIRTUAL_HEIGHT,
+                      r: 0.7 + Math.random() * 1.9,
+                      depth: 0.45 + Math.random() * 0.55,
+                      alpha: 0.2 + Math.random() * 0.5
+                  });
+              }
+          }
+
+          // Wraps a layer item into view for a given camera offset. Kept as one helper so
+          // the in-game background and the shop preview scroll identically.
+          function parallaxX(item, camX, width) {
+              const span = width + item.r * 2;
+              return ((item.x - camX * item.depth) % span + span) % span - item.r;
+          }
+
+          // Builds a background theme from a hue band. One renderer for all of them, taking
+          // the zone, so every theme drifts as the player progresses AND the shop preview is
+          // guaranteed to be the same picture as the game.
+          function makeBackgroundTheme(id, name, cost, cfg) {
+              const {
+                  hue, hueDrift, sat, lightTop, lightBottom,
+                  accentSat = 70, accentHueOffset = 40, flip = false, grid = false
+              } = cfg;
+
+              // Zone advances the hue within the theme's own band and lifts saturation
+              // slightly, so deeper zones read hotter without leaving the theme's identity.
+              const paletteFor = (zone) => {
+                  const h = (hue + zone * hueDrift) % 360;
+                  const boost = Math.min(14, zone * 1.6);
+                  return {
+                      top: `hsl(${h}, ${sat + boost}%, ${lightTop}%)`,
+                      bottom: `hsl(${(h + 24) % 360}, ${sat + boost}%, ${lightBottom}%)`,
+                      accent: `hsl(${(h + accentHueOffset + 360) % 360}, ${accentSat}%, ${28 + Math.min(16, zone * 2)}%)`,
+                      dust: `hsl(${(h + accentHueOffset * 0.5 + 360) % 360}, ${accentSat}%, 80%)`,
+                      gridLine: `hsl(${h}, ${accentSat}%, ${22 + Math.min(20, zone * 2.5)}%)`
+                  };
+              };
+
+              const render = (c, w, h2, zone = 0, camX = 0) => {
+                  const p = paletteFor(zone);
+                  const sx = w / VIRTUAL_WIDTH, sy = h2 / VIRTUAL_HEIGHT;
+
+                  const grad = c.createLinearGradient(0, flip ? h2 : 0, 0, flip ? 0 : h2);
+                  grad.addColorStop(0, p.top);
+                  grad.addColorStop(1, p.bottom);
+                  c.fillStyle = grad;
+                  c.fillRect(0, 0, w, h2);
+
+                  // FAR: haze clouds
+                  c.save();
+                  for (const item of bgHaze) {
+                      const x = parallaxX(item, camX, VIRTUAL_WIDTH) * sx;
+                      const y = item.y * sy;
+                      const r = item.r * Math.min(sx, sy);
+                      const g = c.createRadialGradient(x, y, 0, x, y, r);
+                      g.addColorStop(0, p.accent);
+                      g.addColorStop(1, 'transparent');
+                      c.globalAlpha = item.alpha;
+                      c.fillStyle = g;
+                      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+                  }
+                  c.restore();
+
+                  if (grid) {
+                      // Retro grid scrolls with the camera instead of sitting still.
+                      c.save();
+                      c.strokeStyle = p.gridLine;
+                      c.lineWidth = 1;
+                      const step = 40 * sx;
+                      const off = ((-camX * 0.25) % 40) * sx;
+                      for (let x = off; x < w; x += step) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, h2); c.stroke(); }
+                      for (let y = 0; y < h2; y += 40 * sy) { c.beginPath(); c.moveTo(0, y); c.lineTo(w, y); c.stroke(); }
+                      c.restore();
+                  }
+
+                  // MID: the shared starfield (in-game only — it lives in world space).
+                  if (c === ctx) stars.forEach(s => s.draw());
+
+                  // NEAR: dust motes
+                  c.save();
+                  c.fillStyle = p.dust;
+                  for (const item of bgDust) {
+                      const x = parallaxX(item, camX, VIRTUAL_WIDTH) * sx;
+                      c.globalAlpha = item.alpha;
+                      c.beginPath();
+                      c.arc(x, item.y * sy, item.r * Math.min(sx, sy), 0, Math.PI * 2);
+                      c.fill();
+                  }
+                  c.restore();
+              };
+
+              return {
+                  id, name, cost, type: 'background',
+                  previewClass: 'background-preview',
+                  paletteFor,
+                  render,
+                  // Shop previews call the SAME render, so they cannot drift from gameplay.
+                  drawPreview: (c, w, h2) => render(c, w, h2, 0, 0)
+              };
+          }
+
           // --- PREMIUM VISUALS (Data) ---
           // Define Cosmetic Items with render functions/styles
           const cosmeticItems = {
@@ -1312,13 +1458,45 @@
               }, 
 
               // Background Themes
-              background_default: { id: 'background_default', name: 'Starfield', type: 'background', cost: 0, previewClass: 'background-preview', previewStyle: 'background-color: #0c0a09; background-image: radial-gradient(white 1px, transparent 0); background-size: 30px 30px;', render: () => { ctx.fillStyle = '#0c0a09'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_nebula: { id: 'background_nebula', name: 'Nebula', type: 'background', cost: 5000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(45deg, #4c1d95, #be185d, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #be185d;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#4c1d95'); grad.addColorStop(0.5, '#be185d'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } }, 
-              background_lava: { id: 'background_lava', name: 'Volcanic Void', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(0deg, #7f1d1d, #b91c1c, #f59e0b); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #f59e0b;', render: () => { const grad = ctx.createLinearGradient(0, VIRTUAL_HEIGHT, 0, 0); grad.addColorStop(0, '#7f1d1d'); grad.addColorStop(0.5, '#b91c1c'); grad.addColorStop(1, '#f59e0b'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_ice: { id: 'background_ice', name: 'Glacial Expanse', type: 'background', cost: 4000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(180deg, #93c5fd, #3b82f6, #1e3a8a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #93c5fd;', render: () => { const grad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT); grad.addColorStop(0, '#93c5fd'); grad.addColorStop(0.5, '#3b82f6'); grad.addColorStop(1, '#1e3a8a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_halloween: { id: 'background_halloween', name: 'Spooky Space', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(135deg, #581c87, #ea580c, #450a0a); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #ea580c;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); grad.addColorStop(0, '#581c87'); grad.addColorStop(0.5, '#ea580c'); grad.addColorStop(1, '#450a0a'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_christmas: { id: 'background_christmas', name: 'Festive Flight', type: 'background', cost: 3000, previewClass: 'background-preview', previewStyle: 'background: linear-gradient(90deg, #b91c1c, #15803d, #fde047); animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', render: () => { const grad = ctx.createLinearGradient(0, 0, VIRTUAL_WIDTH, 0); grad.addColorStop(0, '#b91c1c'); grad.addColorStop(0.5, '#15803d'); grad.addColorStop(1, '#fde047'); ctx.fillStyle = grad; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); stars.forEach(s => s.draw()); } },
-              background_retro_arcade: { id: 'background_retro_arcade', name: 'Retro Arcade', type: 'background', cost: 4500, previewClass: 'background-preview', previewStyle: 'background-color: black; background-image: linear-gradient(#1e3a8a 1px, transparent 1px), linear-gradient(90deg, #1e3a8a 1px, transparent 1px); background-size: 40px 40px; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #1e3a8a;', render: () => { ctx.fillStyle = 'black'; ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT); ctx.strokeStyle = '#1e3a8a'; ctx.lineWidth = 1; for (let x = 0; x < VIRTUAL_WIDTH; x += 40) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIRTUAL_HEIGHT); ctx.stroke(); } for (let y = 0; y < VIRTUAL_HEIGHT; y += 40) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIRTUAL_WIDTH, y); ctx.stroke(); } stars.forEach(s => s.draw()); } }, 
+              // --- BACKGROUND THEMES ---
+              //
+              // REWRITTEN. The old themes were seven hardcoded `render()` closures that each
+              // painted ONE flat gradient and then the starfield. Two consequences:
+              //
+              //  1. Zones were invisible. checkZoneTransition() only recoloured the
+              //     background inside `if (!equippedBackgroundTheme.render)` — and every
+              //     theme defined render(), so that branch NEVER executed. The largest
+              //     element on screen was identical at zone 0 and zone 12. Combined with
+              //     the zone hue only applying to `obstacle_default`, buying any obstacle
+              //     skin erased the last visual trace of progression entirely.
+              //  2. No depth. A single linear gradient plus one starfield reads flat.
+              //
+              // Themes are now DATA (a hue band + accents), rendered by one shared function
+              // that takes the zone. Every theme therefore drifts across its own hue band as
+              // the player advances, and every theme gets the parallax layers for free.
+              // makeBackgroundTheme also derives the shop preview from the same renderer,
+              // so a theme cannot look different in the shop than it does in play.
+              background_default: makeBackgroundTheme('background_default', 'Starfield', 0, {
+                  hue: 240, hueDrift: 14, sat: 45, lightTop: 11, lightBottom: 4, accentSat: 60
+              }),
+              background_nebula: makeBackgroundTheme('background_nebula', 'Nebula', 5000, {
+                  hue: 285, hueDrift: 22, sat: 60, lightTop: 22, lightBottom: 7, accentSat: 75
+              }),
+              background_lava: makeBackgroundTheme('background_lava', 'Volcanic Void', 4000, {
+                  hue: 8, hueDrift: 10, sat: 72, lightTop: 8, lightBottom: 22, accentSat: 85, flip: true
+              }),
+              background_ice: makeBackgroundTheme('background_ice', 'Glacial Expanse', 4000, {
+                  hue: 196, hueDrift: 12, sat: 55, lightTop: 26, lightBottom: 9, accentSat: 65
+              }),
+              background_halloween: makeBackgroundTheme('background_halloween', 'Spooky Space', 3000, {
+                  hue: 274, hueDrift: 26, sat: 58, lightTop: 16, lightBottom: 6, accentSat: 80, accentHueOffset: 110
+              }),
+              background_christmas: makeBackgroundTheme('background_christmas', 'Festive Flight', 3000, {
+                  hue: 150, hueDrift: 30, sat: 50, lightTop: 14, lightBottom: 6, accentSat: 70, accentHueOffset: -140
+              }),
+              background_retro_arcade: makeBackgroundTheme('background_retro_arcade', 'Retro Arcade', 4500, {
+                  hue: 220, hueDrift: 36, sat: 80, lightTop: 4, lightBottom: 2, accentSat: 90, grid: true
+              }),
           };
           // --- END PREMIUM VISUALS ---
 
@@ -1338,6 +1516,10 @@
           let keyboardWellActive = false;
 
           let fragmentClusterCounter = 0;
+          // Zone-advance feedback (see onZoneAdvanced).
+          let zoneFlashFrames = 0;
+          let zoneBannerText = '';
+          let zoneBannerFrames = 0;
           // Slow-motion is counted in RENDERED frames; while it is running the simulation
           // is stepped on every other frame, i.e. half speed. See gameLoop().
           let slowMoFrames = 0;
@@ -1393,9 +1575,38 @@
           const WAVE_AMPLITUDE = 0.5;
           const WAVE_FREQUENCY = 0.03;
 
-          const ZONE_SCORE_INCREMENT = 1500;
-          const INITIAL_SPEED = 2.5;
-          const SPEED_INCREMENT_PER_ZONE = 0.5; 
+          // --- ZONE PACING ---
+          //
+          // Zones are NOT a fixed score apart. A flat divisor is wrong in both directions
+          // here: score accrues faster every zone (because speed rises), so a constant
+          // threshold makes each zone shorter than the last. At a flat 600 a player was
+          // already in zone 5 by 2,700 points — the progression blew past faster than it
+          // could mean anything. A flat 1500 had the opposite problem: 70 seconds of
+          // identical gameplay before the first change.
+          //
+          // Each zone therefore costs ZONE_GROWTH more than the one before, which cancels
+          // the rising score rate and keeps zones roughly 30-45s apart deep into a run.
+          //   zone 1 @   950     zone 4 @  6,365
+          //   zone 2 @  2,327    zone 5 @  9,025
+          //   zone 3 @  4,132    zone 6 @ 12,112
+          const ZONE_BASE_SCORE = 950;
+          const ZONE_GROWTH = 0.45;
+
+          // Cumulative score required to ENTER zone n. Sum of a linearly growing series.
+          function zoneThreshold(n) {
+              return ZONE_BASE_SCORE * (n + ZONE_GROWTH * n * (n - 1) / 2);
+          }
+          function getZoneForScore(s) {
+              // Closed-form inverse of the quadratic above, floored. Cheap and exact enough;
+              // the linear scan it replaces would have run every frame.
+              const a = ZONE_GROWTH / 2, b = 1 - ZONE_GROWTH / 2, c = -s / ZONE_BASE_SCORE;
+              const n = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+              return Math.max(0, Math.floor(n));
+          }
+
+          const INITIAL_SPEED = 3.4;   // was 2.5 — the opening crawled
+          const SPEED_INCREMENT_PER_ZONE = 0.45;
+          const BOOST_SPEED_MULTIPLIER = 1.45;
           const START_HUE = 240;
           const HUE_INCREMENT_PER_ZONE = 50;
 
@@ -1413,9 +1624,16 @@
           const KEYBOARD_WELL_DISTANCE = GRAVITY_WELL_RADIUS * 0.6;
 
           // Pentatonic ladder for the fragment-pickup combo. Every scale degree is
-          // consonant with the C-minor bass loop, so a long streak climbs without ever
-          // clashing with the music underneath.
-          const FRAGMENT_PITCH_LADDER = ["C5", "Eb5", "F5", "G5", "Bb5", "C6", "Eb6", "F6", "G6"];
+          // consonant with the C-minor bass loop, so a streak climbs without ever clashing
+          // with the music underneath.
+          //
+          // The index WRAPS (combo % length) rather than clamping. Clamping meant that once
+          // a player passed the top of the ladder every subsequent pickup fired the same
+          // shrill top note forever, which is worse than no pitching at all. Wrapping makes
+          // a long streak roll back to the root and climb again.
+          const FRAGMENT_PITCH_LADDER = ["C5", "Eb5", "F5", "G5", "Bb5", "C6", "Eb6", "F6"];
+          // Frames without a pickup before the streak resets to the root (~1.6s).
+          const FRAGMENT_COMBO_DECAY_FRAMES = 95;
 
           const audioManager = {
               isInitialized: false,
@@ -1433,6 +1651,9 @@
               noiseSynth: null,
               baseBPM: 100,
               fragmentCombo: 0,
+              comboIdleFrames: 0,
+              padLoop: null,
+              arpLoop: null,
 
               init() {
                   // Check window.Tone, not the (potentially undefined) const
@@ -1440,21 +1661,56 @@
                   try {
                       const Tone = window.Tone;
 
-                      this.master = new Tone.Volume(-6).toDestination();
-                      this.musicBus = new Tone.Volume(-12).connect(this.master);
-                      this.sfxBus = new Tone.Volume(-4).connect(this.master);
+                      // LEVELS. Measured output used to peak at -21.9 dBFS with the
+                      // background bed effectively inaudible: master -6, musicBus -12 and a
+                      // further -8 on the drone stacked to -26 dB, and a 55Hz sine at -26 dB
+                      // does not exist on laptop or phone speakers, which roll off below
+                      // ~150Hz. Levels raised and the sub moved into an audible register.
+                      this.master = new Tone.Volume(-2).toDestination();
+                      this.musicBus = new Tone.Volume(-4).connect(this.master);
+                      this.sfxBus = new Tone.Volume(-5).connect(this.master);
+
+                      // A short send gives the bed some space without the cost (and async
+                      // impulse generation) of a real reverb.
+                      this.delay = new Tone.FeedbackDelay({ delayTime: 0.32, feedback: 0.28, wet: 1 })
+                          .connect(new Tone.Volume(-14).connect(this.musicBus));
 
                       // PREVIOUSLY: one monophonic Tone.Synth played the bass loop AND every
                       // sound effect. A Tone.Synth is one voice, so each fragment pickup cut
                       // the bass note dead — which is a large part of why pickups read as
                       // weak. Music and SFX now have separate voices on separate buses.
-                      this.bass = new Tone.Synth().connect(this.musicBus);
+                      this.bass = new Tone.Synth({
+                          oscillator: { type: 'triangle' },
+                          envelope: { attack: 0.02, decay: 0.28, sustain: 0.12, release: 0.4 }
+                      }).connect(new Tone.Volume(-2).connect(this.musicBus));
 
-                      // Sub-bass drone bed (ported from the Pro Edition build). The lowpass
-                      // is load-bearing: an unfiltered 55Hz oscillator reads as static on
-                      // phone speakers.
-                      this.drone = new Tone.Oscillator(55, "sine")
-                          .connect(new Tone.Filter(120, "lowpass").connect(new Tone.Volume(-8).connect(this.musicBus)));
+                      // Sustained pad — this is the actual "background music" the mix was
+                      // missing. Slow attack so it sits under everything rather than
+                      // competing with the pickup chimes.
+                      this.pad = new Tone.PolySynth(Tone.Synth, {
+                          oscillator: { type: 'sawtooth' },
+                          envelope: { attack: 1.2, decay: 0.6, sustain: 0.75, release: 2.4 }
+                      });
+                      this.padFilter = new Tone.Filter(700, 'lowpass');
+                      this.pad.connect(this.padFilter);
+                      this.padFilter.connect(new Tone.Volume(-8).connect(this.musicBus));
+                      this.padFilter.connect(this.delay);
+
+                      // Arpeggio layer — silent until zone 2, then rides on top. This is the
+                      // "extra instrument tracks at higher zones" idea: the mix thickens as
+                      // the player survives, so progression is audible as well as visible.
+                      this.arp = new Tone.Synth({
+                          oscillator: { type: 'square' },
+                          envelope: { attack: 0.005, decay: 0.1, sustain: 0, release: 0.1 }
+                      });
+                      this.arpVol = new Tone.Volume(-60).connect(this.musicBus);   // -60 = off
+                      this.arp.connect(this.arpVol);
+                      this.arp.connect(this.delay);
+
+                      // Sub drone. 55Hz was below what small speakers reproduce at all; 110Hz
+                      // with the filter opened up is felt without becoming a rumble.
+                      this.drone = new Tone.Oscillator(110, "sine")
+                          .connect(new Tone.Filter(260, "lowpass").connect(new Tone.Volume(-9).connect(this.musicBus)));
 
                       // Polyphonic so a fast fragment streak layers instead of self-cutting.
                       this.sfx = new Tone.PolySynth(Tone.Synth, {
@@ -1481,32 +1737,68 @@
               },
 
               // --- SFX ---
-              // Each pickup climbs the ladder; the streak resets on death. This is the
-              // cheapest possible "this run is going well" signal.
+              // Each pickup climbs the ladder; the streak resets on death or after a pause.
               playFragmentSound() {
                   if (!this.isInitialized) return;
-                  const note = FRAGMENT_PITCH_LADDER[Math.min(this.fragmentCombo, FRAGMENT_PITCH_LADDER.length - 1)];
+                  // WRAP, don't clamp. Clamping parked every pickup past the top of the
+                  // ladder on the same shrill note for the rest of the run.
+                  const note = FRAGMENT_PITCH_LADDER[this.fragmentCombo % FRAGMENT_PITCH_LADDER.length];
                   this.fragmentCombo++;
+                  this.comboIdleFrames = 0;
                   this.sfx.triggerAttackRelease(note, "16n");
               },
-              resetFragmentCombo() { this.fragmentCombo = 0; },
+              resetFragmentCombo() { this.fragmentCombo = 0; this.comboIdleFrames = 0; },
+              // Called once per frame: a streak that stops being fed drops back to the root,
+              // so the pitch reflects the CURRENT run of pickups rather than the lifetime total.
+              tickFragmentCombo() {
+                  if (this.fragmentCombo === 0) return;
+                  if (++this.comboIdleFrames > FRAGMENT_COMBO_DECAY_FRAMES) this.resetFragmentCombo();
+              },
               playPowerUpSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("G5", "8n"); },
               playGameOverSound() { if (!this.isInitialized) return; this.noiseSynth.triggerAttack(); },
               playClickSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("C4", "16n"); },
 
               // --- MUSIC ---
+              // Three synchronised loops instead of one bass line. The bed used to be a
+              // single Tone.Synth hitting four quarter notes, which is why the background
+              // read as silent even before the level problem above.
               startMusic() {
                   if (!this.isInitialized || this.musicLoop) return;
                   const Tone = window.Tone;
                   const transport = Tone.getTransport();
                   transport.bpm.value = this.baseBPM;
-                  const notes = ["C2", "G2", "Eb3", "G2"];
-                  let noteIndex = 0;
+
+                  const bassNotes = ["C2", "C2", "Eb2", "G2", "C2", "C2", "Bb1", "G1"];
+                  let bi = 0;
                   this.musicLoop = new Tone.Loop(time => {
-                      this.bass.triggerAttackRelease(notes[noteIndex++ % notes.length], "8n", time);
+                      this.bass.triggerAttackRelease(bassNotes[bi++ % bassNotes.length], "8n", time);
                   }, "4n").start(0);
+
+                  const chords = [["C3", "Eb3", "G3"], ["Ab2", "C3", "Eb3"], ["Bb2", "D3", "F3"], ["G2", "Bb2", "D3"]];
+                  let ci = 0;
+                  this.padLoop = new Tone.Loop(time => {
+                      this.pad.triggerAttackRelease(chords[ci++ % chords.length], "2n", time);
+                  }, "2m").start(0);
+
+                  const arpNotes = ["C5", "Eb5", "G5", "Bb5", "G5", "Eb5"];
+                  let ai = 0;
+                  this.arpLoop = new Tone.Loop(time => {
+                      this.arp.triggerAttackRelease(arpNotes[ai++ % arpNotes.length], "32n", time);
+                  }, "8n").start(0);
+
                   transport.start();
                   try { if (this.drone.state !== 'started') this.drone.start(); } catch (e) {}
+              },
+
+              // Zone-reactive mix: the arp fades in from zone 2 and the pad filter opens up,
+              // so surviving deeper is audible, not just visible.
+              updateMusicLayers(zone) {
+                  if (!this.isInitialized) return;
+                  try {
+                      const arpDb = zone < 2 ? -60 : Math.min(-12, -30 + (zone - 2) * 4);
+                      this.arpVol.volume.rampTo(arpDb, 1.5);
+                      this.padFilter.frequency.rampTo(700 + Math.min(1800, zone * 220), 2);
+                  } catch (e) {}
               },
               updateTempo(newBPM) {
                   if (!this.isInitialized || !window.Tone) return;
@@ -1518,11 +1810,11 @@
                   // Check window.Tone, not the (potentially undefined) const
                   if (!this.isInitialized || !window.Tone) return;
 
-                  if (this.musicLoop) {
-                      this.musicLoop.stop(0);
-                      this.musicLoop.dispose();
-                      this.musicLoop = null;
+                  for (const key of ['musicLoop', 'padLoop', 'arpLoop']) {
+                      if (this[key]) { this[key].stop(0); this[key].dispose(); this[key] = null; }
                   }
+                  try { this.pad.releaseAll(); } catch (e) {}
+                  try { this.arpVol.volume.value = -60; } catch (e) {}
                   try { if (this.drone.state === 'started') this.drone.stop(); } catch (e) {}
                   const transport = window.Tone.getTransport();
                   if (transport.state === 'started') {
@@ -1540,7 +1832,52 @@
               isPausedForInstruction: false,
               currentStepConfig: null,
               spotlightBounds: null, // Stores { x, y, width, height, shape }
-              
+
+              // --- SOFT REWIND ---
+              // The tutorial is still unloseable, but a crash is no longer a no-op. On a
+              // hit we throw the comet back to a safe checkpoint, flash the message, and
+              // let the player retry the same beat. That keeps the "you cannot fail out of
+              // the tutorial" guarantee while making the obstacle step actually require
+              // dodging — previously collisions were disabled outright and the step passed
+              // on x-position alone, so flying straight through it counted as success.
+              checkpoint: null,        // { x, y } to rewind to
+              retryMessage: null,      // coaching line shown after a hit
+              retryTimer: 0,           // frames left showing retryMessage
+              retries: 0,
+
+              setCheckpoint(x, y) { this.checkpoint = { x, y }; },
+
+              handleCrash() {
+                  if (!this.isActive || !playerComet) return;
+                  this.retries++;
+                  createExplosion(playerComet.x, playerComet.y, 12, '#f43f5e');
+                  audioManager.playGameOverSound();
+
+                  const cp = this.checkpoint || { x: 150, y: VIRTUAL_HEIGHT / 2 };
+                  playerComet.x = cp.x;
+                  playerComet.y = cp.y;
+                  playerComet.vx = calculateCurrentSpeed();
+                  playerComet.vy = 0;
+                  playerComet.trail.length = 0;
+                  gravityWell = null;
+                  keyboardWellActive = false;
+                  heldDirections.clear();
+
+                  const step = this.currentStepConfig;
+                  this.retryMessage = (step && step.onCrashText) || "Not quite — try again.";
+                  this.retryTimer = 150;   // ~2.5s
+                  this.renderText();
+              },
+
+              // Single place that decides what the tutorial banner says, so a retry
+              // message and the step's own text can never fight over the element.
+              renderText() {
+                  const step = this.currentStepConfig;
+                  if (!step) return;
+                  const body = (this.retryTimer > 0 && this.retryMessage) ? this.retryMessage : step.text;
+                  tutorialText.innerHTML = body.replace(/\n/g, '<br>');
+              },
+
               // --- TUTORIAL STEPS ---
               // TRIMMED 11 -> 5. The cut steps were pure text beats on autoAdvance timers
               // ("Welcome...", "This is your comet.", "Nice one!", "You've got it!") that
@@ -1570,8 +1907,11 @@
                       isDone: () => gravityWell === null
                   },
                   {
-                      // Absorbs the old setup step's onStart (velocity reset + obstacle spawn).
-                      text: "Now you're moving. Steer around the obstacle!",
+                      // The obstacle is a GATE, matching what the real game now opens with,
+                      // so the tutorial teaches the thing the player will actually meet.
+                      // Collisions are live here — clearing it means clearing it.
+                      text: "Now you're moving.\nSteer through the gap!",
+                      onCrashText: "You clipped it.\nHold a well on the side you want to go — the comet follows it.",
                       isPausedForInstruction: false,
                       allowForwardSpeed: true, // <-- Comet starts moving here
                       onStart: () => {
@@ -1580,15 +1920,33 @@
                           // overriding any "freefall" from the previous step.
                           playerComet.vx = calculateCurrentSpeed();
                           playerComet.vy = 0;
+                          tutorialManager.setCheckpoint(playerComet.x, VIRTUAL_HEIGHT / 2);
 
-                          obstacles = [new Obstacle(VIRTUAL_WIDTH * 0.8, VIRTUAL_HEIGHT * 0.5, 30, 250, 'static')];
+                          // Spawned RELATIVE to the comet and close. It used to sit at a
+                          // fixed VIRTUAL_WIDTH * 0.8 while the comet started at x=150,
+                          // which meant ~900px of travel at 2px/frame — about 7.5 seconds
+                          // of dead coasting with nothing to do before the lesson began.
+                          const gateX = playerComet.x + 520;
+                          const gap = 260;
+                          // DELIBERATELY OFF-CENTRE from the comet's current line. Centring
+                          // the gap would let the player coast straight through it and
+                          // "pass" without ever steering — the exact fake-success this step
+                          // was rewritten to eliminate. Offsetting by ~150px means the gate
+                          // can only be cleared by actually using a well. Clamped so both
+                          // walls stay substantial rather than degenerating into a sliver.
+                          const desiredCentre = playerComet.y + 150;
+                          const gapTop = Math.max(70, Math.min(VIRTUAL_HEIGHT - gap - 70, desiredCentre - gap / 2));
+                          obstacles = [
+                              new Obstacle(gateX, 0, 40, gapTop, 'static'),
+                              new Obstacle(gateX, gapTop + gap, 40, VIRTUAL_HEIGHT - (gapTop + gap), 'static')
+                          ];
                       },
                       spotlight: () => {
                           const obs = obstacles[0];
                           if (!obs) return null;
-                          return { x: obs.x + obs.width / 2, y: VIRTUAL_HEIGHT / 2, width: obs.width + 300, height: VIRTUAL_HEIGHT, shape: 'rect' }
+                          return { x: obs.x + obs.width / 2, y: VIRTUAL_HEIGHT / 2, width: obs.width + 260, height: 300, shape: 'rect' }
                       },
-                      isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width
+                      isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width + 30
                   },
                   {
                       // Absorbs the old "pro move" setup step's onStart.
@@ -1598,6 +1956,7 @@
                       allowForwardSpeed: false,
                       onStart: () => {
                           obstacles = []; // Clear obstacles
+                          tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
                           // Spawn a fragment *behind* the (now stationary) comet
                           starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)];
                       },
@@ -1650,8 +2009,11 @@
                   this.currentStepConfig = this.steps[this.currentStep];
                   const step = this.currentStepConfig;
 
-                  tutorialText.innerHTML = step.text.replace(/\n/g, '<br>');
-                  
+                  // A new step always clears any lingering retry coaching.
+                  this.retryTimer = 0;
+                  this.retryMessage = null;
+                  this.renderText();
+
                   // Pause comet physics if step isn't interactive
                   this.isPausedForInstruction = (step.autoAdvance || step.blockInput || step.isPausedForInstruction === true);
                   
@@ -1678,6 +2040,12 @@
                   if (!this.isActive || !this.currentStepConfig) return;
 
                   const step = this.currentStepConfig;
+
+                  // Let the retry coaching decay back to the step's own instruction.
+                  if (this.retryTimer > 0) {
+                      this.retryTimer--;
+                      if (this.retryTimer === 0) this.renderText();
+                  }
 
                   // Update spotlight position
                   if (step.spotlight) {
@@ -1975,6 +2343,25 @@
                   if (activePowerUp.type === 'shield' || isHeadstarting) {
                       ctx.beginPath(); ctx.arc(screenX, this.y, this.radius + 5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(56, 189, 248, 0.8)'; ctx.lineWidth = 3; ctx.stroke();
                   }
+                  // BOOST speed streaks. The speed change alone is easy to miss mid-run, so
+                  // the state gets its own read: bright lines tearing past the comet.
+                  if (activePowerUp.type === 'boost') {
+                      ctx.save();
+                      ctx.strokeStyle = 'rgba(253, 224, 71, 0.55)';
+                      ctx.lineWidth = 2;
+                      for (let i = 0; i < 7; i++) {
+                          const phase = (Date.now() * 0.0016 + i * 0.53) % 1;
+                          const sx = screenX + 40 - phase * 420;
+                          const sy = this.y + Math.sin(i * 2.1) * 46;
+                          ctx.globalAlpha = 0.5 * (1 - phase);
+                          ctx.beginPath();
+                          ctx.moveTo(sx, sy);
+                          ctx.lineTo(sx - 60, sy);
+                          ctx.stroke();
+                      }
+                      ctx.restore();
+                  }
+
                   // Pickup flash — a brief additive bloom on the comet itself, so the
                   // feedback lands on the thing the player is watching rather than only at
                   // the fragment's position.
@@ -2265,6 +2652,88 @@
                   playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
               }
           }
+          // Draws one shop tile's artwork on a real canvas using the SAME code paths the
+          // game uses, so the shop can never advertise something the game doesn't render.
+          function renderCosmeticPreview(item) {
+              const W = 132, H = 96;
+              const cv = document.createElement('canvas');
+              cv.className = 'cosmetic-preview';
+              // Backing store at 2x for crispness on hidpi; CSS box stays W x H.
+              cv.width = W * 2; cv.height = H * 2;
+              const c = cv.getContext('2d');
+              c.scale(2, 2);
+
+              try {
+                  if (item.type === 'background') {
+                      item.drawPreview(c, W, H);
+                      return cv;
+                  }
+
+                  // Neutral backdrop so skins are judged on their own colours.
+                  c.fillStyle = '#0b1120';
+                  c.fillRect(0, 0, W, H);
+
+                  if (item.type === 'obstacle') {
+                      // Obstacles are TALL PILLARS in play. Preview them at that aspect —
+                      // the old wide CSS box could not communicate the real silhouette.
+                      const w = 34, h = 76;
+                      const x = (W - w) / 2, y = (H - h) / 2;
+                      if (item.draw) {
+                          if (item.collisionShape === 'circle') {
+                              // Mirror Obstacle.draw()'s stacking so circular skins preview
+                              // as the stack the player will actually meet.
+                              const fake = { x, y, width: w, height: h };
+                              getCircleStack(fake).forEach(cc => {
+                                  item.draw(c, x + cc.ox - cc.r, y + cc.oy - cc.r, cc.r * 2, cc.r * 2, item, cc);
+                              });
+                          } else {
+                              item.draw(c, x, y, w, h, item, {});
+                          }
+                      } else {
+                          c.fillStyle = item.fillStyle || '#7c3aed';
+                          c.strokeStyle = item.strokeStyle || '#a78bfa';
+                          c.lineWidth = 2;
+                          c.fillRect(x, y, w, h);
+                          c.strokeRect(x, y, w, h);
+                      }
+                      return cv;
+                  }
+
+                  // Comet skins: a glowing orb plus its trail and any drawAddition, which is
+                  // what the player sees in flight.
+                  const cx = W * 0.62, cy = H / 2, r = 17;
+                  const primary = (item.fillStyle || 'white').match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/i)?.[0]
+                                  || (item.fillStyle && !item.fillStyle.includes('gradient') ? item.fillStyle : 'white');
+                  for (let i = 0; i < 7; i++) {
+                      const t = i / 7;
+                      c.globalAlpha = 0.10 + t * 0.35;
+                      c.beginPath();
+                      c.arc(cx - (7 - i) * 8, cy, r * (0.35 + t * 0.6), 0, Math.PI * 2);
+                      c.fillStyle = primary; c.fill();
+                  }
+                  c.globalAlpha = 1;
+
+                  if (item.fillStyle && item.fillStyle.includes('gradient')) {
+                      const cols = item.fillStyle.match(/#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\)/gi) || ['#fff'];
+                      const g = item.fillStyle.startsWith('radial')
+                          ? c.createRadialGradient(cx, cy, 1, cx, cy, r)
+                          : c.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+                      cols.forEach((col, i) => g.addColorStop(Math.min(1, i / Math.max(1, cols.length - 1)), col));
+                      c.fillStyle = g;
+                  } else {
+                      c.fillStyle = item.fillStyle || 'white';
+                  }
+                  c.shadowColor = primary; c.shadowBlur = 16;
+                  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+                  c.shadowBlur = 0;
+
+                  if (item.drawAddition) item.drawAddition(c, cx, cy, r);
+              } catch (e) {
+                  console.error(`Preview render failed for ${item.id}:`, e);
+              }
+              return cv;
+          }
+
           function updateObservatoryUI() {
               shopFragmentsDisplay.textContent = playerData.starFragments;
               
@@ -2302,19 +2771,21 @@
                       const div = document.createElement('div');
                       div.className = 'cosmetic-item';
                       
-                      const preview = document.createElement('div');
-                      preview.className = `cosmetic-preview ${item.previewClass || ''}`; 
-                      
-                      // --- PREMIUM VISUALS (Apply) ---
-                      // Use the previewStyle string which now contains
-                      // the animation and --glow-color variable for premium items
-                      preview.style.cssText = item.previewStyle;
-                      // --- END PREMIUM VISUALS ---
-
-                      if (id === 'comet_smiley') {
-                          preview.innerHTML = '&#9786;'; 
-                          preview.style.lineHeight = '60px'; 
-                      }
+                      // --- PREVIEWS ARE CANVASES, DRAWN BY THE GAME'S OWN RENDERERS ---
+                      //
+                      // These used to be CSS boxes (`preview.style.cssText = item.previewStyle`)
+                      // while gameplay drew the same items on canvas via skin.draw(). Two
+                      // unrelated implementations with nothing keeping them in sync — and they
+                      // had drifted badly: Asteroid previewed as a smooth grey OVAL but drew as
+                      // a jagged cratered polygon; Crystal Spires previewed as a HEXAGON but
+                      // drew as an upward spire; Rubber Ducky previewed as a plain yellow blob
+                      // but drew a body, head, eye and beak. Players could not see what they
+                      // were buying.
+                      //
+                      // Now one canvas per item, painted by the exact function gameplay uses,
+                      // at the aspect the thing actually has in play (obstacles are tall
+                      // pillars, not wide boxes). They cannot diverge again.
+                      const preview = renderCosmeticPreview(item);
 
                       const name = document.createElement('strong');
                       name.textContent = item.name;
@@ -2485,8 +2956,14 @@
               score = 0; fragmentsThisRun = 0; maxDistanceReached = 0; lastZoneIndex = -1; cameraX = 0;
               audioManager.resetFragmentCombo();
               slowMoFrames = 0; slowMoParity = false;
+              zoneFlashFrames = 0; zoneBannerFrames = 0;
+              safeLaneY = VIRTUAL_HEIGHT / 2;   // corridor starts level with the comet
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = [];
-              nextObstacleSpawnX = VIRTUAL_WIDTH; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
+              // 0.45 rather than a full screen-width: at VIRTUAL_WIDTH the first formation
+              // could not spawn until the camera had caught up, leaving several seconds of
+              // empty sky before the game actually started. Now the opening obstacle is
+              // reachable in ~3s.
+              nextObstacleSpawnX = VIRTUAL_WIDTH * 0.45; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
               activePowerUp = { type: null, timer: 0 };
               runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
               if (!isTutorial) {
@@ -2542,10 +3019,11 @@
               if (!playerComet) return;
               if (isHeadstarting) {
                   headstartTimer++; const progress = headstartTimer / HEADSTART_DURATION;
-                  playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_SCORE_INCREMENT * SCORE_DIVISOR);
+                  playerComet.x = maxDistanceReached = (1 - Math.pow(1 - progress, 3)) * (ZONE_BASE_SCORE * SCORE_DIVISOR);
                   if (headstartTimer >= HEADSTART_DURATION) { isHeadstarting = false; activePowerUp.type = 'shield'; activePowerUp.timer = 300; }
               }
               updateKeyboardWell();
+              audioManager.tickFragmentCombo();
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
               playerComet.update();
               manageObstacles(); managePowerUps(); manageStarFragments(); manageParticles();
@@ -2571,21 +3049,17 @@
           function drawBackground() {
               const equippedBackgroundId = playerData.cosmetics.equipped.background;
               const theme = cosmeticItems[equippedBackgroundId] || cosmeticItems['background_default'];
-              if (theme.render) {
-                  try { // Add try-catch around custom render functions
-                      theme.render();
-                       // Store the background color provided by the theme for potential use by other elements
-                       currentZoneColors.background = ctx.fillStyle; 
-                  } catch (e) {
-                      console.error(`Error rendering background theme ${equippedBackgroundId}:`, e);
-                      // Fallback to default render on error
-                      cosmeticItems['background_default'].render();
-                      currentZoneColors.background = '#0c0a09'; 
-                  }
-              } else {
-                  // Fallback or default rendering if no render function specified
-                  cosmeticItems['background_default'].render();
-                  currentZoneColors.background = '#0c0a09'; 
+              // The zone is passed IN now. Previously the renderer took no arguments and
+              // painted a fixed gradient, so the background was byte-identical from the
+              // first second of a run to the last.
+              const zone = getZoneForScore(score);
+              try {
+                  theme.render(ctx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, zone, cameraX);
+                  currentZoneColors.background = theme.paletteFor(zone).bottom;
+              } catch (e) {
+                  console.error(`Error rendering background theme ${equippedBackgroundId}:`, e);
+                  cosmeticItems['background_default'].render(ctx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, zone, cameraX);
+                  currentZoneColors.background = '#0c0a09';
               }
           }
 
@@ -2604,11 +3078,43 @@
               particles.forEach(p => p.draw());
               shockRings.forEach(r => r.draw());
               if (gravityWell && !isHeadstarting) gravityWell.draw();
-              
+
               // REMOVED: Old tutorial drawing logic.
               // The new spotlight is a DOM element, not a canvas drawing.
-              
+
+              drawZoneAdvanceFx();
+
               ctx.restore();
+          }
+
+          // Zone-change punctuation: a full-screen additive wash that decays fast, plus a
+          // short banner naming the zone the player just reached.
+          function drawZoneAdvanceFx() {
+              if (zoneFlashFrames > 0) {
+                  const t = zoneFlashFrames / 26;
+                  ctx.save();
+                  ctx.globalCompositeOperation = 'lighter';
+                  ctx.fillStyle = currentZoneColors.obstacle || '#7c3aed';
+                  ctx.globalAlpha = 0.22 * t;
+                  ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+                  ctx.restore();
+                  zoneFlashFrames--;
+              }
+              if (zoneBannerFrames > 0) {
+                  const t = zoneBannerFrames / 110;
+                  // Fade in over the first ~15%, hold, then fade out.
+                  const alpha = Math.min(1, (1 - t) * 6) * Math.min(1, t * 3);
+                  ctx.save();
+                  ctx.globalAlpha = alpha;
+                  ctx.textAlign = 'center';
+                  ctx.font = '700 46px Inter, sans-serif';
+                  ctx.fillStyle = currentZoneColors.stroke || '#c4b5fd';
+                  ctx.shadowColor = currentZoneColors.obstacle || '#7c3aed';
+                  ctx.shadowBlur = 24;
+                  ctx.fillText(zoneBannerText, VIRTUAL_WIDTH / 2, VIRTUAL_HEIGHT * 0.22);
+                  ctx.restore();
+                  zoneBannerFrames--;
+              }
           }
 
           function updateTutorial() {
@@ -2636,8 +3142,14 @@
 
               // Handle tutorial-specific collisions
               const collisionResult = checkCollisions();
-              // Note: Obstacle collision is handled by the "unlosable" design,
-              // but we still need to check for fragment collection.
+
+              // Obstacle hits are REAL here now, but they rewind instead of ending the
+              // run — the tutorial stays unloseable while a mistake actually registers.
+              if (collisionResult.obstacle) {
+                  tutorialManager.handleCrash();
+                  return;
+              }
+
               if (collisionResult.fragment) {
                   audioManager.playFragmentSound();
                   // Full flourish: this is the player's first fragment ever, so it should
@@ -2672,29 +3184,188 @@
           }
 
           function resizeCanvas() { const { clientWidth, clientHeight } = appContainer; scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT); canvas.width = VIRTUAL_WIDTH * scale; canvas.height = VIRTUAL_HEIGHT * scale; }
-          function getObstacleTypeForZone() { const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); const rand = Math.random(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
+          function getObstacleTypeForZone() { const zoneIndex = getZoneForScore(score); const rand = Math.random(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
+
+          // --- OBSTACLE FORMATIONS ---
+          //
+          // THE PROBLEM THIS SOLVES: obstacles used to be a single freestanding block of
+          // 50-230px in a 720px column — a mean of 19% coverage, leaving ~19 comet-widths
+          // of open sky. Measured, that meant something was genuinely in the player's lane
+          // only 24% of the time, i.e. one unavoidable steer every ~7.8 SECONDS at zone 0.
+          // You could fly a straight line for most of a minute. Worse, difficulty scaled
+          // only through spacing and speed, so the SHAPE of the challenge at zone 10 was
+          // identical to zone 0 — which is what made a long run feel monotonous.
+          //
+          // Three formations now, mixed by zone:
+          //   single  — one block (the old behaviour, but the block grows with zone)
+          //   cluster — 2-3 blocks scattered down the column
+          //   gate    — walls anchored to the top and bottom edges with a gap between
+          //
+          // Gates run FROM ZONE 0 on purpose. "Too easy at the start" is fixed by making
+          // the very first obstacle require aiming, not by burying the player in debris:
+          // the zone-0 gap is 420px (14 comet-widths) — impossible to fail by accident,
+          // but you must choose a line. It tightens to 160px (5.3x) deep in a run.
+          function getGateGap(zone) { return Math.max(160, 420 - zone * 24); }
+          function getBlockHeightRange(zone) {
+              return { min: 100 + zone * 16, max: Math.min(430, 280 + zone * 26) };
+          }
+
+          // --- THE SAFE CORRIDOR ---
+          //
+          // Formations are dense enough now that INDEPENDENT random placement is not safe.
+          // A reachability sweep over the generated field (allowing the comet a generous
+          // 45-degree steer, which is the most its renormalised velocity permits) showed
+          // that from zone 2 onward some fields had NO navigable path at all — a cluster
+          // block would land squarely in front of a gate's opening, or two formations would
+          // overlap in x and jointly seal the column. By zone 12 it was every field. The
+          // player would have been killed by the RNG rather than by a mistake, which is the
+          // worst possible failure in a score-chasing game.
+          //
+          // So the corridor is now GUARANTEED BY CONSTRUCTION: a lane snakes down the level,
+          // every gate's opening is centred on it, and no freestanding block may intrude
+          // into it. Difficulty comes from how narrow and how mobile the lane is, never from
+          // whether a route exists.
+          let safeLaneY = VIRTUAL_HEIGHT / 2;
+
+          function getCorridorHalf(zone) { return Math.max(46, 78 - zone * 2.5); }
+
+          // The lane may only move as fast as the comet could actually follow it. The comet
+          // trades forward speed for vertical speed (its velocity magnitude is pinned to
+          // baseSpeed), so a 45-degree line is the practical limit; 0.5 keeps a margin
+          // under that so following the lane never requires a perfect input.
+          function advanceSafeLane(dx, zone) {
+              const half = getCorridorHalf(zone);
+              const maxDrift = dx * 0.5;
+              safeLaneY += (Math.random() * 2 - 1) * maxDrift;
+              const edge = half + 40;
+              safeLaneY = Math.max(edge, Math.min(VIRTUAL_HEIGHT - edge, safeLaneY));
+          }
+
+          // Places a freestanding block anywhere EXCEPT across the corridor. Returns null
+          // when neither side has room for it, in which case the caller skips the piece.
+          // `extraMargin` reserves room for obstacles that MOVE after they are placed:
+          // a 'vertical' obstacle oscillates +/-50px around its spawn y, so without this it
+          // could wander into a corridor that was clear at spawn time.
+          //
+          // `side` ('top' | 'bottom' | null) forces which side of the corridor the block
+          // lands on. Cluster formations alternate sides so they read as a slalom; left to
+          // chance, two pieces would often stack on the same side and merge into a blob.
+          function placeBlockAvoidingLane(height, zone, extraMargin = 0, side = null) {
+              const half = getCorridorHalf(zone) + extraMargin;
+              const topRoom = (safeLaneY - half) - height;      // block sits fully above lane
+              const bottomStart = safeLaneY + half;             // block sits fully below lane
+              const bottomRoom = VIRTUAL_HEIGHT - height - bottomStart;
+
+              const canTop = topRoom > 0, canBottom = bottomRoom > 0;
+              if (!canTop && !canBottom) return null;
+
+              let useTop;
+              if (side === 'top') { if (!canTop) return null; useTop = true; }
+              else if (side === 'bottom') { if (!canBottom) return null; useTop = false; }
+              else { useTop = canTop && (!canBottom || Math.random() < 0.5); }
+
+              return useTop ? Math.random() * topRoom
+                            : bottomStart + Math.random() * bottomRoom;
+          }
+          function pickFormation(zone) {
+              const r = Math.random();
+              let single, cluster;
+              if (zone < 1)      { single = 0.35; cluster = 0.25; }
+              else if (zone < 3) { single = 0.28; cluster = 0.28; }
+              else if (zone < 6) { single = 0.22; cluster = 0.30; }
+              else               { single = 0.18; cluster = 0.30; }
+              if (r < single) return 'single';
+              if (r < single + cluster) return 'cluster';
+              return 'gate';
+          }
+
           function manageObstacles() {
               if (!playerComet || gameState === 'tutorial') return;
               obstacles = obstacles.filter(o => o.x + o.width > cameraX);
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
-              if (nextObstacleSpawnX < spawnAheadPoint) {
-                  const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
-                  const minDistance = Math.max(80, 200 - zoneIndex * 15);
-                  const randomDistance = Math.max(50, 150 - zoneIndex * 10);
-                  const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance; 
-                  
-                  const width = Math.random() * 50 + 25;
-                  const height = Math.random() * 180 + 50;
+              if (nextObstacleSpawnX >= spawnAheadPoint) return;
 
-                  // Every skin now spawns at the SAME dimensions. Circular skins used to be
-                  // squashed to height === width here, which made them strictly easier to
-                  // dodge than the default pillar; they are stacked to fill the box instead
-                  // (see getCircleStack), so cosmetics are purely cosmetic again.
+              const zone = getZoneForScore(score);
+              const minDistance = Math.max(150, 300 - zone * 13);
+              const randomDistance = Math.max(90, 190 - zone * 9);
+              const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance;
 
-                  const y = Math.random() * (VIRTUAL_HEIGHT - height);
-                  obstacles.push(new Obstacle(x, y, width, height, getObstacleTypeForZone()));
-                  nextObstacleSpawnX = x;
+              // Move the guaranteed corridor before laying anything down, limited by the
+              // horizontal gap so the lane is always followable.
+              advanceSafeLane(x - nextObstacleSpawnX, zone);
+
+              const h = getBlockHeightRange(zone);
+              const randHeight = () => h.min + Math.random() * (h.max - h.min);
+              // Every skin spawns at the SAME dimensions. Circular skins used to be
+              // squashed to height === width, which made them strictly easier to dodge;
+              // they are stacked to fill the box instead (see getCircleStack), so
+              // cosmetics stay purely cosmetic.
+              const randWidth = () => Math.random() * 50 + 30;
+
+              let advanceTo = x;
+
+              switch (pickFormation(zone)) {
+                  case 'gate': {
+                      // Walls welded to the top and bottom edges. The only way through is
+                      // the gap, so a gate ALWAYS costs the player a steering decision —
+                      // this is the formation doing most of the work against the old
+                      // "fly straight and survive" problem.
+                      //
+                      // The opening is CENTRED ON THE CORRIDOR rather than placed randomly,
+                      // which is what guarantees the gate is always reachable from the
+                      // previous formation.
+                      const gap = Math.max(getGateGap(zone), getCorridorHalf(zone) * 2);
+                      const width = randWidth() + 15;      // gates read better slightly chunkier
+                      let gapTop = safeLaneY - gap / 2;
+                      gapTop = Math.max(0, Math.min(VIRTUAL_HEIGHT - gap, gapTop));
+                      // Gate pieces stay 'static'. A moving or phasing gate leaves no safe
+                      // line at all at the tighter gaps, which reads as unfair rather than hard.
+                      if (gapTop > 8) obstacles.push(new Obstacle(x, 0, width, gapTop, 'static'));
+                      const belowY = gapTop + gap;
+                      if (VIRTUAL_HEIGHT - belowY > 8) obstacles.push(new Obstacle(x, belowY, width, VIRTUAL_HEIGHT - belowY, 'static'));
+                      advanceTo = x + width;
+                      break;
+                  }
+                  case 'cluster': {
+                      // A SLALOM, not a pile. Pieces used to be offset by only 30-120px while
+                      // being 30-80px wide, so they overlapped horizontally, and each picked
+                      // its side of the corridor independently — two pieces landing on the
+                      // same side merged into one shapeless mass that read as generated
+                      // garbage rather than as a designed obstacle.
+                      //
+                      // Now each piece starts clear of the previous piece's right edge, and
+                      // the side alternates, so a cluster is a readable zig-zag.
+                      const count = 2 + (Math.random() < 0.35 ? 1 : 0);
+                      let side = Math.random() < 0.5 ? 'top' : 'bottom';
+                      let px = x;
+                      for (let i = 0; i < count; i++) {
+                          const width = randWidth();
+                          const height = randHeight() * 0.75;   // smaller pieces, more of them
+                          const type = getObstacleTypeForZone();
+                          const py = placeBlockAvoidingLane(height, zone, type === 'vertical' ? 55 : 0, side);
+                          if (py !== null) {
+                              obstacles.push(new Obstacle(px, py, width, height, type));
+                              advanceTo = Math.max(advanceTo, px + width);
+                          }
+                          px += width + 80 + Math.random() * 90;   // guaranteed clear separation
+                          side = (side === 'top') ? 'bottom' : 'top';
+                      }
+                      break;
+                  }
+                  default: {   // 'single'
+                      const width = randWidth();
+                      const height = randHeight();
+                      const type = getObstacleTypeForZone();
+                      const py = placeBlockAvoidingLane(height, zone, type === 'vertical' ? 55 : 0);
+                      if (py !== null) {
+                          obstacles.push(new Obstacle(x, py, width, height, type));
+                      }
+                      advanceTo = x + width;
+                      break;
+                  }
               }
+
+              nextObstacleSpawnX = advanceTo;
           }
           function managePowerUps() {
               if (!playerComet || gameState === 'tutorial') return;
@@ -2719,15 +3390,53 @@
               if (nextFragmentSpawnX < spawnAheadPoint) {
                   const clusterSize = Math.floor(Math.random() * 4) + 3;
                   const startX = spawnAheadPoint + 100;
-                  const startY = VIRTUAL_HEIGHT * 0.2 + Math.random() * VIRTUAL_HEIGHT * 0.6;
                   const angle = (Math.random() - 0.5) * Math.PI / 4;
-                  const potentialFragments = Array.from({length: clusterSize}, (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
-                  if (!potentialFragments.some(pf => obstacles.some(obs => pf.x > obs.x && pf.x < obs.x + obs.width && pf.y > obs.y && pf.y < obs.y + obs.height))) {
+
+                  const buildCluster = (startY) => Array.from({ length: clusterSize },
+                      (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
+                  const isClear = (cluster) => !cluster.some(pf => obstacles.some(obs =>
+                      pf.x > obs.x - 12 && pf.x < obs.x + obs.width + 12 &&
+                      pf.y > obs.y - 12 && pf.y < obs.y + obs.height + 12));
+
+                  // Prefer threading the cluster through a gate's opening: it turns the
+                  // formation that most demands precision into the one that pays best.
+                  let chosen = null;
+                  const gateAhead = findGateOpeningNear(startX, startX + clusterSize * 40);
+                  if (gateAhead !== null) {
+                      const candidate = buildCluster(gateAhead);
+                      if (isClear(candidate)) chosen = candidate;
+                  }
+
+                  // Otherwise try several heights before giving up. The old code built ONE
+                  // candidate and silently spawned nothing if it clipped an obstacle —
+                  // tolerable when obstacles covered 19% of the column, but with the denser
+                  // formations that would quietly starve the fragment economy.
+                  for (let attempt = 0; attempt < 6 && !chosen; attempt++) {
+                      const candidate = buildCluster(VIRTUAL_HEIGHT * 0.15 + Math.random() * VIRTUAL_HEIGHT * 0.7);
+                      if (isClear(candidate)) chosen = candidate;
+                  }
+
+                  if (chosen) {
                       const clusterId = ++fragmentClusterCounter;
-                      potentialFragments.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y, clusterId)));
+                      chosen.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y, clusterId)));
                   }
                   nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
               }
+          }
+
+          // Returns the vertical centre of a gate opening overlapping [x1, x2], or null.
+          // A gate is two obstacles at the same x that touch the top and bottom edges;
+          // the safe line between them is exactly where a fragment cluster belongs.
+          function findGateOpeningNear(x1, x2) {
+              const top = obstacles.find(o => o.y <= 0 && o.x + o.width > x1 && o.x < x2);
+              if (!top) return null;
+              const bottom = obstacles.find(o => o !== top && o.y + o.height >= VIRTUAL_HEIGHT - 1 &&
+                                                 o.x + o.width > x1 && o.x < x2);
+              if (!bottom) return null;
+              const gapTop = top.y + top.height;
+              const gapBottom = bottom.y;
+              if (gapBottom - gapTop < 80) return null;
+              return (gapTop + gapBottom) / 2;
           }
           function createExplosion(x, y, count, color) {
               // Updated to use new Particle constructor
@@ -2811,9 +3520,18 @@
               }
               for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
               
-              // Tutorial collision is handled by the unlosable design
-              if (gameState === 'tutorial') return {};
-
+              // NOTE: the tutorial no longer short-circuits here.
+              //
+              // It used to `return {}` for the whole tutorial, so obstacles could not be
+              // hit at all — and the "dodge the obstacle" step completed purely on the
+              // comet's x passing the obstacle's right edge. The player could therefore
+              // fly dead straight THROUGH the obstacle and be congratulated for dodging
+              // it. (An automated walkthrough passed that step by coasting with no input
+              // whatsoever.) The tutorial demonstrated the mechanic instead of teaching it.
+              //
+              // Collisions are now live in the tutorial; updateTutorial() catches the hit
+              // and rewinds instead of ending the run, so it stays unloseable while a
+              // mistake finally means something.
               if (activePowerUp.type !== 'shield' && !isHeadstarting) {
                   if (playerComet.y - playerComet.radius < 0 || playerComet.y + playerComet.radius > VIRTUAL_HEIGHT || playerComet.x - playerComet.radius < cameraX) { return { obstacle: true }; }
                   
@@ -2865,14 +3583,21 @@
                   }
                   return 0; // By default, no forward speed in tutorial
               }
-              const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT); 
-              return INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE); 
+              const zoneIndex = getZoneForScore(score);
+              let speed = INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
+              // BOOST now actually boosts. It previously only doubled the score multiplier
+              // and never touched speed, so the pickup called "boost" produced no
+              // perceptible change at all — it looked broken because, as a boost, it was.
+              // Turn authority is unaffected: getGravityInfluence() scales with baseSpeed,
+              // so a faster comet still turns in the same radius.
+              if (activePowerUp.type === 'boost') speed *= BOOST_SPEED_MULTIPLIER;
+              return speed;
           }
           // --- END REFACTORED SPEED CALCULATION ---
 
           function updateMusicTempo() { if (!playerComet) return; const speedRatio = Math.max(0, Math.min(1, (calculateCurrentSpeed() - INITIAL_SPEED) / (10 - INITIAL_SPEED))); audioManager.updateTempo(audioManager.baseBPM + (speedRatio * 80)); }
           function checkZoneTransition() {
-              const zoneIndex = Math.floor(score / ZONE_SCORE_INCREMENT);
+              const zoneIndex = getZoneForScore(score);
               const equippedBackgroundTheme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
               
               // Always update obstacle/stroke colors based on zone, even with themes
@@ -2881,17 +3606,28 @@
               currentZoneColors.stroke = `hsl(${hue + 20}, 80%, 70%)`;
               
               if (zoneIndex !== lastZoneIndex) {
-                  // Only update background color if no theme render function exists
-                  if (!equippedBackgroundTheme.render) {
-                      currentZoneColors.background = `hsla(${hue}, 60%, 15%, 0.8)`;
-                  } 
+                  // The background no longer needs poking here — drawBackground() reads the
+                  // zone every frame and the theme's palette follows it. The old code tried
+                  // to set currentZoneColors.background inside `if (!theme.render)`, which
+                  // could never be true because every theme defined render(); that dead
+                  // branch is why zone changes were invisible.
                   if (playerComet) { playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle)); }
                   updateMusicTempo();
+                  if (lastZoneIndex >= 0) onZoneAdvanced(zoneIndex);
                   lastZoneIndex = zoneIndex;
-              } else if (gameState !== 'tutorial' && !currentZoneColors.background && !equippedBackgroundTheme.render) {
-                  // Initial default background if no theme and not in tutorial
-                  currentZoneColors.background = `hsla(${START_HUE}, 60%, 15%, 0.8)`;
               }
+          }
+
+          // A zone change is the game's main progression beat; it should be felt, not just
+          // silently reflected in a hue. Previously the only cue was one extra orbiter.
+          function onZoneAdvanced(zone) {
+              if (!playerComet) return;
+              zoneFlashFrames = 26;
+              shockRings.push(new ShockRing(playerComet.x, playerComet.y, currentZoneColors.stroke, 260, 30));
+              createExplosion(playerComet.x, playerComet.y, 14, currentZoneColors.obstacle);
+              zoneBannerText = `ZONE ${zone + 1}`;
+              zoneBannerFrames = 110;
+              audioManager.updateMusicLayers(zone);
           }
           function updateUpgradeIndicators() { powerUpStatusElement.className = 'powerup-hidden'; activeUpgradesContainer.style.display = 'flex'; magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none'; scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none'; reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none'; }
 
@@ -3076,7 +3812,10 @@
               if (observatoryButton) observatoryButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Observatory Button'); */ audioManager.playClickSound(); setGameState('observatory'); }); 
               if (gameOverMenuButton) gameOverMenuButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Game Over Menu Button'); */ audioManager.playClickSound(); setGameState('menu'); }); 
               if (gameOverObservatoryButton) gameOverObservatoryButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Game Over Observatory Button'); */ audioManager.playClickSound(); setGameState('observatory'); });
-              if (skipTutorialButton) skipTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Skip Tutorial Button'); */ audioManager.playClickSound(); tutorialManager.end(false); });
+              // end(TRUE): skipping drops the player straight into a real run. It used to
+              // pass false, which returned them to the menu — so "skip" cost an extra click
+              // before you could actually play, which is the opposite of what the button is for.
+              if (skipTutorialButton) skipTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Skip Tutorial Button'); */ audioManager.playClickSound(); tutorialManager.end(true); });
 
 
               // --- OBSERVATORY CLICK FIX (Consolidated Listener) ---
@@ -3215,6 +3954,7 @@
                  for (let i = 0; i < 200; i++) stars.push(new Star());
                  // console.log('[DEBUG] init: Created stars.');
               }
+              initBackgroundLayers();
               setupEventListeners();
               loadPlayerData();
               resizeCanvas();
@@ -3243,8 +3983,69 @@
           // hanging SDK delays boot by at most that long and then runs exactly as before.
           portalSDK.init().then(init);
 
+          // Read-only snapshot of the live simulation. The whole engine sits inside this
+          // DOMContentLoaded closure, so there is otherwise no way to measure the thing that
+          // actually matters for tuning — how much of the screen is blocked and how often —
+          // from a console or an automated playtest. Mutates nothing.
+          window.gwStats = function() {
+              const onScreen = obstacles.filter(o => o.x + o.width > cameraX && o.x < cameraX + VIRTUAL_WIDTH);
+              // Fraction of the vertical column blocked, measured by sampling rows.
+              const SAMPLES = 72;
+              let blockedRows = 0;
+              for (let i = 0; i < SAMPLES; i++) {
+                  const y = (i + 0.5) * (VIRTUAL_HEIGHT / SAMPLES);
+                  if (onScreen.some(o => o.isActive && y > o.y && y < o.y + o.height)) blockedRows++;
+              }
+              // Vertical opening the comet must be inside at the next obstacle wall ahead.
+              // Lets an automated playtest steer, instead of flailing at the keyboard.
+              let nextGap = null;
+              const ahead = onScreen.filter(o => o.x + o.width > (playerComet ? playerComet.x : cameraX));
+              if (ahead.length) {
+                  const wallX = Math.min(...ahead.map(o => o.x));
+                  const atWall = ahead.filter(o => o.x < wallX + 60);
+                  const spans = atWall.map(o => [o.y, o.y + o.height]).sort((a, b) => a[0] - b[0]);
+                  let cursor = 0, best = null;
+                  for (const [a, b] of spans.concat([[VIRTUAL_HEIGHT, VIRTUAL_HEIGHT]])) {
+                      if (a - cursor > 0 && (!best || a - cursor > best[1] - best[0])) best = [cursor, a];
+                      cursor = Math.max(cursor, b);
+                  }
+                  if (best) nextGap = { x: wallX, top: Math.round(best[0]), bottom: Math.round(best[1]), centre: Math.round((best[0] + best[1]) / 2) };
+              }
+              return {
+                  zone: getZoneForScore(score),
+                  score: Math.floor(score),
+                  speed: playerComet ? +playerComet.baseSpeed.toFixed(2) : 0,
+                  cometX: playerComet ? Math.round(playerComet.x) : 0,
+                  cometY: playerComet ? Math.round(playerComet.y) : 0,
+                  onScreenObstacles: onScreen.length,
+                  columnBlockedPct: Math.round(blockedRows / SAMPLES * 100),
+                  gatePieces: onScreen.filter(o => o.y <= 0 || o.y + o.height >= VIRTUAL_HEIGHT - 1).length,
+                  fragments: starFragments.length,
+                  gateGapNow: getGateGap(getZoneForScore(score)),
+                  nextGap,
+                  tutorialStep: tutorialManager.isActive ? tutorialManager.currentStep : null,
+                  tutorialRetries: tutorialManager.retries,
+                  audio: (() => {
+                      if (!window.Tone) return { tone: 'absent' };
+                      let ctx = 'n/a', transport = 'n/a';
+                      try { ctx = window.Tone.getContext().state; } catch (e) {}
+                      try { transport = window.Tone.getTransport().state; } catch (e) {}
+                      return {
+                          ctx, transport,
+                          initialised: audioManager.isInitialized,
+                          musicLoop: !!audioManager.musicLoop,
+                          drone: audioManager.drone ? audioManager.drone.state : 'none',
+                          masterDb: audioManager.master ? audioManager.master.volume.value : null,
+                          musicDb: audioManager.musicBus ? audioManager.musicBus.volume.value : null,
+                          muted: audioManager.master ? audioManager.master.mute : null,
+                          combo: audioManager.fragmentCombo
+                      };
+                  })()
+              };
+          };
+
           // Helper for you to reset the tutorial flag in the console if needed
-          window.resetTutorial = function() { 
+          window.resetTutorial = function() {
               playerData.hasPlayedBefore = false; 
               savePlayerData(); 
               console.log("Tutorial flag reset. Refresh the page."); 
