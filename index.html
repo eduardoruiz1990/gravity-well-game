@@ -1849,7 +1849,7 @@
           // lifetime of the page rather than on every frame the well is visible. Gradients
           // live in user space, hence the translate: the disc is drawn around the origin.
           let _wellGrad = null;
-          let _riftGrad = null;
+          let _riftReachGrad = null;
           let _vignetteSprite = null;
 
           function drawWellFalloff(x, y, r) {
@@ -1930,13 +1930,62 @@
           // through the mid zones, then flattening to a floor so it stays demanding without
           // ever becoming unsurvivable. A linear ramp spent too long in the middle and hit the
           // floor abruptly.
-          const RIFT_TOLERANCE_FLOOR = 1.4;    // never less forgiving than this
+          // FLOOR RAISED 1.4 -> 1.8. Two reasons, one of them structural:
+          //
+          //  - Room. At the floor the death distance goes 1120 -> 1440 world px, so a deep
+          //    zone gives ~36% more ground to recover a dropped cluster in. That is the
+          //    late-game unfairness complaint, and it is where most of the fix lands.
+          //  - RIFT_PEAK_FACTOR_CAP stopped silently binding. Below a tolerance of ~1.72 the
+          //    solved integral wants a peak above 2.6 and got clamped (at 1.4 it wanted
+          //    3.79), so from roughly zone 8 down the ramp was no longer the curve the maths
+          //    guarantees — it was whatever the cap left, which happened to be more lenient
+          //    than the design target and drifted further from it every zone. The peak now
+          //    tops out at 2.44 at the floor, so the solution is exact at EVERY zone and the
+          //    cap is back to being a safety net rather than a hidden second tuning knob.
+          const RIFT_TOLERANCE_FLOOR = 1.8;    // never less forgiving than this
           const RIFT_TOLERANCE_START = 3.0;    // missed clusters survivable at zone 0
           const RIFT_TOLERANCE_DECAY = 5.0;    // zones for the gap above the floor to fall ~63%
           function riftMissTolerance(zone) {
               return RIFT_TOLERANCE_FLOOR
                   + (RIFT_TOLERANCE_START - RIFT_TOLERANCE_FLOOR) * Math.exp(-zone / RIFT_TOLERANCE_DECAY);
           }
+
+          // --- OPPORTUNITY GATING ---
+          //
+          // The budget above assumes a fragment cluster is always there to be taken. It is
+          // not. manageStarFragments() gives up after seven placement attempts when every
+          // candidate height clips an obstacle, and a cluster parked on the far side of the
+          // column can be physically out of reach at the speed the comet is travelling.
+          // Charging the player for either is charging them for the generator's dice, and
+          // that is what makes the late zones feel arbitrary rather than hard.
+          //
+          // So the ramp only accrues at full rate while a REACHABLE uncollected opportunity
+          // is ahead. With nothing takeable in front of them the player still bleeds — at
+          // RIFT_BARREN_ACCRUAL, not zero, or a barren stretch would be a safe room to idle
+          // in — but roughly three times slower.
+          const RIFT_BARREN_ACCRUAL = 0.32;
+          // Threading a gate is the OTHER way to hold the wall off, and it now pays into the
+          // same budget rather than only nudging the wall's position. This is what makes a
+          // fragment-poor but obstacle-rich stretch survivable on skill alone.
+          const RIFT_NEAR_MISS_CREDIT = 0.55;   // cluster intervals refunded per near miss
+
+          function riftOpportunityAccrual() {
+              if (!playerComet) return 1;
+              const cx = playerComet.x, cy = playerComet.y;
+              for (const sf of starFragments) {
+                  const dx = sf.x - cx;
+                  if (dx <= 0) continue;
+                  // Velocity magnitude is pinned to baseSpeed, so the comet trades forward
+                  // speed for vertical speed and ~45 degrees is its practical limit:
+                  // |dy| <= dx. Same bound the safe corridor is generated against.
+                  if (Math.abs(sf.y - cy) <= dx) return 1;
+              }
+              return RIFT_BARREN_ACCRUAL;
+          }
+
+          // Rift heartbeat pacing (see updateRift).
+          const RIFT_PULSE_THRESHOLD = 0.42;
+          let riftPulseCountdown = 0;
 
           // Zone-advance feedback (see onZoneAdvanced).
           let zoneFlashFrames = 0;
@@ -2142,8 +2191,18 @@
 
                       // Sub drone. 55Hz was below what small speakers reproduce at all; 110Hz
                       // with the filter opened up is felt without becoming a rumble.
-                      this.drone = new Tone.Oscillator(110, "sine")
-                          .connect(new Tone.Filter(260, "lowpass").connect(new Tone.Volume(-9).connect(this.musicBus)));
+                      // The filter and volume are named rather than anonymous because
+                      // setRiftTension() drives all three of these every time the wall moves.
+                      this.droneVol = new Tone.Volume(-9).connect(this.musicBus);
+                      this.droneFilter = new Tone.Filter(260, "lowpass").connect(this.droneVol);
+                      this.drone = new Tone.Oscillator(110, "sine").connect(this.droneFilter);
+
+                      // The rift's heartbeat. On the SFX bus, not the music bus, so that
+                      // ducking the bed under pressure cannot duck the warning along with it.
+                      this.riftThump = new Tone.MembraneSynth({
+                          pitchDecay: 0.09, octaves: 3.5,
+                          envelope: { attack: 0.001, decay: 0.32, sustain: 0, release: 0.05 }
+                      }).connect(new Tone.Volume(-7).connect(this.sfxBus));
 
                       // Polyphonic so a fast fragment streak layers instead of self-cutting.
                       this.sfx = new Tone.PolySynth(Tone.Synth, {
@@ -2236,6 +2295,49 @@
                       this.padFilter.frequency.rampTo(700 + Math.min(1800, zone * 220), 2);
                   } catch (e) {}
               },
+              // --- RIFT-REACTIVE MIX ---
+              // The rift was the only thing in the game that could kill you and the only one
+              // with no voice at all — you had to be looking at the left edge to know. The
+              // whole bed now bends toward it: the sub climbs and detunes upward, its filter
+              // opens into a growl, and the music ducks out of the way so the growl has room.
+              // A player can hear how much trouble they are in while watching the corridor.
+              _riftTension: 0,
+              setRiftTension(p) {
+                  if (!this.isInitialized) return;
+                  const target = Math.max(0, Math.min(1, p));
+                  // Called every frame; a Tone rampTo per parameter per frame would flood the
+                  // scheduler for changes nobody can hear. Only move on a real step.
+                  if (Math.abs(target - this._riftTension) < 0.03) return;
+                  this._riftTension = target;
+                  try {
+                      this.droneVol.volume.rampTo(-9 + target * 7, 0.3);
+                      this.droneFilter.frequency.rampTo(260 + target * 1100, 0.3);
+                      this.drone.frequency.rampTo(110 * (1 + target * 0.14), 0.3);
+                      // Duck the bed, not the master — SFX must stay at full level.
+                      this.musicBus.volume.rampTo(-4 - target * 6, 0.4);
+                  } catch (e) {}
+              },
+              // Restores the resting mix. Called on run start and game over, or the ducked
+              // bed and detuned sub would persist into the menu.
+              resetRiftTension() {
+                  if (!this.isInitialized) return;
+                  this._riftTension = 0;
+                  try {
+                      this.droneVol.volume.rampTo(-9, 0.4);
+                      this.droneFilter.frequency.rampTo(260, 0.4);
+                      this.drone.frequency.rampTo(110, 0.4);
+                      this.musicBus.volume.rampTo(-4, 0.4);
+                  } catch (e) {}
+              },
+              playRiftPulse(p) {
+                  if (!this.isInitialized) return;
+                  try {
+                      // Pitch rises with proximity, so the heartbeat gets both faster AND
+                      // higher. Rate alone is hard to judge in the moment; pitch is not.
+                      this.riftThump.triggerAttackRelease(38 + p * 26, "16n");
+                  } catch (e) {}
+              },
+
               updateTempo(newBPM) {
                   if (!this.isInitialized || !window.Tone) return;
                   const transport = window.Tone.getTransport();
@@ -2246,6 +2348,7 @@
                   // Check window.Tone, not the (potentially undefined) const
                   if (!this.isInitialized || !window.Tone) return;
 
+                  this.resetRiftTension();
                   for (const key of ['musicLoop', 'padLoop', 'arpLoop']) {
                       if (this[key]) { this[key].stop(0); this[key].dispose(); this[key] = null; }
                   }
@@ -2606,7 +2709,7 @@
           }
 
           class PlayerComet {
-              constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; this.flashFrames = 0; }
+              constructor(x, y) { this.x = x; this.y = y; this.baseSpeed = calculateCurrentSpeed(); this.vx = this.baseSpeed; this.vy = 0; this.radius = PLAYER_COMET_RADIUS; this.pickupRadius = PLAYER_COMET_RADIUS; this.trail = []; this.waveAngle = 0; this.orbiters = []; this.flashFrames = 0; }
               
               // --- REFACTORED UPDATE FUNCTION ---
               update() {
@@ -2630,8 +2733,17 @@
                       if (Math.abs(this.vy) < 0.01) this.vy = 0;
                   }
                   
+                  // SHRINK halves the HITBOX only. It must not halve the pickup reach:
+                  // fragment collection tests `dist < radius + sf.radius`, so shrinking the
+                  // radius shrank the catch radius from 23px to 15.5px and the comet started
+                  // flying THROUGH fragments it would otherwise have taken. Since the rift's
+                  // ramp is held off by collecting, a "helpful" 8-second powerup was quietly
+                  // starving the player of the one thing keeping the rift at bay — which is
+                  // exactly the "the rift goes crazy after a powerup" report. A benefit must
+                  // not carry a hidden penalty.
                   this.radius = activePowerUp.type === 'shrink' ? PLAYER_COMET_RADIUS / 2 : PLAYER_COMET_RADIUS;
-                  
+                  this.pickupRadius = PLAYER_COMET_RADIUS;
+
                   // Gravity well physics ALWAYS apply if the well exists.
                   if (gravityWell && !isHeadstarting) {
                       const dx = gravityWell.x - this.x; const dy = gravityWell.y - this.y;
@@ -3760,7 +3872,8 @@
               resetWorldRng();
               worldGenHash = 2166136261 >>> 0; formationsSpawned = 0;
               runReady = true;   // from here the world is coherent and safe to simulate
-              riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0;
+              riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0; riftPulseCountdown = 0;
+              audioManager.resetRiftTension();
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = []; floatingTexts = [];
               nearMissFxCooldown = 0; nearMissCount = 0; nearMissFlashFrames = 0;
               // 0.72 of a screen width. At 0.45 the opening obstacle arrived ~726px out
@@ -4512,6 +4625,12 @@
               nearMissCount++;
               score += NEAR_MISS_SCORE;
               riftX -= NEAR_MISS_RIFT_PUSHBACK;
+              // Pay down the idle BUDGET too, not just the wall's position. Pushing riftX
+              // alone was cosmetic under pressure: the ramp kept climbing, so the wall
+              // re-closed the gap within a second and threading a gate bought nothing. A
+              // stretch with no reachable fragments is now survivable on flying alone.
+              distanceSinceFragment = Math.max(0,
+                  distanceSinceFragment - FRAGMENT_CLUSTER_SPACING * RIFT_NEAR_MISS_CREDIT);
               // A gate is two pieces at the same x, so threading one tightly fires twice —
               // which is fair (you cleared two walls) but must not double the noise.
               if (nearMissFxCooldown === 0) {
@@ -4572,8 +4691,28 @@
                   riftX = playerComet.x - RIFT_MAX_LAG;
                   return false;
               }
-              // Budget in DISTANCE, so the tolerance means the same thing at every speed.
-              distanceSinceFragment += playerComet.baseSpeed;
+              // FORWARD PROGRESS, not path speed. This is the single most important line
+              // in the mechanic and it was wrong.
+              //
+              // PlayerComet.update() renormalises velocity to magnitude `baseSpeed`, so the
+              // comet BUYS vertical speed with forward speed: a 45-degree dodge leaves
+              // vx = 0.707 * baseSpeed. The rift, however, advanced at
+              // `baseSpeed * RIFT_TRAIL_FACTOR` = 0.9 * baseSpeed regardless. So the wall
+              // gained 0.19 * baseSpeed every frame the player was steering, and only fell
+              // behind while flying dead straight — i.e. the game charged you for dodging,
+              // which is the one thing it requires you to do. In late zones, where the
+              // corridor moves constantly, the rift was gaining even under perfect play.
+              // ("especially if you have to move upwards or downwards, that accelerates
+              // the rift" — that is this line.)
+              //
+              // It also made BOOST actively dangerous: at 1.45x baseSpeed the rift gained
+              // 45% faster while steering, so the reward pickup shortened your life.
+              //
+              // Keying both the wall and the budget to actual forward progress makes the
+              // trail factor mean what it says — the rift falls behind at 10% of whatever
+              // ground you are really covering — and leaves the ramp as the only thing that
+              // can ever close the gap.
+              const forward = Math.max(0, playerComet.vx);
 
               const zone = getRunZone();
               const freeDist = FRAGMENT_CLUSTER_SPACING * RIFT_FREE_CLUSTERS;
@@ -4590,12 +4729,29 @@
               const peak = Math.min(RIFT_PEAK_FACTOR_CAP,
                   1 + 2 * (RIFT_MAX_LAG / rampDist + (1 - RIFT_TRAIL_FACTOR) / 2));
 
+              // The budget only accrues while the player actually had a chance to spend it.
+              distanceSinceFragment += forward * riftOpportunityAccrual();
+
               const p = Math.min(1, Math.max(0, (distanceSinceFragment - freeDist) / rampDist));
               const factor = RIFT_TRAIL_FACTOR + (peak - RIFT_TRAIL_FACTOR) * p;
-              riftX += playerComet.baseSpeed * factor;
+              riftX += forward * factor;
 
               // Never let it drift so far back that it stops being a threat.
               if (riftX < playerComet.x - RIFT_MAX_LAG) riftX = playerComet.x - RIFT_MAX_LAG;
+
+              // Heartbeat: the interval shortens as the wall closes, so the player hears it
+              // coming while their eyes are still on the corridor.
+              const pressure = riftPressure();
+              if (pressure > RIFT_PULSE_THRESHOLD) {
+                  if (--riftPulseCountdown <= 0) {
+                      audioManager.playRiftPulse(pressure);
+                      const urgency = (pressure - RIFT_PULSE_THRESHOLD) / (1 - RIFT_PULSE_THRESHOLD);
+                      riftPulseCountdown = Math.round(48 - 32 * urgency);
+                  }
+              } else {
+                  riftPulseCountdown = 0;
+              }
+              audioManager.setRiftTension(pressure);
 
               return riftX > playerComet.x - playerComet.radius;
           }
@@ -4606,47 +4762,116 @@
               return Math.max(0, Math.min(1, 1 - (playerComet.x - riftX) / RIFT_MAX_LAG));
           }
 
+          // The rift is the thing you are running from, so it has to read as a VOID EATING
+          // THE SCREEN rather than a dark rectangle sliding in from the left.
+          //
+          // What it was: a 220px gradient band with flat black behind it. Because the comet
+          // sits at screen x 427 and RIFT_MAX_LAG is 430, the wall's edge lives between
+          // x = -3 (far) and x = 427 (touching) — so for most of the pressure range the
+          // player saw a thin dark strip hugging the left bezel and nothing else. There was
+          // no sense of being chased.
+          //
+          // What it is now: three depths that all key off riftPressure(), so the screen
+          // itself degrades as the wall closes —
+          //   1. a REACH that stains the world AHEAD of the edge, out toward the comet. This
+          //      is the "eating the screen" part: space in front of the wall is already going.
+          //   2. accretion streaks being dragged backwards into it.
+          //   3. the torn event horizon, with a bright rim so the exact lethal line stays
+          //      unambiguous — the effect may be soft, the hitbox must not look it.
+          const RIFT_REACH_W = 620;   // how far forward the void stains the world
+          const RIFT_BODY_LEFT = -40; // the body is filled from just off-screen
+          // The torn edge is walked twice per frame (fill, then stroke), so the two sines are
+          // evaluated once into a preallocated buffer. Declared HERE and not up with the
+          // other cached draw state, because that block sits above `const VIRTUAL_HEIGHT`
+          // and sizing the buffer there is a temporal-dead-zone throw at module evaluation.
+          const _riftEdgeRows = Math.floor(VIRTUAL_HEIGHT / 24) + 1;
+          const _riftEdgeBuf = new Float32Array(_riftEdgeRows + 1);
           function drawRift() {
               const sx = riftX - cameraX;
-              if (sx < -80) return;
+              if (sx < RIFT_BODY_LEFT) return;
 
               const t = frameTime * 0.004;
-              // The consumed region behind the wall. Gradient is built ONCE at the origin and
-              // positioned with a translate — it was previously rebuilt every frame because
-              // its coordinates move with the camera.
+              const p = riftPressure();
+
               ctx.save();
-              if (!_riftGrad) {
-                  _riftGrad = ctx.createLinearGradient(-220, 0, 0, 0);
-                  _riftGrad.addColorStop(0, 'rgba(2, 6, 23, 0)');
-                  _riftGrad.addColorStop(0.55, 'rgba(30, 6, 40, 0.75)');
-                  _riftGrad.addColorStop(1, 'rgba(12, 2, 20, 0.96)');
+
+              // 1. THE REACH. Positioned by translate so the gradient is built once, per the
+              //    hot-loop rule — its world coordinates move every frame, its shape does not.
+              if (!_riftReachGrad) {
+                  _riftReachGrad = ctx.createLinearGradient(0, 0, RIFT_REACH_W, 0);
+                  _riftReachGrad.addColorStop(0, 'rgba(9, 2, 18, 0.94)');
+                  _riftReachGrad.addColorStop(0.22, 'rgba(26, 6, 44, 0.5)');
+                  _riftReachGrad.addColorStop(0.55, 'rgba(46, 10, 70, 0.2)');
+                  _riftReachGrad.addColorStop(1, 'rgba(60, 14, 90, 0)');
               }
               ctx.translate(sx, 0);
-              ctx.fillStyle = _riftGrad;
-              ctx.fillRect(-220, 0, 220, VIRTUAL_HEIGHT);
+              ctx.globalAlpha = 0.4 + 0.6 * p;
+              ctx.fillStyle = _riftReachGrad;
+              ctx.fillRect(0, 0, RIFT_REACH_W, VIRTUAL_HEIGHT);
               ctx.translate(-sx, 0);
+              ctx.globalAlpha = 1;
 
-              // Solid consumed region, CLIPPED TO THE VIEWPORT. This previously filled from
-              // x = -VIRTUAL_WIDTH, i.e. 1280px of rect entirely off-screen, every frame.
-              const solidRight = sx - 220;
-              if (solidRight > 0) {
-                  ctx.fillStyle = 'rgba(6, 2, 12, 0.98)';
-                  ctx.fillRect(0, 0, solidRight, VIRTUAL_HEIGHT);
+              // 2. ACCRETION STREAKS. Matter in the reach zone being dragged backwards into
+              //    the wall — the cue that the void is PULLING, not merely arriving. Derived
+              //    from the frame clock and the loop index, so this allocates nothing.
+              //    Deliberately short and dim and clustered near the edge: at full length
+              //    across the reach they stopped reading as infall and started reading as
+              //    scratches on the screen.
+              if (p > 0.12) {
+                  const reach = RIFT_REACH_W * 0.55 * p;
+                  ctx.strokeStyle = 'rgba(196, 160, 246, 0.75)';
+                  ctx.lineWidth = 1.5;
+                  for (let i = 0; i < 11; i++) {
+                      const y = (i * 293.7) % VIRTUAL_HEIGHT;
+                      const phase = (t * (0.5 + (i % 5) * 0.13) + i * 0.41) % 1;
+                      const head = sx + reach * phase;   // phase 0 = at the edge, 1 = far out
+                      if (head <= sx + 4) continue;
+                      const tail = Math.max(sx, head - (14 + 44 * phase));
+                      // Fade OUT with distance from the edge, so the pull has a direction.
+                      ctx.globalAlpha = (0.15 + 0.45 * p) * (1 - phase);
+                      ctx.beginPath();
+                      ctx.moveTo(head, y + Math.sin(t * 2.4 + i) * 4);
+                      ctx.lineTo(tail, y + Math.sin(t * 2.4 + i) * 4);
+                      ctx.stroke();
+                  }
+                  ctx.globalAlpha = 1;
               }
 
-              // Torn leading edge.
+              // 3. THE VOID BODY. One mass running from off-screen left to the torn edge.
+              //
+              //    This was previously a 60px-wide CLOSED polygon that got stroked all the
+              //    way round, so its left side was stroked too and the whole thing read as a
+              //    neon-outlined rectangle floating at the screen edge — an object, not an
+              //    absence. The body is now filled from off-screen and only the LEADING edge
+              //    is stroked, so there is nothing to outline behind it.
+              const torn = _riftEdgeBuf, n = _riftEdgeRows;
+              for (let i = 0; i < n; i++) {
+                  const y = i * 24;
+                  torn[i] = sx + Math.sin(y * 0.035 + t * 2.2) * 9 + Math.sin(y * 0.011 - t * 1.3) * 13;
+              }
+
               ctx.beginPath();
-              ctx.moveTo(sx - 6, 0);
-              for (let y = 0; y <= VIRTUAL_HEIGHT; y += 24) {
-                  const wob = Math.sin(y * 0.035 + t * 2.2) * 9 + Math.sin(y * 0.011 - t * 1.3) * 13;
-                  ctx.lineTo(sx + wob, y);
-              }
-              ctx.lineTo(sx - 60, VIRTUAL_HEIGHT);
-              ctx.lineTo(sx - 60, 0);
+              ctx.moveTo(RIFT_BODY_LEFT, 0);
+              for (let i = 0; i < n; i++) ctx.lineTo(torn[i], i * 24);
+              ctx.lineTo(torn[n - 1], VIRTUAL_HEIGHT);
+              ctx.lineTo(RIFT_BODY_LEFT, VIRTUAL_HEIGHT);
               ctx.closePath();
-              ctx.fillStyle = 'rgba(10, 2, 18, 0.98)';
+              ctx.fillStyle = 'rgba(5, 1, 11, 0.995)';
               ctx.fill();
-              ctx.strokeStyle = `rgba(244, 63, 94, ${0.55 + 0.35 * Math.sin(t * 5)})`;
+
+              // 4. THE EVENT HORIZON, stroked as an OPEN polyline over the leading edge only.
+              //    Two passes — a wide soft bloom then a thin hot rim — because shadowBlur is
+              //    one of the most expensive things you can ask a 2D context for every frame.
+              //    The rim stays crisp at every pressure: the effect may be soft, but the
+              //    lethal line must never be ambiguous.
+              const pulse = 0.55 + 0.35 * Math.sin(t * 5);
+              ctx.beginPath();
+              for (let i = 0; i < n; i++) (i ? ctx.lineTo(torn[i], i * 24) : ctx.moveTo(torn[i], 0));
+              ctx.lineTo(torn[n - 1], VIRTUAL_HEIGHT);
+              ctx.strokeStyle = `rgba(168, 85, 247, ${pulse * (0.3 + 0.35 * p)})`;
+              ctx.lineWidth = 14;
+              ctx.stroke();
+              ctx.strokeStyle = `rgba(244, 63, 94, ${pulse})`;
               ctx.lineWidth = 3;
               ctx.stroke();
               ctx.restore();
@@ -4678,8 +4903,15 @@
                   vc.fillStyle = g;
                   vc.fillRect(0, 0, W, H);
               }
+              // ANCHORED TO THE WALL, not to the screen edge. Drawn from x = 0 it washed the
+              // consumed region red, so at high pressure the void — which is meant to read as
+              // an absence of everything — looked like a lit red curtain. Starting it at the
+              // event horizon puts the glow on the world that has NOT been eaten yet, which
+              // is both what the player needs to see and what "the wall is lighting up the
+              // space in front of it" actually looks like.
+              const startX = Math.max(0, riftX - cameraX);
               ctx.globalAlpha = a;
-              ctx.drawImage(_vignetteSprite, 0, 0, BAND_W, VIRTUAL_HEIGHT);
+              ctx.drawImage(_vignetteSprite, startX, 0, BAND_W, VIRTUAL_HEIGHT);
               ctx.restore();
           }
 
@@ -4713,13 +4945,16 @@
           }
           function checkCollisions() {
               if (!playerComet) return {};
-              for (let i = starFragments.length - 1; i >= 0; i--) { 
-                  const sf = starFragments[i]; 
-                  if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (playerComet.radius + sf.radius)**2) { 
-                      return { fragment: true, item: starFragments.splice(i, 1)[0] }; 
-                  } 
+              // Pickups read `pickupRadius`, NOT `radius` — see PlayerComet.update(). The
+              // shrink powerup must shrink what can hit you, not what you can collect.
+              const pr = playerComet.pickupRadius;
+              for (let i = starFragments.length - 1; i >= 0; i--) {
+                  const sf = starFragments[i];
+                  if ((sf.x - playerComet.x)**2 + (sf.y - playerComet.y)**2 < (pr + sf.radius)**2) {
+                      return { fragment: true, item: starFragments.splice(i, 1)[0] };
+                  }
               }
-              for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (playerComet.radius + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
+              for (let i = powerUps.length - 1; i >= 0; i--) { const p = powerUps[i]; if ((p.x - playerComet.x)**2 + (p.y - playerComet.y)**2 < (pr + p.radius)**2) { return { powerUp: p.type, item: powerUps.splice(i, 1)[0] }; } }
               
               // NOTE: the tutorial no longer short-circuits here.
               //
@@ -5353,8 +5588,17 @@
                       distanceSinceFragment: Math.round(distanceSinceFragment),
                       missedClusters: +(distanceSinceFragment / FRAGMENT_CLUSTER_SPACING).toFixed(2),
                       missTolerance: +riftMissTolerance(getRunZone()).toFixed(2),
-                      pressure: +riftPressure().toFixed(2)
+                      pressure: +riftPressure().toFixed(2),
+                      // 1 while a reachable fragment is ahead, RIFT_BARREN_ACCRUAL when the
+                      // generator has left the player nothing to take.
+                      opportunityAccrual: riftOpportunityAccrual(),
+                      // Forward progress vs path speed: 1.0 flying straight, ~0.71 at a
+                      // 45-degree dodge. The rift used to ignore this entirely.
+                      forwardRatio: playerComet && playerComet.baseSpeed > 0
+                          ? +(Math.max(0, playerComet.vx) / playerComet.baseSpeed).toFixed(3) : null
                   },
+                  pickupRadius: playerComet ? playerComet.pickupRadius : null,
+                  hitboxRadius: playerComet ? playerComet.radius : null,
                   activePowerUp: activePowerUp.type,
                   activePowerUpTimer: activePowerUp.timer,
                   safeLaneY: Math.round(safeLaneY),
@@ -5378,6 +5622,13 @@
                           drone: audioManager.drone ? audioManager.drone.state : 'none',
                           masterDb: audioManager.master ? audioManager.master.volume.value : null,
                           musicDb: audioManager.musicBus ? audioManager.musicBus.volume.value : null,
+                          // Rift-reactive mix (see setRiftTension). musicDb should fall and
+                          // droneDb/droneHz should rise as the wall closes.
+                          riftTension: +audioManager._riftTension.toFixed(2),
+                          droneDb: audioManager.droneVol ? +audioManager.droneVol.volume.value.toFixed(1) : null,
+                          droneHz: audioManager.drone ? Math.round(audioManager.drone.frequency.value) : null,
+                          droneCutoffHz: audioManager.droneFilter ? Math.round(audioManager.droneFilter.frequency.value) : null,
+                          riftThump: !!audioManager.riftThump,
                           muted: audioManager.master ? audioManager.master.mute : null,
                           combo: audioManager.fragmentCombo
                       };

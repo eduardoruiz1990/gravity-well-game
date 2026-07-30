@@ -112,6 +112,18 @@ The fragment pitch ladder **wraps** (`combo % length`) and decays after
 `FRAGMENT_COMBO_DECAY_FRAMES` of no pickups. Clamping instead of wrapping meant every pickup
 past the top of the ladder fired the same shrill note for the rest of the run.
 
+`setRiftTension(p)` bends the whole bed toward the rift — the sub climbs in level, detunes
+upward and opens its filter into a growl, while `musicBus` ducks to make room. `playRiftPulse()`
+adds a heartbeat whose interval *and* pitch both rise with proximity (rate alone is hard to
+judge in the moment). Three things to keep in mind:
+
+- **It is called every frame**, so it early-returns unless the tension has moved by ≥0.03.
+  A `rampTo` per parameter per frame floods Tone's scheduler for changes nobody can hear.
+- **Duck `musicBus`, never `master`.** The rift's own warning sounds are on `sfxBus` and must
+  not duck along with the bed they are warning over.
+- **`resetRiftTension()` must run on run start and in `stopMusic()`**, or a ducked bed and a
+  detuned sub persist into the menu.
+
 ### Core feel: turn authority, not damping
 
 The well applies a **constant-magnitude** steering force, while `PlayerComet.update()`
@@ -185,11 +197,75 @@ deep), `RIFT_FREE_CLUSTERS` guarantees one whole missed group is always survivab
 ramp's peak is **solved** from the integral rather than hand-picked, so the death point
 matches the design target at every zone instead of drifting.
 
-`riftMissTolerance(zone)` decays exponentially (3.0 clusters at zone 0 → a 1.4 floor) rather
+`riftMissTolerance(zone)` decays exponentially (3.0 clusters at zone 0 → a 1.8 floor) rather
 than linearly: generous while the player is still learning the rift exists, tightening
 through the mid zones, then flattening so it stays demanding without becoming unsurvivable.
 It crosses the old linear curve around zone 4-5, so it is *more* forgiving early and *more*
 aggressive late.
+
+**The floor is 1.8 because below ~1.72 `RIFT_PEAK_FACTOR_CAP` starts binding.** At a floor of
+1.4 the solved integral wanted a peak of 3.79 and got clamped to 2.6, so from roughly zone 8
+down the ramp was no longer the curve the maths guarantees — it was whatever the cap left,
+drifting further from the design target every zone. At 1.8 the peak tops out at 2.44 and the
+solution is exact everywhere, which puts the cap back to being a safety net rather than a
+second, invisible tuning knob. If you lower the floor, re-check that peak stays under the cap.
+
+#### The rift chases FORWARD PROGRESS, never `baseSpeed`
+
+`updateRift()` advances the wall by `forward * factor` where `forward = max(0, playerComet.vx)`,
+and `distanceSinceFragment` accrues off the same quantity. **Do not "simplify" either back to
+`playerComet.baseSpeed`.**
+
+`PlayerComet.update()` renormalises velocity to magnitude `baseSpeed`, so the comet buys
+vertical speed with forward speed — a 45° dodge leaves `vx = 0.707 * baseSpeed`. A rift moving
+at `0.9 * baseSpeed` therefore *gained* on a steering player and only fell behind while flying
+dead straight. Since the corridor drifts by up to `0.5 * dx`, tracking it means a sustained
+`vx ≈ 0.894 * baseSpeed` — almost exactly the trail factor. **Under perfect play the player
+got no buffer at all**, so any dropped fragment was immediately fatal, which is what made the
+late zones read as arbitrary. Measured: hard steering pulled lag from 430px down to 127px;
+after the fix it stays pinned at 430.
+
+It also made **boost a trap** — at 1.45× `baseSpeed` the wall gained 45% faster while steering,
+so the reward pickup shortened your life. Keyed to `vx`, boost is now exactly neutral per world
+pixel (verified: lag binned by `distanceSinceFragment` matches boosted vs normal to ±1px).
+
+#### The ramp only accrues against real opportunities
+
+`riftOpportunityAccrual()` returns 1 while a *reachable* uncollected fragment is ahead
+(`|dy| <= dx`, the same 45° bound the corridor is generated against) and `RIFT_BARREN_ACCRUAL`
+otherwise. `manageStarFragments()` gives up after seven placement attempts when every candidate
+height clips an obstacle, so barren stretches genuinely happen — charging the player for them
+is charging them for the generator's dice. The floor is 0.32 rather than 0 on purpose: a
+barren stretch must not be a safe room to idle in.
+
+`awardNearMiss()` also refunds `RIFT_NEAR_MISS_CREDIT` (0.55) cluster intervals of budget.
+Pushing `riftX` alone was cosmetic under pressure — the ramp kept climbing and re-closed the
+gap within a second, so threading a gate bought nothing. Skilled flying is now a real
+alternative to collecting.
+
+A gate is two obstacles at the same x, so in principle threading one could award twice and
+refund a whole cluster. It cannot: both walls are within the window only when the gap is under
+~106px (`2 * NEAR_MISS_MIN` + the comet's diameter), and `getGateGap` floors at 160. **If you
+ever lower that floor or raise `NEAR_MISS_MIN`, re-check this** — double credit would make
+gates a better rift answer than fragments and invert the economy.
+
+#### Rendering: the rift is an absence, not an object
+
+- **Fill the body from off-screen (`RIFT_BODY_LEFT`) to the torn edge, and stroke the LEADING
+  EDGE ONLY.** It was once a 60px closed polygon stroked all the way round, which outlined its
+  left side too and read as a neon rectangle floating at the screen bezel.
+- **The reach matters more than the body.** `RIFT_REACH_W` stains the world *ahead* of the edge
+  out toward the comet; that forward stain is what makes it read as consuming the screen
+  rather than sliding across it. Because the comet sits at screen x 427 and `RIFT_MAX_LAG` is
+  430, the body itself is off-screen for most of the pressure range.
+- **`drawRiftWarning()`'s red band starts at the rift edge, not at x = 0.** Anchored to the
+  screen it washed the consumed region red, so the void looked like a lit curtain.
+- Both gradients are built once at the origin and positioned with `translate`, and the torn
+  edge is evaluated into the preallocated `_riftEdgeBuf` because the path is walked twice per
+  frame (fill, then stroke). Steady state is still **0 gradients per frame**, verified.
+- `_riftEdgeBuf` is declared next to `drawRift`, *not* with the other cached draw state near
+  the top — that block sits above `const VIRTUAL_HEIGHT` and sizing the buffer there is a TDZ
+  throw at module evaluation.
 
 ### Near miss
 
@@ -209,6 +285,23 @@ most passes — correct, because threading those gaps at all is the feat.
 It also needs to be **loud**, or players never learn it exists: two-line floating text that
 names the reward (`RIFT PUSHED BACK` — the pushback is otherwise invisible), a ring, a
 distinct chime, and a screen-edge glow for peripheral vision.
+
+### Powerups must not carry a hidden penalty
+
+`PlayerComet` has two radii and they are not interchangeable. `radius` is the **hitbox** and
+`shrink` halves it; `pickupRadius` is the **collection reach** and nothing changes it.
+`checkCollisions()` uses `pickupRadius` for fragments and powerups, `radius` for obstacles and
+the top/bottom walls.
+
+They were one field. Fragment collection tests `dist < radius + sf.radius`, so shrink took the
+catch radius from 23px to 15.5px and the comet started flying *through* fragments it would
+otherwise have taken — and since collecting is what holds the rift's ramp off, an 8-second
+"benefit" quietly starved the player of the thing keeping them alive. That is the whole of the
+"the rift goes crazy after a powerup" report, together with the `baseSpeed`/`vx` bug above.
+
+The general rule: before shipping a powerup, check every system that reads the field it
+touches. `window.gwStats()` reports `hitboxRadius` and `pickupRadius` separately for exactly
+this reason — under the bug both read 7.5.
 
 ### `runReady`: the loop must not simulate a run that does not exist yet
 
