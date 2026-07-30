@@ -78,6 +78,17 @@ All drawing happens in a fixed `VIRTUAL_WIDTH` x `VIRTUAL_HEIGHT` (1280x720) spa
 Careful: `StarFragment.draw()` declares a **local** `const pulse` that used to be named
 `scale` and shadowed the module-level one. It is an idle animation, not the canvas scale.
 
+### Difficulty is keyed to DISTANCE, never score
+
+`getRunZone()` returns `getZoneForScore(maxDistanceReached / SCORE_DIVISOR)` in **both**
+modes. Do not "simplify" it back to `getZoneForScore(score)`.
+
+Score is not progress — it is progress times the player's purchases: the Score Bonus
+upgrade, the combo multiplier, near misses and boost all inflate it. Keying difficulty to
+score meant buying the score upgrade made obstacles tighten sooner *and* the rift grow more
+aggressive sooner. The player was paying fragments to be punished. Distance is unaffected by
+any purchase and is also what makes the daily seed deterministic.
+
 ### Zone pacing is a growing threshold, not a divisor
 
 Do **not** reintroduce `Math.floor(score / SOME_CONSTANT)`. Score accrues faster every zone
@@ -174,9 +185,57 @@ deep), `RIFT_FREE_CLUSTERS` guarantees one whole missed group is always survivab
 ramp's peak is **solved** from the integral rather than hand-picked, so the death point
 matches the design target at every zone instead of drifting.
 
-Near misses (`NEAR_MISS_RIFT_PUSHBACK`) are the second pressure valve: without them the only
-way to hold the rift off was fragments, which punished a skilled player who took a
-fragment-poor line.
+`riftMissTolerance(zone)` decays exponentially (3.0 clusters at zone 0 → a 1.4 floor) rather
+than linearly: generous while the player is still learning the rift exists, tightening
+through the mid zones, then flattening so it stays demanding without becoming unsurvivable.
+It crosses the old linear curve around zone 4-5, so it is *more* forgiving early and *more*
+aggressive late.
+
+### Near miss
+
+The second pressure valve. Without it, fragments were the only way to hold the rift off,
+which punished a skilled player who took a fragment-poor line.
+
+**The window must scale with the gate — a flat threshold cannot work.** It began at 34px and
+therefore never fired: a zone-0 gate has a 420px gap, leaving ~195px of clearance each side,
+so nobody aiming for the opening was ever within 34px of a wall. But a flat *large* number is
+wrong too — 78px is wider than the entire opening by zone 12.
+
+`nearMissWindow(zone)` is therefore `max(NEAR_MISS_MIN, getGateGap(zone) * 0.24)`, so "close"
+means the same *proportion* of the available room throughout: ~52% early (you must commit to
+one side rather than coast down the middle), bottoming out at the floor late where it fires on
+most passes — correct, because threading those gaps at all is the feat.
+
+It also needs to be **loud**, or players never learn it exists: two-line floating text that
+names the reward (`RIFT PUSHED BACK` — the pushback is otherwise invisible), a ring, a
+distinct chime, and a screen-edge glow for peripheral vision.
+
+### `runReady`: the loop must not simulate a run that does not exist yet
+
+`setGameState('playing')` flips `gameState` **immediately**, but the run is not built until
+`startGame()` → `initNewRun()` fires on a 350ms timer. Coming from the **menu**, the render
+loop is already running (the menu branch starts it), so its very next frame entered the
+gameplay branch and stepped `updateGame()` against the *previous* run's leftovers — a dead
+comet usually sitting inside an obstacle, the stale obstacle list, and a rift parked on the
+player. That produced a game over before the run began.
+
+It only reproduced from the menu **after at least one earlier run**, which is why "Play Again"
+(where the loop is dormant at `game-over`) always looked fine and hid the bug.
+
+`runReady` is set false alongside every deferred `setTimeout(startGame/startTutorial, 350)`
+and true inside `initNewRun()`. While false the loop still paints (so the screen does not
+flash) but does not simulate. **Any new deferred-start path must clear it too.**
+
+### Run start must never be losable
+
+Three separate things could kill a player before they had oriented, and all three are fixed
+in `initNewRun`/`manageObstacles`:
+
+- `safeLaneY` could drift ±245px **before the first formation**, so the opening gate's gap
+  could be a quarter-screen from the comet's fixed start position. The first formation is now
+  laid on the comet's own line (`formationsSpawned === 0`).
+- The first obstacle sat ~726px out; now `VIRTUAL_WIDTH * 0.72`.
+- `SPAWN_GRACE_FRAMES` of shield, because neither of the above is a guarantee.
 
 `revivePlayer()` must reset `riftX` — otherwise being caught re-triggers on the very next
 frame and burns the revive for nothing.
@@ -373,3 +432,13 @@ For runtime checks, drive headless Chrome over CDP (`/usr/bin/google-chrome
 
 Headless runs at roughly 23fps, so anything distance-based takes ~2.6x longer in wall
 clock than it would at 60fps. Budget accordingly before concluding something is stuck.
+
+- **`gwStats()` reports `cometY: 0` when `playerComet` is null**, which passes a
+  `typeof === 'number'` guard. A probe that latches "run start" on that will read state from
+  *before* `initNewRun()` — this produced a false report that the spawn grace shield was
+  missing when it was in fact working. Gate on `cometX` being in the expected start range and
+  `formationsSpawned > 0` instead.
+- **An autopilot that steers to `nextGap.centre` will never trigger a near miss**, because the
+  gap centre is the furthest possible point from both walls. That is the autopilot behaving
+  correctly, not the mechanic being broken. Steer to `safeLaneY`, or deliberately off-centre,
+  to exercise it.

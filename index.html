@@ -1921,10 +1921,21 @@
           const RIFT_MAX_LAG = 430;               // never idles further back than this
           const RIFT_FREE_CLUSTERS = 1.0;         // always survivable: one whole missed group
 
-          // Missed clusters before the rift reaches you. ~2.3 early (miss two groups and a
-          // bit), tightening to 1.5 deep in a run.
+          // Missed clusters before the rift reaches you, as a function of DISTANCE-derived
+          // zone (see getRunZone — never score, or the Score Bonus upgrade would make the
+          // rift harsher as a side effect of buying it).
+          //
+          // Exponential decay rather than linear: generous while the player is still learning
+          // that the rift exists (3 whole missed groups at the start), tightening quickly
+          // through the mid zones, then flattening to a floor so it stays demanding without
+          // ever becoming unsurvivable. A linear ramp spent too long in the middle and hit the
+          // floor abruptly.
+          const RIFT_TOLERANCE_FLOOR = 1.4;    // never less forgiving than this
+          const RIFT_TOLERANCE_START = 3.0;    // missed clusters survivable at zone 0
+          const RIFT_TOLERANCE_DECAY = 5.0;    // zones for the gap above the floor to fall ~63%
           function riftMissTolerance(zone) {
-              return Math.max(1.5, 2.3 - zone * 0.05);
+              return RIFT_TOLERANCE_FLOOR
+                  + (RIFT_TOLERANCE_START - RIFT_TOLERANCE_FLOOR) * Math.exp(-zone / RIFT_TOLERANCE_DECAY);
           }
 
           // Zone-advance feedback (see onZoneAdvanced).
@@ -1940,6 +1951,10 @@
           let score = 0;
           let fragmentsThisRun = 0;
           let isGameOver = false;
+          // False between a state change to playing/tutorial and the deferred startGame()/
+          // startTutorial() that actually builds the run. The loop must not simulate while
+          // it is false — see the comment in setGameState.
+          let runReady = false;
           let animationFrameId;
           let maxDistanceReached = 0; 
           let cameraX = 0;
@@ -3389,14 +3404,28 @@
               } else if (newState === 'playing') {
                   inGameUi.style.display = 'flex'; // Show in-game UI
                   runFragmentsContainer.classList.remove('run-fragments-hidden'); // MODIFIED for new UI
-                  if (oldState === 'paused') { 
-                      audioManager.startMusic(); 
+                  if (oldState === 'paused') {
+                      audioManager.startMusic();
                       // --- RESUME BUG FIX ---
                       // We must *unconditionally* call gameLoop() to restart the animation frame loop.
                       // The old check 'if (!animationFrameId)' was preventing this.
-                      gameLoop(); 
-                  } 
-                  else { setTimeout(startGame, 350); }
+                      gameLoop();
+                  }
+                  else {
+                      // INSTANT GAME OVER BUG.
+                      // gameState flips to 'playing' right now, but the run is not built until
+                      // startGame() -> initNewRun() fires 350ms from now. Coming from the MENU
+                      // the render loop is already running (see the 'menu' branch above), so
+                      // its very next frame would enter the gameplay branch and step
+                      // updateGame() against the PREVIOUS run's leftovers — a dead comet
+                      // usually sitting inside an obstacle, the old obstacle list, and a rift
+                      // parked on top of the player. Result: a game over before the run began.
+                      //
+                      // It only reproduced from the menu after at least one earlier run, which
+                      // is why "Play Again" (where the loop is dormant at game-over) looked fine.
+                      runReady = false;
+                      setTimeout(startGame, 350);
+                  }
               } else if (newState === 'paused') {
                   audioManager.stopMusic(); 
                   inGameUi.style.display = 'flex'; // Keep in-game UI visible
@@ -3404,6 +3433,7 @@
               } else if (newState === 'tutorial') {
                   inGameUi.style.display = 'flex'; // Show in-Ggame UI
                   tutorialOverlay.className = 'modal modal-visible'; // Show tutorial text
+                  runReady = false;   // same deferred-init hazard as 'playing' above
                   setTimeout(startTutorial, 350);
               } else if (newState === 'game-over') {
                   if (playerComet) createExplosion(playerComet.x, playerComet.y, 10, 'white');
@@ -3668,6 +3698,7 @@
           //   1. the flight tracks safeLaneY, so it lands ON the navigable lane
           //   2. anything still overlapping the comet at handover is cleared outright
           //   3. the grace shield is long enough to actually read the field and react
+          const SPAWN_GRACE_FRAMES = 100;   // ~1.7s of invulnerability at the start of a run
           const HEADSTART_GRACE_FRAMES = 480;   // 8s at 60fps, was 300
 
           function endHeadstart() {
@@ -3728,15 +3759,19 @@
               // Rewind the seeded stream so the same day always lays out the same world.
               resetWorldRng();
               worldGenHash = 2166136261 >>> 0; formationsSpawned = 0;
+              runReady = true;   // from here the world is coherent and safe to simulate
               riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0;
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = []; floatingTexts = [];
-              nearMissFxCooldown = 0; nearMissCount = 0;
-              // 0.45 rather than a full screen-width: at VIRTUAL_WIDTH the first formation
-              // could not spawn until the camera had caught up, leaving several seconds of
-              // empty sky before the game actually started. Now the opening obstacle is
-              // reachable in ~3s.
-              nextObstacleSpawnX = VIRTUAL_WIDTH * 0.45; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
+              nearMissFxCooldown = 0; nearMissCount = 0; nearMissFlashFrames = 0;
+              // 0.72 of a screen width. At 0.45 the opening obstacle arrived ~726px out
+              // (~3.5s) which, combined with the lane drift above, could put a wall in the
+              // player's face before they had oriented. At a full VIRTUAL_WIDTH the opposite
+              // happened: several seconds of empty sky before the game started.
+              nextObstacleSpawnX = VIRTUAL_WIDTH * 0.72; nextPowerUpSpawnX = VIRTUAL_WIDTH / 2; nextFragmentSpawnX = VIRTUAL_WIDTH / 3;
               activePowerUp = { type: null, timer: 0 };
+              // Spawn grace. Even with the two fixes above, a run must never be losable
+              // before the player has had a moment to look at it.
+              if (!isTutorial) { activePowerUp = { type: 'shield', timer: SPAWN_GRACE_FRAMES }; }
               runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
               if (!isTutorial) {
                   isHeadstarting = !dailyRun.active && playerData.upgrades.headstart;
@@ -3766,7 +3801,11 @@
               // elements that should move in lockstep drift apart within a frame.
               frameTime = performance.now();
 
-              if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
+              if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver && !runReady) {
+                  // Transition window: keep painting the last frame so the screen does not
+                  // flash, but do NOT step the simulation against stale state.
+                  if (playerComet) { try { drawGame(); } catch (e) {} }
+              } else if ((gameState === 'playing' || gameState === 'tutorial') && !isGameOver) {
                   // Slow-motion: keep rendering every frame, but step the simulation on
                   // only every other one. updateGame() is frame-stepped rather than
                   // dt-driven, so halving the step rate is what halves apparent speed.
@@ -3904,6 +3943,7 @@
               // The new spotlight is a DOM element, not a canvas drawing.
 
               drawFloatingTexts();
+              drawNearMissFlash();
               drawZoneAdvanceFx();
 
               ctx.restore();
@@ -4114,7 +4154,15 @@
 
               // Move the guaranteed corridor before laying anything down, limited by the
               // horizontal gap so the lane is always followable.
-              advanceSafeLane(x - nextObstacleSpawnX, zone);
+              //
+              // EXCEPT for the very first formation of a run. The lane can drift up to
+              // +/-245px in one step, and the comet starts pinned at VIRTUAL_HEIGHT/2 with no
+              // chance to have pre-positioned — so the opening gate's gap could be a quarter
+              // of a screen away from where the player actually is, which reads as "I spawned
+              // in front of a wall". The first formation is therefore laid down on the
+              // comet's own line.
+              if (formationsSpawned === 0) safeLaneY = playerComet.y;
+              else advanceSafeLane(x - nextObstacleSpawnX, zone);
 
               const h = getBlockHeightRange(zone);
               const randHeight = () => h.min + worldRandom() * (h.max - h.min);
@@ -4365,9 +4413,19 @@
           //
           // Keying it to distance makes the layout AND the speed profile identical for
           // everyone, leaving score as the pure measure of how well you played it.
+          // ALWAYS distance, never score — in both modes.
+          //
+          // Score is not a measure of progress, it is a measure of progress TIMES the player's
+          // purchases: the Score Bonus upgrade, the combo multiplier, near misses and boost
+          // all inflate it. Keying difficulty to score therefore meant that buying the score
+          // upgrade made the game harder, faster — obstacles tightened sooner AND the rift
+          // grew more aggressive sooner. The player was paying fragments to be punished.
+          //
+          // Distance is the honest measure of how far you have actually flown, it is
+          // unaffected by any purchase, and it is what makes the daily seed deterministic.
+          // Score is now purely the leaderboard metric.
           function getRunZone() {
-              if (dailyRun.active) return getZoneForScore(maxDistanceReached / SCORE_DIVISOR);
-              return getZoneForScore(score);
+              return getZoneForScore(maxDistanceReached / SCORE_DIVISOR);
           }
 
           // --- DAILY MODE FAIRNESS GATE ---
@@ -4401,7 +4459,28 @@
           // an obstacle closely now pays: score, and — more importantly — rift pushback.
           // That gives skilled flying its own pressure valve and rewards the risk the gates
           // are asking you to take, instead of making fragments the single currency.
-          const NEAR_MISS_DISTANCE = 34;        // px of clearance that still counts as threading it
+          // 34px was far too strict to ever fire in practice. A zone-0 gate has a 420px gap,
+          // so flying down the middle leaves ~195px of clearance on each side — a player
+          // aiming for the opening was never within 34px of a wall, and the mechanic simply
+          // never triggered. 78px is ~2.6 comet-widths: still unmistakably "that was close"
+          // at a wide gate (the nearest 40% of the available room), and at the tight late-game
+          // gates it fires most of the time, which is correct — threading those IS the feat.
+          // SCALED TO THE GATE, not a flat number. A fixed threshold cannot work across the
+          // whole run: 78px is a tight squeeze against a zone-0 gate (420px gap, ~195px of
+          // clearance either side) but is wider than the entire opening by zone 12. The
+          // window is therefore a fraction of the current gate gap, so "close" means the same
+          // *proportion* of the available room at every point in a run.
+          //
+          // TUNING HISTORY: 34px flat (never fired — narrower than any real approach), then
+          // 0.24 of the gap ≈ 101px at zone 0, which was ~52% of the room and fired on almost
+          // any pass that leaned to one side. 0.13 puts it at ~55px — roughly 28% of the room,
+          // i.e. under two comet-widths from the wall. Close enough to feel earned, not so
+          // close it is unreachable.
+          const NEAR_MISS_MIN = 38;
+          const NEAR_MISS_GAP_FRACTION = 0.13;
+          function nearMissWindow(zone) {
+              return Math.max(NEAR_MISS_MIN, getGateGap(zone) * NEAR_MISS_GAP_FRACTION);
+          }
           const NEAR_MISS_SCORE = 14;
           const NEAR_MISS_RIFT_PUSHBACK = 55;   // ~1/3 of a fragment, so fragments stay primary
           let nearMissFxCooldown = 0;
@@ -4424,7 +4503,7 @@
                       if (gap >= 0 && (obs._minGap === undefined || gap < obs._minGap)) obs._minGap = gap;
                   } else if (cx - cr > right && obs._minGap !== undefined) {
                       obs._nearMissDone = true;
-                      if (obs._minGap <= NEAR_MISS_DISTANCE) awardNearMiss(obs);
+                      if (obs._minGap <= nearMissWindow(getRunZone())) awardNearMiss(obs);
                   }
               }
           }
@@ -4438,15 +4517,34 @@
               if (nearMissFxCooldown === 0) {
                   nearMissFxCooldown = 12;
                   audioManager.playNearMissSound();
-                  spawnFloatingText('NEAR MISS', playerComet.x, playerComet.y - 42, '#38bdf8');
+                  // Two lines: what happened, and — crucially — what it BOUGHT you. The rift
+                  // pushback is the real reward and it is invisible otherwise, so it is
+                  // spelled out. Without this the player has no way to learn the mechanic exists.
+                  spawnFloatingText('NEAR MISS!', playerComet.x, playerComet.y - 52, '#7dd3fc', 26);
+                  spawnFloatingText('RIFT PUSHED BACK', playerComet.x, playerComet.y - 26, '#38bdf8', 15);
+                  nearMissFlashFrames = 14;
               }
-              shockRings.push(new ShockRing(playerComet.x, playerComet.y, 'rgba(56,189,248,0.9)', 46, 16));
+              shockRings.push(new ShockRing(playerComet.x, playerComet.y, 'rgba(125,211,252,0.95)', 78, 20));
+          }
+
+          // Brief cyan edge-glow so a near miss registers even in peripheral vision.
+          let nearMissFlashFrames = 0;
+          function drawNearMissFlash() {
+              if (nearMissFlashFrames <= 0) return;
+              const a = nearMissFlashFrames / 14;
+              nearMissFlashFrames--;
+              ctx.save();
+              ctx.globalAlpha = 0.30 * a;
+              ctx.strokeStyle = '#7dd3fc';
+              ctx.lineWidth = 14;
+              ctx.strokeRect(7, 7, VIRTUAL_WIDTH - 14, VIRTUAL_HEIGHT - 14);
+              ctx.restore();
           }
 
           // --- FLOATING TEXT ---
           let floatingTexts = [];
-          function spawnFloatingText(text, x, y, color) {
-              floatingTexts.push({ text, x, y, color, life: 46, maxLife: 46 });
+          function spawnFloatingText(text, x, y, color, size = 20) {
+              floatingTexts.push({ text, x, y, color, size, life: 54, maxLife: 54 });
           }
           function updateFloatingTexts() {
               compact(floatingTexts, t => { t.y -= 0.9; t.life--; return t.life > 0; });
@@ -4455,9 +4553,10 @@
               if (!floatingTexts.length) return;
               ctx.save();
               ctx.textAlign = 'center';
-              ctx.font = '700 20px Inter, sans-serif';
               for (const t of floatingTexts) {
+                  ctx.font = `800 ${t.size}px Inter, sans-serif`;
                   ctx.globalAlpha = Math.min(1, t.life / t.maxLife * 1.6);
+                  ctx.shadowColor = t.color; ctx.shadowBlur = 12;
                   ctx.fillStyle = t.color;
                   ctx.fillText(t.text, t.x - cameraX, t.y);
               }
@@ -5236,6 +5335,7 @@
                   headstarting: isHeadstarting,
                   headstartTimer,
                   nearMisses: nearMissCount,
+                  nearMissWindowPx: Math.round(nearMissWindow(getRunZone())),
                   comboMultiplier: +(1 + comboBonus()).toFixed(2),
                   dailyActive: dailyRun.active,
                   dailySeed: dailyRun.seed,
