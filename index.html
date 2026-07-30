@@ -54,7 +54,17 @@
             font-family: 'Inter', sans-serif;
             overscroll-behavior: none;
             text-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            /* MOBILE: without this the browser claims touches for scroll/pinch gestures and
+               steals them mid-drag, which breaks hold-to-place-a-well — the game's only
+               input. CrazyGames' technical requirements call this out explicitly. */
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
+        canvas { touch-action: none; }
 
         #app {
             width: 100%;
@@ -292,6 +302,147 @@
             -ms-user-select: none; /* IE10+ */
         }
         
+        /* --- DAILY / COMBO / AUDIO --- */
+        .btn-daily {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+        }
+        .btn-sub {
+            font-size: 0.65rem; font-weight: 500; opacity: 0.85; letter-spacing: 0.02em;
+            text-transform: none;
+        }
+        .daily-tag {
+            display: inline-block;
+            margin-bottom: 0.4rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #7c3aed, #4f46e5);
+            color: #ede9fe;
+            font-size: 0.55rem; font-weight: 800; letter-spacing: 0.1em;
+        }
+        .cosmetic-daily { border-color: rgba(124, 58, 237, 0.55); }
+        .daily-locked { font-size: 0.66rem !important; line-height: 1.15; white-space: normal !important; }
+        .daily-run-badge {
+            display: none;
+            margin-top: 0.4rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #7c3aed, #4f46e5);
+            color: #ede9fe;
+            font-size: 0.6rem; font-weight: 800; letter-spacing: 0.12em;
+            width: fit-content;
+        }
+        /* Only shown once a streak is actually running, so it never sits at x1 as noise. */
+        .combo-display {
+            display: none;
+            margin-top: 0.3rem;
+            font-size: 1.05rem; font-weight: 800;
+            color: #fde047;
+            text-shadow: 0 0 12px rgba(253, 224, 71, 0.55);
+        }
+        .audio-toggle {
+            margin-top: 0.9rem;
+            background: transparent;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            color: #94a3b8;
+            border-radius: 999px;
+            padding: 0.35rem 0.9rem;
+            font-size: 0.75rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .audio-toggle:hover { color: #e2e8f0; border-color: rgba(148, 163, 184, 0.6); }
+
+        .daily-result {
+            display: none;
+            width: 100%;
+            margin: 0 0 1rem 0;
+            padding: 0.65rem 0.8rem;
+            border-radius: 0.5rem;
+            background: rgba(76, 29, 149, 0.25);
+            border: 1px solid rgba(124, 58, 237, 0.45);
+            text-align: left;
+        }
+        .daily-result h4 {
+            margin: 0 0 0.35rem 0; font-size: 0.7rem; letter-spacing: 0.1em;
+            text-transform: uppercase; color: #c4b5fd; font-weight: 700;
+        }
+        .daily-line { margin: 0.1rem 0; font-size: 0.8rem; color: #cbd5e1; }
+        .daily-unlock {
+            margin: 0.4rem 0 0 0; font-size: 0.8rem; font-weight: 700; color: #fde047;
+        }
+
+        /* --- HALL OF RECORDS --- */
+        .records-block {
+            width: 100%;
+            margin: 0 0 1.25rem 0;
+            text-align: left;
+        }
+        .records-block h4 {
+            margin: 0 0 0.5rem 0;
+            font-size: 0.7rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .records-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .record-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 0.5rem;
+            padding: 0.45rem 0.65rem;
+        }
+        .record-rank {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #64748b;
+            min-width: 1.75rem;
+        }
+        .record-main {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.15;
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+        .record-main strong { font-size: 1rem; color: #e2e8f0; }
+        .record-meta { font-size: 0.72rem; color: #94a3b8; }
+        .record-looks { display: flex; gap: 0.3rem; flex: 0 0 auto; }
+        /* The cosmetic chips are the point of this board: they are what a record is
+           "wearing", so they need to be legible at a glance without dominating the row. */
+        .record-chip {
+            width: 2.1rem;
+            height: 1.5rem;
+            border-radius: 0.3rem;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            background-color: #0b1120;
+            display: block;
+        }
+        .record-empty { font-size: 0.78rem; color: #64748b; margin: 0; }
+        .new-record-badge {
+            display: none;
+            margin: 0 auto 0.75rem auto;
+            padding: 0.3rem 0.9rem;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+            color: #1c1917;
+            font-weight: 800;
+            font-size: 0.75rem;
+            letter-spacing: 0.12em;
+            width: fit-content;
+            animation: pulse-glow 1.6s infinite ease-in-out;
+            --glow-color: #fbbf24;
+        }
+
         /* Custom scrollbar for modals */
         .modal-content::-webkit-scrollbar {
             width: 8px;
@@ -871,6 +1022,8 @@
               <span class="star-icon">✦</span>
               <span id="runFragmentsDisplay">0</span>
           </div>
+          <div id="comboDisplay" class="combo-display">x1.00</div>
+          <div id="dailyBadge" class="daily-run-badge">DAILY</div>
         </div>
         
         <div class="right-ui">
@@ -900,11 +1053,20 @@
               <span id="starFragmentsDisplay">0</span>
             </div>
           </div>
+          <div class="records-block">
+            <h4>Your Best Runs</h4>
+            <div id="menuRecords" class="records-list"></div>
+          </div>
           <button id="playButton" class="btn">Play</button>
+          <button id="dailyButton" class="btn btn-daily">
+            Daily Challenge
+            <span id="dailySubLabel" class="btn-sub">Same field for everyone · no upgrades</span>
+          </button>
           <div class="button-grid">
             <button id="replayTutorialButton" class="btn btn-secondary">How to Play</button>
             <button id="observatoryButton" class="btn btn-secondary">Observatory</button>
           </div>
+          <button id="audioToggleButton" class="audio-toggle" aria-label="Toggle sound">🔊 Sound: On</button>
         </div>
       </div>
 
@@ -912,6 +1074,8 @@
       <div id="gameOverModal" class="modal modal-hidden" data-ui-screen="gameOver">
         <div class="modal-content">
           <h2 class="text-red-500">Game Over</h2>
+          <div id="newRecordBadge" class="new-record-badge">NEW RECORD</div>
+          <div id="dailyResult" class="daily-result"></div>
           <div class="stats-display">
             <div>
               <span>FINAL SCORE</span>
@@ -921,6 +1085,10 @@
               <span>✦ EARNED</span>
               <span id="fragmentsEarnedDisplay">0</span>
             </div>
+          </div>
+          <div class="records-block">
+            <h4>Your Best Runs</h4>
+            <div id="gameOverRecords" class="records-list"></div>
           </div>
           <button id="restartButton" class="btn">Play Again</button>
           <div class="button-grid">
@@ -1102,6 +1270,23 @@
       // `if (!window.Tone) return` guards) valid and untouched.
       window.Tone = Tone;
 
+      // --- CRAZYGAMES LEADERBOARD ---
+      //
+      // Paste the game's **Encryption Key** here, from the CrazyGames developer portal
+      // (your game → Leaderboards → configure; it is a 32-byte base64 string). It is
+      // issued per game and cannot be generated locally, so this ships empty.
+      //
+      // While it is empty, portalSDK.submitScore() is a silent no-op and everything else
+      // — local records, the personal best, the whole game — behaves normally. Nothing
+      // breaks by shipping without it; scores simply do not reach the public board.
+      //
+      // Note this key is necessarily visible in the client bundle. That is inherent to
+      // CrazyGames' client-side submission flow, which is why the platform treats
+      // SDK-submitted scores as untrusted; server-side submission via their Leaderboard
+      // API is the alternative, and it needs a backend this game deliberately does not have.
+      const CRAZYGAMES_LEADERBOARD_KEY = '';
+      portalSDK.configureLeaderboard(CRAZYGAMES_LEADERBOARD_KEY);
+
       // CRITICAL FIX: Wait for the HTML document to be fully loaded before running any game code
       document.addEventListener('DOMContentLoaded', () => {
 
@@ -1152,6 +1337,11 @@
           const tutorialOverlay = document.getElementById('tutorialOverlay');
           const tutorialText = document.getElementById('tutorialText');
           const skipTutorialButton = document.getElementById('skipTutorialButton');
+          const dailyButton = document.getElementById('dailyButton');
+          const dailySubLabel = document.getElementById('dailySubLabel');
+          const dailyBadge = document.getElementById('dailyBadge');
+          const comboDisplay = document.getElementById('comboDisplay');
+          const audioToggleButton = document.getElementById('audioToggleButton');
           const replayTutorialButton = document.getElementById('replayTutorialButton');
           
           // --- NEW TUTORIAL ENHANCEMENT ---
@@ -1359,7 +1549,79 @@
               comet_gold: { id: 'comet_gold', name: 'Golden Nugget', type: 'comet', cost: 5000, previewStyle: 'background: linear-gradient(45deg, #fde047, #facc15, #eab308); border: 2px solid #fef08a; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #fde047;', fillStyle: 'linear-gradient(45deg, #fde047, #facc15, #eab308)', particleEffect: { color: '#fde047' } }, 
               comet_smiley: { id: 'comet_smiley', name: 'Smiley', type: 'comet', cost: 2000, previewStyle: 'background-color: #facc15; display: flex; justify-content: center; align-items: center; font-size: 30px; color: black; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #facc15;', fillStyle: '#facc15', particleEffect: { color: '#fde047' }, drawAddition: (ctx, x, y, r) => { ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(x - r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x + r*0.3, y - r*0.2, r*0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(x, y + r*0.1, r*0.5, 0, Math.PI); ctx.lineWidth = r*0.1; ctx.stroke(); } }, 
 
+              // --- DAILY-EXCLUSIVE COMET SKINS ---
+              // cost: null marks an item as unpurchasable. The shop shows the unlock
+              // requirement instead of a Buy button; see updateObservatoryUI.
+              comet_pulsar: {
+                  id: 'comet_pulsar', name: 'Pulsar', type: 'comet', cost: null, dailyOnly: true,
+                  fillStyle: 'radial-gradient(circle, #f0f9ff, #38bdf8, #0369a1)',
+                  particleEffect: { color: '#7dd3fc' },
+                  drawAddition: (ctx, x, y, r) => {
+                      // Twin sweeping beams, like a rotating neutron star.
+                      const t = frameTime * 0.004;
+                      ctx.save();
+                      ctx.translate(x, y); ctx.rotate(t);
+                      ctx.globalCompositeOperation = 'lighter';
+                      ctx.fillStyle = 'rgba(125, 211, 252, 0.5)';
+                      for (const dir of [-1, 1]) {
+                          ctx.beginPath();
+                          ctx.moveTo(0, 0);
+                          ctx.lineTo(dir * r * 3.2, -r * 0.42);
+                          ctx.lineTo(dir * r * 3.2, r * 0.42);
+                          ctx.closePath(); ctx.fill();
+                      }
+                      ctx.restore();
+                  }
+              },
+              comet_singularity: {
+                  id: 'comet_singularity', name: 'Singularity', type: 'comet', cost: null, dailyOnly: true,
+                  fillStyle: 'radial-gradient(circle, #0a0a0a, #1e1b4b, #4c1d95)',
+                  particleEffect: { color: '#a78bfa' },
+                  drawAddition: (ctx, x, y, r) => {
+                      // A dark core inside a bright accretion ring — inverted against every
+                      // other skin, which is the point of a hard-to-get one.
+                      const t = frameTime * 0.003;
+                      ctx.save();
+                      ctx.translate(x, y);
+                      ctx.strokeStyle = 'rgba(196, 181, 253, 0.9)';
+                      ctx.lineWidth = 2.5;
+                      ctx.beginPath();
+                      ctx.ellipse(0, 0, r * 1.55, r * 0.5, t, 0, Math.PI * 2);
+                      ctx.stroke();
+                      ctx.fillStyle = '#05010a';
+                      ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2); ctx.fill();
+                      ctx.restore();
+                  }
+              },
+
               // Obstacle Skins
+              obstacle_monolith_x: {
+                  id: 'obstacle_monolith_x', name: 'Rift Shards', type: 'obstacle', cost: null, dailyOnly: true,
+                  fillStyle: '#0f172a', strokeStyle: '#f43f5e', collisionShape: 'rect',
+                  draw: (ctx, x, y, w, h, skin, obs) => {
+                      ctx.fillStyle = skin.fillStyle;
+                      ctx.beginPath();
+                      ctx.moveTo(x + w * 0.5, y);
+                      ctx.lineTo(x + w, y + h * 0.18);
+                      ctx.lineTo(x + w * 0.82, y + h);
+                      ctx.lineTo(x + w * 0.18, y + h);
+                      ctx.lineTo(x, y + h * 0.18);
+                      ctx.closePath();
+                      ctx.fill();
+                      const pulse = 0.55 + Math.abs(Math.sin(frameTime * 0.0025)) * 0.45;
+                      ctx.strokeStyle = `rgba(244, 63, 94, ${pulse})`;
+                      ctx.lineWidth = 2.5;
+                      ctx.stroke();
+                      // Inner fracture line
+                      ctx.strokeStyle = `rgba(251, 113, 133, ${pulse * 0.7})`;
+                      ctx.lineWidth = 1.5;
+                      ctx.beginPath();
+                      ctx.moveTo(x + w * 0.5, y + h * 0.1);
+                      ctx.lineTo(x + w * 0.38, y + h * 0.55);
+                      ctx.lineTo(x + w * 0.6, y + h * 0.9);
+                      ctx.stroke();
+                  }
+              },
               obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
               obstacle_rock: { 
                   id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
@@ -1522,6 +1784,16 @@
               background_retro_arcade: makeBackgroundTheme('background_retro_arcade', 'Retro Arcade', 4500, {
                   hue: 220, hueDrift: 36, sat: 80, lightTop: 4, lightBottom: 2, accentSat: 90, grid: true
               }),
+
+              // --- DAILY-EXCLUSIVE THEMES (cost: null = not purchasable) ---
+              background_aurora: Object.assign(
+                  makeBackgroundTheme('background_aurora', 'Aurora Drift', null, {
+                      hue: 160, hueDrift: 34, sat: 62, lightTop: 20, lightBottom: 6, accentSat: 85, accentHueOffset: 70
+                  }), { dailyOnly: true }),
+              background_eventhorizon: Object.assign(
+                  makeBackgroundTheme('background_eventhorizon', 'Event Horizon', null, {
+                      hue: 288, hueDrift: 16, sat: 70, lightTop: 5, lightBottom: 16, accentSat: 95, accentHueOffset: 40, flip: true
+                  }), { dailyOnly: true }),
           };
           // --- END PREMIUM VISUALS ---
 
@@ -1608,27 +1880,52 @@
           //
           // This also makes fragments load-bearing for SURVIVAL rather than just currency,
           // which ties the economy to the moment-to-moment play instead of running beside it.
-          let riftX = 0;
-          let framesSinceFragment = 0;
+          // Running fingerprint of everything world generation has produced this run.
+          // Purely diagnostic: it is what lets an automated test prove that two players on
+          // the same daily seed really do get the same field.
+          let worldGenHash = 0;
+          let formationsSpawned = 0;
+          function mixWorldGen(...nums) {
+              let h = worldGenHash >>> 0;
+              for (const n of nums) { h ^= (Math.round(n) | 0); h = Math.imul(h, 16777619) >>> 0; }
+              worldGenHash = h >>> 0;
+          }
 
-          // Tuning notes, because the first pass at these numbers did nothing at all:
+          let riftX = 0;
+          let distanceSinceFragment = 0;
+
+          // --- TUNING: measured in MISSED CLUSTERS, not seconds ---
           //
-          // RIFT_MAX_LAG was 900px. The comet sits 1/3 into a 1280px view (screen x 427), so
-          // a wall 900px behind it renders at screen x -473 — permanently off-screen. A
-          // threat the player cannot see is not a threat. 430 parks it right on the left edge,
-          // so it is always visible and always reads as gaining or losing ground.
+          // Two earlier attempts were wrong in opposite directions, and both because the
+          // tolerance was expressed in frames:
           //
-          // RIFT_IDLE_RAMP was 0.00055/frame from a 0.86 base, which after five seconds of
-          // idling still only reached factor 0.95 — below 1.0, meaning the rift was still
-          // falling behind and could never close. It now crosses 1.0 shortly after the grace
-          // period and closes the full gap in ~6s, so sustained disengagement is fatal in
-          // ~10s total while a single fragment buys real breathing room.
-          const RIFT_TRAIL_FACTOR = 0.90;      // cruising speed as a fraction of the comet's
-          const RIFT_IDLE_RAMP = 0.0024;       // extra speed per frame without a fragment
-          const RIFT_MAX_FACTOR = 1.5;         // cap, so a good run can always claw back
-          const RIFT_FRAGMENT_PUSHBACK = 150;  // px the rift loses per fragment collected
-          const RIFT_MAX_LAG = 430;            // never idles further back than this
-          const RIFT_GRACE_FRAMES = 120;       // 2s of slack after each pickup
+          //   1st: RIFT_MAX_LAG 900px put the wall at screen x -473 (the comet sits 1/3 into
+          //        a 1280 view), and the ramp peaked below factor 1.0, so it could never
+          //        close. The mechanic did nothing at all.
+          //   2nd: grace of 120 frames = ~410px at zone-0 speed, but fragment clusters are
+          //        ~800px apart. The rift therefore started gaining BEFORE the player could
+          //        possibly reach the next cluster — so dropping a single fragment from one
+          //        group meant you could not make it to the next. That is the complaint.
+          //
+          // The unit that actually matters is "how many fragment groups have I missed", so
+          // the budget is now DISTANCE, denominated in cluster spacing. That also removes a
+          // latent bug: a frame-based grace silently got stricter every zone, because a
+          // faster comet covers the gap between clusters in fewer frames.
+          //
+          // You always get one full cluster interval free. Death arrives after
+          // riftMissTolerance() intervals, which tightens with zone for a difficulty ramp.
+          const FRAGMENT_CLUSTER_SPACING = 800;   // mean world px between cluster spawns
+          const RIFT_TRAIL_FACTOR = 0.90;         // cruising speed as a fraction of the comet's
+          const RIFT_PEAK_FACTOR_CAP = 2.6;       // keep the final lunge readable, not teleporting
+          const RIFT_FRAGMENT_PUSHBACK = 150;     // px the rift loses per fragment collected
+          const RIFT_MAX_LAG = 430;               // never idles further back than this
+          const RIFT_FREE_CLUSTERS = 1.0;         // always survivable: one whole missed group
+
+          // Missed clusters before the rift reaches you. ~2.3 early (miss two groups and a
+          // bit), tightening to 1.5 deep in a run.
+          function riftMissTolerance(zone) {
+              return Math.max(1.5, 2.3 - zone * 0.05);
+          }
 
           // Zone-advance feedback (see onZoneAdvanced).
           let zoneFlashFrames = 0;
@@ -1687,7 +1984,7 @@
           function getGravityInfluence(baseSpeed) {
               const speed = Math.max(baseSpeed, INITIAL_SPEED);
               const speedScale = Math.pow(speed / INITIAL_SPEED, TURN_AUTHORITY_EXPONENT);
-              const upgradeScale = 1 + (playerData.upgrades.wellStrength || 0) * WELL_STRENGTH_PER_LEVEL;
+              const upgradeScale = 1 + (activeUpgrades().wellStrength || 0) * WELL_STRENGTH_PER_LEVEL;
               return GRAVITY_INFLUENCE_BASE * speedScale * upgradeScale;
           }
 
@@ -1876,6 +2173,9 @@
                   if (++this.comboIdleFrames > FRAGMENT_COMBO_DECAY_FRAMES) this.resetFragmentCombo();
               },
               playPowerUpSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("G5", "8n"); },
+              // Short, airy, and clearly NOT the fragment chime — a near miss is a different
+              // kind of success and must not be mistaken for a pickup.
+              playNearMissSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("D6", "32n"); },
               playGameOverSound() { if (!this.isInitialized) return; this.noiseSynth.triggerAttack(); },
               playClickSound() { if (!this.isInitialized) return; this.sfx.triggerAttackRelease("C4", "16n"); },
 
@@ -2458,7 +2758,7 @@
 
 
                   // Draw Score Bonus Indicator (if applicable)
-                  if (playerData.upgrades.score > 0) {
+                  if (activeUpgrades().score > 0) {
                       const indicatorX = screenX + this.radius * 0.8, indicatorY = this.y - this.radius * 0.8;
                       ctx.fillStyle = 'rgba(253, 224, 71, 0.5)'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.6, 0, Math.PI * 2); ctx.fill();
                       ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.arc(indicatorX, indicatorY, this.radius * 0.4, 0, Math.PI * 2); ctx.fill();
@@ -2713,7 +3013,7 @@
               // big flourish for that moment instead of firing it on every single pickup.
               constructor(x, y, clusterId = 0) { this.x = x; this.y = y; this.radius = 8; this.animation = Math.random() * Math.PI * 2; this.vx = 0; this.vy = 0; this.clusterId = clusterId; }
               update() {
-                  const magnetLevel = playerData.upgrades.magnet || 0;
+                  const magnetLevel = activeUpgrades().magnet || 0;
                   if (magnetLevel > 0 && playerComet) {
                       const magnetRange = 50 + magnetLevel * 25; const dx = playerComet.x - this.x; const dy = playerComet.y - this.y; const distSq = dx * dx + dy * dy;
                       if (distSq < magnetRange * magnetRange) { const dist = Math.sqrt(distSq); this.vx += (dx / dist) * 5; this.vy += (dy / dist) * 5; }
@@ -2800,7 +3100,7 @@
           function loadPlayerData() {
               try {
                   const savedData = portalSDK.getItem('gravityWellSaveData');
-                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
+                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
                   if (savedData) {
                       const loaded = JSON.parse(savedData);
                        const mergedCosmetics = {
@@ -2819,7 +3119,7 @@
                   }
               } catch (e) { 
                   console.error("Could not load player data, resetting.", e); 
-                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
               }
           }
           // Draws one shop tile's artwork on a real canvas using the SAME code paths the
@@ -2971,15 +3271,30 @@
                           button.className = 'btn equip-btn';
                           button.textContent = 'Equip';
                           // button.onclick = () => equipCosmetic(id); // This will be handled by delegation
+                      } else if (item.dailyOnly) {
+                          // Locked daily-exclusive: show WHAT EARNS IT, not a price. These have
+                          // cost: null and no buy path at any amount of fragments — which is
+                          // what makes them worth wearing.
+                          const req = DAILY_UNLOCKS.find(u => u.id === id);
+                          button.className = 'btn buy-cosmetic-btn daily-locked';
+                          button.textContent = req ? req.label : 'Daily Challenge';
+                          button.disabled = true;
+                          div.classList.add('cosmetic-daily');
                       } else {
                           button.className = 'btn buy-cosmetic-btn';
                           button.textContent = `Buy (${item.cost} ★)`;
                           button.disabled = playerData.starFragments < item.cost;
                           // button.onclick = () => buyCosmetic(id); // This will be handled by delegation
                       }
-                      
+
                       div.appendChild(preview);
                       div.appendChild(name);
+                      if (item.dailyOnly) {
+                          const tag = document.createElement('span');
+                          tag.className = 'daily-tag';
+                          tag.textContent = 'DAILY';
+                          div.appendChild(tag);
+                      }
                       div.appendChild(button);
                       grid.appendChild(div); 
                   } catch (error) {
@@ -3053,11 +3368,22 @@
                   portalSDK.gameplayStop();
               }
 
+              // Leaving to a menu ends the daily context. It must NOT be cleared on the
+              // 'game-over' transition — the game-over handler still needs to know the run
+              // was a daily in order to bank the score and check unlocks.
+              if (newState === 'menu' || newState === 'tutorial' || newState === 'observatory') {
+                  dailyRun.active = false;
+              }
+              if (dailyBadge) dailyBadge.style.display = (dailyRun.active && newState === 'playing') ? 'block' : 'none';
+
               // Now, selectively SHOW the elements for the new state
               if (newState === 'menu') {
                   audioManager.stopMusic(); 
                   mainMenu.className = 'modal modal-visible'; // Show menu
                   highScoreDisplay.textContent = playerData.highScore; starFragmentsDisplay.textContent = playerData.starFragments;
+                  renderRecordsInto(document.getElementById('menuRecords'), 'No runs yet — your best will be stamped with the skins you used.');
+                  refreshAudioToggle();
+                  refreshDailyLabel();
                   if (!menuComet) menuComet = { x: VIRTUAL_WIDTH / 2, y: VIRTUAL_HEIGHT / 2, angle: 0, trail: [] };
                   if (oldState !== 'menu' || !animationFrameId) gameLoop();
               } else if (newState === 'playing') {
@@ -3085,10 +3411,31 @@
                   inGameUi.style.display = 'flex'; // Keep in-game UI visible
                   runFragmentsContainer.classList.add('run-fragments-hidden'); // MODIFIED for new UI
                   appContainer.classList.add('screen-shake');
-                  if (score > playerData.highScore) playerData.highScore = Math.floor(score);
+                  const finalScore = Math.floor(score);
+                  // A daily run is a separate competition: it must not overwrite the normal
+                  // high score (upgrades are disabled, so the numbers are not comparable) and
+                  // it does not enter the cosmetic records board.
+                  const isPersonalBest = !dailyRun.active && finalScore > playerData.highScore;
+                  if (isPersonalBest) playerData.highScore = finalScore;
                   playerData.starFragments += fragmentsThisRun;
+
+                  let dailyUnlocked = [];
+                  if (dailyRun.active) {
+                      finishDailyRun(finalScore);
+                      dailyUnlocked = checkDailyUnlocks();
+                  } else {
+                      recordRun(finalScore);
+                  }
                   savePlayerData();
-                  finalScoreElement.textContent = Math.floor(score); fragmentsEarnedDisplay.textContent = fragmentsThisRun;
+
+                  // Submit to the portal leaderboard. Fire-and-forget: it is async, it can
+                  // fail, and none of that may hold up the game-over screen.
+                  portalSDK.submitScore(finalScore);
+                  if (isPersonalBest) portalSDK.happytime();
+
+                  finalScoreElement.textContent = finalScore; fragmentsEarnedDisplay.textContent = fragmentsThisRun;
+                  renderGameOverRecord(finalScore, isPersonalBest);
+                  renderDailyResult(dailyUnlocked);
                   gameOverModal.className = 'modal modal-visible'; // Show game over modal
 
                   // Midgame interstitial. Death is the natural break — the run is over and
@@ -3103,6 +3450,207 @@
                   updateObservatoryUI(); 
                   observatory.className = 'modal modal-visible'; // Show observatory
               }
+          }
+
+          // --- DAILY-EXCLUSIVE COSMETICS ---
+          //
+          // These cannot be bought at any price — the only way to own them is to show up and
+          // play the daily. That makes them a status marker rather than another sink, and
+          // because every record row displays the cosmetics it was set with, wearing one is
+          // visible proof on your own board.
+          //
+          // WHAT THESE DELIBERATELY ARE NOT: leaderboard-rank rewards. The CrazyGames
+          // leaderboard is submit-only — there is no API to read back where a player placed —
+          // so "top 100 of the day" is not verifiable by the client and any such unlock would
+          // be trivially faked or simply wrong. Every condition below is something the game
+          // can prove for itself: days participated, and scores achieved on a field that is
+          // identical for everyone. See CLAUDE.md for what a rank-gated unlock would require.
+          const DAILY_UNLOCKS = [
+              { id: 'comet_pulsar',        test: d => d.days.length >= 1,  label: 'Play 1 Daily Challenge' },
+              { id: 'background_aurora',   test: d => d.days.length >= 3,  label: 'Play 3 Daily Challenges' },
+              { id: 'obstacle_monolith_x', test: d => d.days.length >= 7,  label: 'Play 7 Daily Challenges' },
+              { id: 'comet_singularity',   test: d => bestDailyScore(d) >= 2500, label: 'Score 2,500 on a Daily' },
+              { id: 'background_eventhorizon', test: d => bestDailyScore(d) >= 6000, label: 'Score 6,000 on a Daily' }
+          ];
+          function bestDailyScore(d) {
+              const vals = Object.values(d.bestByDay || {});
+              return vals.length ? Math.max(...vals) : 0;
+          }
+
+          // Grants anything newly earned. Returns the list unlocked this call so the UI can
+          // celebrate it.
+          function checkDailyUnlocks() {
+              const d = ensureDailyState();
+              const newly = [];
+              for (const u of DAILY_UNLOCKS) {
+                  if (playerData.cosmetics.unlocked.includes(u.id)) continue;
+                  if (!cosmeticItems[u.id]) continue;
+                  if (u.test(d)) {
+                      playerData.cosmetics.unlocked.push(u.id);
+                      newly.push(cosmeticItems[u.id].name);
+                  }
+              }
+              if (newly.length) savePlayerData();
+              return newly;
+          }
+
+          // --- DAILY CHALLENGE LIFECYCLE ---
+          //
+          // playerData.daily = { days: [...keys played], bestByDay: {key: score}, runs: n }
+          // Tracked locally because the leaderboard is submit-only — the game can never ask
+          // the platform how the player placed, so every unlock condition here has to be
+          // something the client can verify by itself.
+          function ensureDailyState() {
+              if (!playerData.daily || typeof playerData.daily !== 'object') {
+                  playerData.daily = { days: [], bestByDay: {}, runs: 0 };
+              }
+              if (!Array.isArray(playerData.daily.days)) playerData.daily.days = [];
+              if (!playerData.daily.bestByDay || typeof playerData.daily.bestByDay !== 'object') playerData.daily.bestByDay = {};
+              if (typeof playerData.daily.runs !== 'number') playerData.daily.runs = 0;
+              return playerData.daily;
+          }
+
+          // Menu label: today's best if already attempted, otherwise the pitch.
+          function refreshDailyLabel() {
+              if (!dailySubLabel) return;
+              const d = ensureDailyState();
+              const key = getDailyKey();
+              const best = d.bestByDay[key];
+              dailySubLabel.textContent = (best !== undefined)
+                  ? `Today's best: ${best.toLocaleString()} · ${d.days.length} played`
+                  : 'Same field for everyone · no upgrades';
+          }
+
+          function startDailyRun() {
+              const key = getDailyKey();
+              dailyRun.active = true;
+              dailyRun.dayKey = key;
+              dailyRun.seed = seedFromKey(key);
+              const d = ensureDailyState();
+              d.runs++;
+              if (!d.days.includes(key)) d.days.push(key);
+              savePlayerData();
+              setGameState('playing');
+          }
+
+          function finishDailyRun(finalScore) {
+              const d = ensureDailyState();
+              const key = dailyRun.dayKey || getDailyKey();
+              if (!(d.bestByDay[key] >= finalScore)) d.bestByDay[key] = finalScore;
+              return d;
+          }
+
+          // --- HALL OF RECORDS ---
+          //
+          // The CrazyGames leaderboard is submit-only: there is no API to read rankings back
+          // into the game (it renders them on the game's page, outside the frame). So the
+          // in-game board is the player's OWN best runs — which is the better surface for
+          // this anyway, because each entry is stamped with the cosmetics that were equipped
+          // when it was set. Your record has a look, and chasing a new one with a new skin
+          // means the shop is buying you a mark on your own history rather than just a recolour.
+          const MAX_RECORDS = 5;
+
+          function recordRun(finalScore) {
+              if (finalScore <= 0) return;
+              if (!Array.isArray(playerData.records)) playerData.records = [];
+              const eq = playerData.cosmetics.equipped;
+              playerData.records.push({
+                  score: finalScore,
+                  zone: getZoneForScore(finalScore) + 1,
+                  fragments: fragmentsThisRun,
+                  at: Date.now(),
+                  // Snapshot, not a reference: the player will re-equip other cosmetics later
+                  // and the record must keep showing what it was actually set with.
+                  comet: eq.comet, obstacle: eq.obstacle, background: eq.background
+              });
+              playerData.records.sort((a, b) => b.score - a.score);
+              playerData.records.length = Math.min(playerData.records.length, MAX_RECORDS);
+          }
+
+          // One record row: rank, score, zone, and the three cosmetics used, drawn by the
+          // SAME preview renderer the shop uses so a record can never show a skin that looks
+          // different from the real thing.
+          function buildRecordRow(rec, rank) {
+              const row = document.createElement('div');
+              row.className = 'record-row';
+
+              const rankEl = document.createElement('span');
+              rankEl.className = 'record-rank';
+              rankEl.textContent = `#${rank}`;
+
+              const main = document.createElement('div');
+              main.className = 'record-main';
+              const scoreEl = document.createElement('strong');
+              scoreEl.textContent = rec.score.toLocaleString();
+              const metaEl = document.createElement('span');
+              metaEl.className = 'record-meta';
+              metaEl.textContent = `Zone ${rec.zone} · ${rec.fragments} ✦`;
+              main.appendChild(scoreEl); main.appendChild(metaEl);
+
+              const looks = document.createElement('div');
+              looks.className = 'record-looks';
+              for (const id of [rec.comet, rec.obstacle, rec.background]) {
+                  const item = cosmeticItems[id];
+                  if (!item) continue;
+                  const chip = renderCosmeticPreview(item);
+                  chip.className = 'record-chip';
+                  chip.title = item.name;
+                  looks.appendChild(chip);
+              }
+
+              row.appendChild(rankEl); row.appendChild(main); row.appendChild(looks);
+              return row;
+          }
+
+          function renderRecordsInto(container, emptyText) {
+              if (!container) return;
+              container.innerHTML = '';
+              const recs = Array.isArray(playerData.records) ? playerData.records : [];
+              if (!recs.length) {
+                  const p = document.createElement('p');
+                  p.className = 'record-empty';
+                  p.textContent = emptyText;
+                  container.appendChild(p);
+                  return;
+              }
+              recs.forEach((r, i) => container.appendChild(buildRecordRow(r, i + 1)));
+          }
+
+          // Daily result panel: the day's best, and anything the run just earned.
+          function renderDailyResult(newlyUnlocked) {
+              const box = document.getElementById('dailyResult');
+              if (!box) return;
+              if (!dailyRun.active) { box.style.display = 'none'; return; }
+              const d = ensureDailyState();
+              box.style.display = 'block';
+              box.innerHTML = '';
+
+              const head = document.createElement('h4');
+              head.textContent = `Daily · ${dailyRun.dayKey}`;
+              box.appendChild(head);
+
+              const best = document.createElement('p');
+              best.className = 'daily-line';
+              best.textContent = `Your best today: ${(d.bestByDay[dailyRun.dayKey] || 0).toLocaleString()}`;
+              box.appendChild(best);
+
+              const played = document.createElement('p');
+              played.className = 'daily-line';
+              played.textContent = `Dailies played: ${d.days.length}`;
+              box.appendChild(played);
+
+              if (newlyUnlocked && newlyUnlocked.length) {
+                  const un = document.createElement('p');
+                  un.className = 'daily-unlock';
+                  un.textContent = `Unlocked: ${newlyUnlocked.join(', ')}`;
+                  box.appendChild(un);
+              }
+          }
+
+          function renderGameOverRecord(finalScore, isPersonalBest) {
+              const badge = document.getElementById('newRecordBadge');
+              if (badge) badge.style.display = isPersonalBest ? 'block' : 'none';
+              renderRecordsInto(document.getElementById('gameOverRecords'), '');
           }
 
           // --- HEADSTART HANDOVER ---
@@ -3149,9 +3697,19 @@
           // can clobber the other: the player's own site-level mute on the portal, and an
           // ad currently on screen. Restoring after an ad by simply unmuting would undo a
           // site-level mute the player deliberately set, so both feed one derived value.
+          // THREE independent reasons the game can be silent. Keeping them separate matters:
+          // an ad ending must not un-mute a player who chose silence, and the platform's
+          // site-level mute must not be overridden by our own toggle either.
           let platformMuted = false;
           let mutedByAd = false;
-          function applyMute() { audioManager.setMuted(platformMuted || mutedByAd); }
+          function applyMute() { audioManager.setMuted(platformMuted || mutedByAd || !!playerData.audioMuted); }
+
+          function refreshAudioToggle() {
+              if (!audioToggleButton) return;
+              const off = !!playerData.audioMuted;
+              audioToggleButton.textContent = off ? '🔇 Sound: Off' : '🔊 Sound: On';
+              audioToggleButton.setAttribute('aria-pressed', String(off));
+          }
 
           function showGameOverAd() {
               portalSDK.showMidgameAd({
@@ -3167,8 +3725,12 @@
               slowMoFrames = 0; slowMoParity = false;
               zoneFlashFrames = 0; zoneBannerFrames = 0;
               safeLaneY = VIRTUAL_HEIGHT / 2;   // corridor starts level with the comet
-              riftX = 150 - RIFT_MAX_LAG; framesSinceFragment = 0;
-              obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = [];
+              // Rewind the seeded stream so the same day always lays out the same world.
+              resetWorldRng();
+              worldGenHash = 2166136261 >>> 0; formationsSpawned = 0;
+              riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0;
+              obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = []; floatingTexts = [];
+              nearMissFxCooldown = 0; nearMissCount = 0;
               // 0.45 rather than a full screen-width: at VIRTUAL_WIDTH the first formation
               // could not spawn until the camera had caught up, leaving several seconds of
               // empty sky before the game actually started. Now the opening obstacle is
@@ -3177,9 +3739,9 @@
               activePowerUp = { type: null, timer: 0 };
               runFragmentsDisplay.textContent = '0'; scoreElement.textContent = '0';
               if (!isTutorial) {
-                  isHeadstarting = playerData.upgrades.headstart;
+                  isHeadstarting = !dailyRun.active && playerData.upgrades.headstart;
                   if (isHeadstarting) { headstartTimer = 0; playerData.upgrades.headstart = false; savePlayerData(); }
-                  hasRevive = playerData.upgrades.revive;
+                  hasRevive = !dailyRun.active && playerData.upgrades.revive;
                   if (hasRevive) { playerData.upgrades.revive = false; savePlayerData(); }
               } else { isHeadstarting = false; hasRevive = false; }
               updateUpgradeIndicators();
@@ -3251,6 +3813,8 @@
               obstacles.forEach(o => o.update());
               starFragments.forEach(sf => sf.update());
               // The rift is checked alongside obstacles so a revive covers it too.
+              updateNearMisses();
+              updateFloatingTexts();
               const caughtByRift = updateRift();
               const collisionResult = checkCollisions();
               if (collisionResult.obstacle || caughtByRift) {
@@ -3260,7 +3824,7 @@
               if (collisionResult.fragment) { collectFragment(collisionResult.item); }
               if (collisionResult.powerUp) {
                   activePowerUp.type = collisionResult.powerUp;
-                  const shieldDuration = 300 * (1 + playerData.upgrades.shield * 0.1);
+                  const shieldDuration = 300 * (1 + activeUpgrades().shield * 0.1);
                   activePowerUp.timer = { shield: shieldDuration, shrink: 480, boost: 600 }[activePowerUp.type];
                   audioManager.playPowerUpSound();
                   // Reads the shared colour table. This used to construct a throwaway PowerUp
@@ -3272,12 +3836,33 @@
               if (!isHeadstarting) {
                   if (playerComet.vx > 0) {
                       const distanceGained = Math.max(0, playerComet.x - maxDistanceReached);
-                      if (distanceGained > 0) { const scoreMultiplier = 1 + (playerData.upgrades.score * 0.05) + (activePowerUp.type === 'boost' ? 1 : 0); score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier; }
+                      if (distanceGained > 0) {
+                          // The fragment streak now MEANS something. It drove only the audio
+                          // pitch before, so the loop that keeps you alive had no visible or
+                          // mechanical payoff — you could not tell a hot streak from a cold one
+                          // except by ear.
+                          const scoreMultiplier = 1
+                              + (activeUpgrades().score * 0.05)
+                              + (activePowerUp.type === 'boost' ? 1 : 0)
+                              + comboBonus();
+                          score += (distanceGained / SCORE_DIVISOR) * scoreMultiplier;
+                      }
                   }
                   maxDistanceReached = Math.max(maxDistanceReached, playerComet.x);
               } else { score = (maxDistanceReached / SCORE_DIVISOR); }
               scoreElement.textContent = Math.floor(score);
+              updateComboDisplay();
               checkZoneTransition();
+          }
+
+          // Surfaces the fragment streak. Hidden at x1 so it is a reward readout rather than
+          // permanent HUD furniture.
+          function updateComboDisplay() {
+              if (!comboDisplay) return;
+              const bonus = comboBonus();
+              if (bonus <= 0) { comboDisplay.style.display = 'none'; return; }
+              comboDisplay.style.display = 'block';
+              comboDisplay.textContent = `x${(1 + bonus).toFixed(2)}`;
           }
 
           function drawBackground() {
@@ -3286,7 +3871,7 @@
               // The zone is passed IN now. Previously the renderer took no arguments and
               // painted a fixed gradient, so the background was byte-identical from the
               // first second of a run to the last.
-              const zone = getZoneForScore(score);
+              const zone = getRunZone();
               try {
                   theme.render(ctx, VIRTUAL_WIDTH, VIRTUAL_HEIGHT, zone, cameraX);
                   currentZoneColors.background = theme.paletteFor(zone).bottom;
@@ -3318,6 +3903,7 @@
               // REMOVED: Old tutorial drawing logic.
               // The new spotlight is a DOM element, not a canvas drawing.
 
+              drawFloatingTexts();
               drawZoneAdvanceFx();
 
               ctx.restore();
@@ -3420,7 +4006,7 @@
           }
 
           function resizeCanvas() { const { clientWidth, clientHeight } = appContainer; scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT); canvas.width = VIRTUAL_WIDTH * scale; canvas.height = VIRTUAL_HEIGHT * scale; }
-          function getObstacleTypeForZone() { const zoneIndex = getZoneForScore(score); const rand = Math.random(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
+          function getObstacleTypeForZone() { const zoneIndex = getRunZone(); const rand = worldRandom(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
 
           // --- OBSTACLE FORMATIONS ---
           //
@@ -3472,7 +4058,7 @@
           function advanceSafeLane(dx, zone) {
               const half = getCorridorHalf(zone);
               const maxDrift = dx * 0.5;
-              safeLaneY += (Math.random() * 2 - 1) * maxDrift;
+              safeLaneY += (worldRandom() * 2 - 1) * maxDrift;
               const edge = half + 40;
               safeLaneY = Math.max(edge, Math.min(VIRTUAL_HEIGHT - edge, safeLaneY));
           }
@@ -3498,13 +4084,13 @@
               let useTop;
               if (side === 'top') { if (!canTop) return null; useTop = true; }
               else if (side === 'bottom') { if (!canBottom) return null; useTop = false; }
-              else { useTop = canTop && (!canBottom || Math.random() < 0.5); }
+              else { useTop = canTop && (!canBottom || worldRandom() < 0.5); }
 
-              return useTop ? Math.random() * topRoom
-                            : bottomStart + Math.random() * bottomRoom;
+              return useTop ? worldRandom() * topRoom
+                            : bottomStart + worldRandom() * bottomRoom;
           }
           function pickFormation(zone) {
-              const r = Math.random();
+              const r = worldRandom();
               let single, cluster;
               if (zone < 1)      { single = 0.35; cluster = 0.25; }
               else if (zone < 3) { single = 0.28; cluster = 0.28; }
@@ -3521,22 +4107,22 @@
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextObstacleSpawnX >= spawnAheadPoint) return;
 
-              const zone = getZoneForScore(score);
+              const zone = getRunZone();
               const minDistance = Math.max(150, 300 - zone * 13);
               const randomDistance = Math.max(90, 190 - zone * 9);
-              const x = nextObstacleSpawnX + minDistance + Math.random() * randomDistance;
+              const x = nextObstacleSpawnX + minDistance + worldRandom() * randomDistance;
 
               // Move the guaranteed corridor before laying anything down, limited by the
               // horizontal gap so the lane is always followable.
               advanceSafeLane(x - nextObstacleSpawnX, zone);
 
               const h = getBlockHeightRange(zone);
-              const randHeight = () => h.min + Math.random() * (h.max - h.min);
+              const randHeight = () => h.min + worldRandom() * (h.max - h.min);
               // Every skin spawns at the SAME dimensions. Circular skins used to be
               // squashed to height === width, which made them strictly easier to dodge;
               // they are stacked to fill the box instead (see getCircleStack), so
               // cosmetics stay purely cosmetic.
-              const randWidth = () => Math.random() * 50 + 30;
+              const randWidth = () => worldRandom() * 50 + 30;
 
               let advanceTo = x;
 
@@ -3571,8 +4157,8 @@
                       //
                       // Now each piece starts clear of the previous piece's right edge, and
                       // the side alternates, so a cluster is a readable zig-zag.
-                      const count = 2 + (Math.random() < 0.35 ? 1 : 0);
-                      let side = Math.random() < 0.5 ? 'top' : 'bottom';
+                      const count = 2 + (worldRandom() < 0.35 ? 1 : 0);
+                      let side = worldRandom() < 0.5 ? 'top' : 'bottom';
                       let px = x;
                       for (let i = 0; i < count; i++) {
                           const width = randWidth();
@@ -3583,7 +4169,7 @@
                               obstacles.push(new Obstacle(px, py, width, height, type));
                               advanceTo = Math.max(advanceTo, px + width);
                           }
-                          px += width + 80 + Math.random() * 90;   // guaranteed clear separation
+                          px += width + 80 + worldRandom() * 90;   // guaranteed clear separation
                           side = (side === 'top') ? 'bottom' : 'top';
                       }
                       break;
@@ -3601,6 +4187,8 @@
                   }
               }
 
+              formationsSpawned++;
+              mixWorldGen(x, advanceTo, safeLaneY, obstacles.length);
               nextObstacleSpawnX = advanceTo;
           }
           function managePowerUps() {
@@ -3609,14 +4197,14 @@
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextPowerUpSpawnX < spawnAheadPoint) {
                   for (let attempts = 0; attempts < 5; attempts++) {
-                      const x = spawnAheadPoint + Math.random() * 500; const y = Math.random() * VIRTUAL_HEIGHT;
+                      const x = spawnAheadPoint + worldRandom() * 500; const y = worldRandom() * VIRTUAL_HEIGHT;
                       if (!obstacles.some(obs => x < obs.x + obs.width && x + 24 > obs.x && y < obs.y + obs.height && y + 24 > obs.y)) {
-                          const type = ['shield', 'shrink', 'boost'][Math.floor(Math.random() * 3)];
+                          const type = ['shield', 'shrink', 'boost'][Math.floor(worldRandom() * 3)];
                           powerUps.push(new PowerUp(x, y, type));
                           break;
                       }
                   }
-                  nextPowerUpSpawnX = spawnAheadPoint + (Math.random() * 1000 + 800);
+                  nextPowerUpSpawnX = spawnAheadPoint + (worldRandom() * 1000 + 800);
               }
           }
           function manageStarFragments() {
@@ -3624,9 +4212,9 @@
               compact(starFragments, sf => sf.x + sf.radius > cameraX);
               const spawnAheadPoint = cameraX + VIRTUAL_WIDTH;
               if (nextFragmentSpawnX < spawnAheadPoint) {
-                  const clusterSize = Math.floor(Math.random() * 4) + 3;
+                  const clusterSize = Math.floor(worldRandom() * 4) + 3;
                   const startX = spawnAheadPoint + 100;
-                  const angle = (Math.random() - 0.5) * Math.PI / 4;
+                  const angle = (worldRandom() - 0.5) * Math.PI / 4;
 
                   const buildCluster = (startY) => Array.from({ length: clusterSize },
                       (_, i) => ({ x: startX + i * 40, y: startY + Math.sin(i * 0.5 + angle) * 50 }));
@@ -3648,7 +4236,7 @@
                   // tolerable when obstacles covered 19% of the column, but with the denser
                   // formations that would quietly starve the fragment economy.
                   for (let attempt = 0; attempt < 6 && !chosen; attempt++) {
-                      const candidate = buildCluster(VIRTUAL_HEIGHT * 0.15 + Math.random() * VIRTUAL_HEIGHT * 0.7);
+                      const candidate = buildCluster(VIRTUAL_HEIGHT * 0.15 + worldRandom() * VIRTUAL_HEIGHT * 0.7);
                       if (isClear(candidate)) chosen = candidate;
                   }
 
@@ -3656,7 +4244,7 @@
                       const clusterId = ++fragmentClusterCounter;
                       chosen.forEach(pos => starFragments.push(new StarFragment(pos.x, pos.y, clusterId)));
                   }
-                  nextFragmentSpawnX = startX + (Math.random() * 600 + 400);
+                  nextFragmentSpawnX = startX + (worldRandom() * 600 + 400);
               }
           }
 
@@ -3728,6 +4316,154 @@
               keyboardWellActive = true;
           }
 
+          // --- DAILY SEED ---
+          //
+          // One shared field per UTC day: everyone gets the identical obstacle layout, so
+          // scores are actually comparable and the leaderboard means something. Without this
+          // a leaderboard ranks luck as much as skill.
+          //
+          // WHY A SEPARATE RNG rather than seeding Math.random: only WORLD GENERATION may be
+          // deterministic. Particles, star twinkle and other cosmetic randomness must stay
+          // free — if they consumed from the same stream, two players whose particle counts
+          // differed (different skins emit at different rates) would desync the world.
+          // worldRandom() is therefore used in the spawners and nowhere else.
+          const dailyRun = { active: false, seed: 0, dayKey: '' };
+          let _worldRngState = 0;
+
+          // Deterministic UTC day key, e.g. "2026-07-30". UTC so the field flips at the same
+          // instant worldwide rather than per-timezone.
+          function getDailyKey(d = new Date()) {
+              return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+          }
+          function seedFromKey(key) {
+              // FNV-1a: tiny, no dependencies, well-distributed for short strings.
+              let h = 2166136261 >>> 0;
+              for (let i = 0; i < key.length; i++) {
+                  h ^= key.charCodeAt(i);
+                  h = Math.imul(h, 16777619) >>> 0;
+              }
+              return h >>> 0;
+          }
+          // mulberry32 — small, fast, good enough distribution for level layout.
+          function worldRandom() {
+              if (!dailyRun.active) return Math.random();
+              _worldRngState = (_worldRngState + 0x6D2B79F5) >>> 0;
+              let t = _worldRngState;
+              t = Math.imul(t ^ (t >>> 15), t | 1);
+              t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+              return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+          }
+          function resetWorldRng() { _worldRngState = dailyRun.seed >>> 0; }
+
+          // The zone driving speed, generation and rift pressure.
+          //
+          // In a normal run it comes from SCORE. In a daily run it must come from DISTANCE
+          // instead, because score is skill-dependent — combo bonuses, near misses and boost
+          // pickups all inflate it — and score drives the zone, which drives obstacle
+          // generation. Two players on the same seed with different scores would otherwise
+          // walk into different worlds, which defeats the entire point of a shared field.
+          //
+          // Keying it to distance makes the layout AND the speed profile identical for
+          // everyone, leaving score as the pure measure of how well you played it.
+          function getRunZone() {
+              if (dailyRun.active) return getZoneForScore(maxDistanceReached / SCORE_DIVISOR);
+              return getZoneForScore(score);
+          }
+
+          // --- DAILY MODE FAIRNESS GATE ---
+          //
+          // The daily seed is a competitive mode: everyone plays the SAME field, so the
+          // comparison is only meaningful if everyone plays it with the same loadout.
+          // Permanent upgrades are therefore neutralised for daily runs — otherwise the
+          // leaderboard would rank wallets, not skill.
+          //
+          // It is also what makes the seed deterministic at all: the score upgrade changes
+          // how fast score accrues, score drives the zone, and the zone drives obstacle
+          // generation — so two players with different upgrades would get different worlds
+          // from the same seed. Cosmetics are untouched; they have no mechanical effect.
+          const NO_UPGRADES = Object.freeze({ shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false });
+          function activeUpgrades() {
+              return dailyRun.active ? NO_UPGRADES : playerData.upgrades;
+          }
+
+          // Fragment streak as a score multiplier, capped so it rewards consistency without
+          // running away. Reads the same counter that drives the audio ladder.
+          const COMBO_BONUS_PER_STEP = 0.05;
+          const COMBO_MAX_STEPS = 10;
+          function comboBonus() {
+              return Math.min(audioManager.fragmentCombo, COMBO_MAX_STEPS) * COMBO_BONUS_PER_STEP;
+          }
+
+          // --- NEAR MISS ---
+          //
+          // Before this, fragments were the ONLY way to hold the rift off, so a player who
+          // dodged brilliantly but took a fragment-poor line was punished for it. Threading
+          // an obstacle closely now pays: score, and — more importantly — rift pushback.
+          // That gives skilled flying its own pressure valve and rewards the risk the gates
+          // are asking you to take, instead of making fragments the single currency.
+          const NEAR_MISS_DISTANCE = 34;        // px of clearance that still counts as threading it
+          const NEAR_MISS_SCORE = 14;
+          const NEAR_MISS_RIFT_PUSHBACK = 55;   // ~1/3 of a fragment, so fragments stay primary
+          let nearMissFxCooldown = 0;
+          let nearMissCount = 0;   // diagnostic only (window.gwStats)
+
+          function updateNearMisses() {
+              if (!playerComet || isHeadstarting) return;
+              if (nearMissFxCooldown > 0) nearMissFxCooldown--;
+              const cx = playerComet.x, cy = playerComet.y, cr = playerComet.radius;
+
+              for (const obs of obstacles) {
+                  if (obs._nearMissDone) continue;
+                  const right = obs.x + obs.width;
+
+                  if (cx + cr > obs.x && cx - cr < right) {
+                      // Alongside it: remember the closest vertical approach.
+                      let gap = -1;
+                      if (cy + cr < obs.y) gap = obs.y - (cy + cr);
+                      else if (cy - cr > obs.y + obs.height) gap = (cy - cr) - (obs.y + obs.height);
+                      if (gap >= 0 && (obs._minGap === undefined || gap < obs._minGap)) obs._minGap = gap;
+                  } else if (cx - cr > right && obs._minGap !== undefined) {
+                      obs._nearMissDone = true;
+                      if (obs._minGap <= NEAR_MISS_DISTANCE) awardNearMiss(obs);
+                  }
+              }
+          }
+
+          function awardNearMiss(obs) {
+              nearMissCount++;
+              score += NEAR_MISS_SCORE;
+              riftX -= NEAR_MISS_RIFT_PUSHBACK;
+              // A gate is two pieces at the same x, so threading one tightly fires twice —
+              // which is fair (you cleared two walls) but must not double the noise.
+              if (nearMissFxCooldown === 0) {
+                  nearMissFxCooldown = 12;
+                  audioManager.playNearMissSound();
+                  spawnFloatingText('NEAR MISS', playerComet.x, playerComet.y - 42, '#38bdf8');
+              }
+              shockRings.push(new ShockRing(playerComet.x, playerComet.y, 'rgba(56,189,248,0.9)', 46, 16));
+          }
+
+          // --- FLOATING TEXT ---
+          let floatingTexts = [];
+          function spawnFloatingText(text, x, y, color) {
+              floatingTexts.push({ text, x, y, color, life: 46, maxLife: 46 });
+          }
+          function updateFloatingTexts() {
+              compact(floatingTexts, t => { t.y -= 0.9; t.life--; return t.life > 0; });
+          }
+          function drawFloatingTexts() {
+              if (!floatingTexts.length) return;
+              ctx.save();
+              ctx.textAlign = 'center';
+              ctx.font = '700 20px Inter, sans-serif';
+              for (const t of floatingTexts) {
+                  ctx.globalAlpha = Math.min(1, t.life / t.maxLife * 1.6);
+                  ctx.fillStyle = t.color;
+                  ctx.fillText(t.text, t.x - cameraX, t.y);
+              }
+              ctx.restore();
+          }
+
           // Advances the rift. Returns true if it has caught the comet.
           function updateRift() {
               if (!playerComet) return false;
@@ -3737,12 +4473,27 @@
                   riftX = playerComet.x - RIFT_MAX_LAG;
                   return false;
               }
-              framesSinceFragment++;
+              // Budget in DISTANCE, so the tolerance means the same thing at every speed.
+              distanceSinceFragment += playerComet.baseSpeed;
 
-              // Idle pressure: harmless at first, then it starts gaining on you.
-              const idleFactor = Math.min(RIFT_MAX_FACTOR,
-                  RIFT_TRAIL_FACTOR + Math.max(0, framesSinceFragment - RIFT_GRACE_FRAMES) * RIFT_IDLE_RAMP);
-              riftX += playerComet.baseSpeed * idleFactor;
+              const zone = getRunZone();
+              const freeDist = FRAGMENT_CLUSTER_SPACING * RIFT_FREE_CLUSTERS;
+              const deathDist = FRAGMENT_CLUSTER_SPACING * riftMissTolerance(zone);
+              const rampDist = Math.max(1, deathDist - freeDist);
+
+              // The ramp is solved, not guessed. Lag shrinks by (factor - 1) per unit of
+              // distance travelled, so for the wall to cover exactly RIFT_MAX_LAG over
+              // rampDist while rising linearly from RIFT_TRAIL_FACTOR to `peak`:
+              //     integral of (factor - 1) d(dist) = RIFT_MAX_LAG
+              //  => peak = 1 + 2*(RIFT_MAX_LAG/rampDist + (1 - RIFT_TRAIL_FACTOR)/2)
+              // That guarantees the design target (death at `deathDist`) instead of leaving
+              // it to a hand-picked ramp constant that has now been wrong twice.
+              const peak = Math.min(RIFT_PEAK_FACTOR_CAP,
+                  1 + 2 * (RIFT_MAX_LAG / rampDist + (1 - RIFT_TRAIL_FACTOR) / 2));
+
+              const p = Math.min(1, Math.max(0, (distanceSinceFragment - freeDist) / rampDist));
+              const factor = RIFT_TRAIL_FACTOR + (peak - RIFT_TRAIL_FACTOR) * p;
+              riftX += playerComet.baseSpeed * factor;
 
               // Never let it drift so far back that it stops being a threat.
               if (riftX < playerComet.x - RIFT_MAX_LAG) riftX = playerComet.x - RIFT_MAX_LAG;
@@ -3848,7 +4599,7 @@
               audioManager.playFragmentSound();
               // Collecting shoves the rift back and resets the idle ramp — this is the loop
               // that keeps the player engaged rather than coasting.
-              framesSinceFragment = 0;
+              distanceSinceFragment = 0;
               riftX -= RIFT_FRAGMENT_PUSHBACK;
               // Flourish once the last fragment of this spawn-batch is gone.
               fragmentPickupFx(item, !starFragments.some(sf => sf.clusterId === item.clusterId));
@@ -3942,7 +4693,7 @@
               // A revive has to reset the rift too, or being caught by it would immediately
               // re-trigger on the very next frame and burn the revive for nothing.
               riftX = playerComet.x - RIFT_MAX_LAG;
-              framesSinceFragment = 0;
+              distanceSinceFragment = 0;
           }
           
           // --- REFACTORED SPEED CALCULATION ---
@@ -3956,7 +4707,7 @@
                   }
                   return 0; // By default, no forward speed in tutorial
               }
-              const zoneIndex = getZoneForScore(score);
+              const zoneIndex = getRunZone();
               let speed = INITIAL_SPEED + (zoneIndex * SPEED_INCREMENT_PER_ZONE);
               // BOOST now actually boosts. It previously only doubled the score multiplier
               // and never touched speed, so the pickup called "boost" produced no
@@ -3970,7 +4721,7 @@
 
           function updateMusicTempo() { if (!playerComet) return; const speedRatio = Math.max(0, Math.min(1, (calculateCurrentSpeed() - INITIAL_SPEED) / (10 - INITIAL_SPEED))); audioManager.updateTempo(audioManager.baseBPM + (speedRatio * 80)); }
           function checkZoneTransition() {
-              const zoneIndex = getZoneForScore(score);
+              const zoneIndex = getRunZone();
               const equippedBackgroundTheme = cosmeticItems[playerData.cosmetics.equipped.background] || cosmeticItems['background_default'];
               
               // Always update obstacle/stroke colors based on zone, even with themes
@@ -3984,7 +4735,20 @@
                   // to set currentZoneColors.background inside `if (!theme.render)`, which
                   // could never be true because every theme defined render(); that dead
                   // branch is why zone changes were invisible.
-                  if (playerComet) { playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle)); }
+                  // Capped. One orbiter was added per zone forever, so a deep run ended up with
+                  // a dozen-plus rings sprawling 100px out from a 15px comet — visual noise that
+                  // obscured the thing the player is actually steering, and a per-frame draw cost
+                  // that grew with progress. Past the cap the newest simply recolours.
+                  if (playerComet) {
+                      const MAX_ORBITERS = 5;
+                      if (playerComet.orbiters.length < MAX_ORBITERS) {
+                          playerComet.orbiters.push(new Orbiter(playerComet.radius + 10 + (playerComet.orbiters.length * 5), currentZoneColors.obstacle));
+                      } else {
+                          const o = playerComet.orbiters[playerComet.orbiters.length - 1];
+                          o.color = currentZoneColors.obstacle;
+                          o._grad = null;   // force the cached gradient to rebuild in the new colour
+                      }
+                  }
                   updateMusicTempo();
                   if (lastZoneIndex >= 0) onZoneAdvanced(zoneIndex);
                   lastZoneIndex = zoneIndex;
@@ -4002,7 +4766,18 @@
               zoneBannerFrames = 110;
               audioManager.updateMusicLayers(zone);
           }
-          function updateUpgradeIndicators() { powerUpStatusElement.className = 'powerup-hidden'; activeUpgradesContainer.style.display = 'flex'; magnetIndicator.style.display = playerData.upgrades.magnet > 0 ? 'inline-block' : 'none'; scoreIndicator.style.display = playerData.upgrades.score > 0 ? 'inline-block' : 'none'; reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none'; }
+          function updateUpgradeIndicators() {
+              powerUpStatusElement.className = 'powerup-hidden';
+              const showMagnet = activeUpgrades().magnet > 0;
+              const showScore = activeUpgrades().score > 0;
+              magnetIndicator.style.display = showMagnet ? 'inline-block' : 'none';
+              scoreIndicator.style.display = showScore ? 'inline-block' : 'none';
+              reviveIndicator.style.display = hasRevive ? 'inline-block' : 'none';
+              // Only show the container when it actually has something in it. It was set to
+              // 'flex' unconditionally, so a player with no upgrades got an empty translucent
+              // pill floating next to the pause button.
+              activeUpgradesContainer.style.display = (showMagnet || showScore || hasRevive) ? 'flex' : 'none';
+          }
 
           function setupEventListeners() {
               // console.log('[DEBUG] setupEventListeners: Attaching listeners...');
@@ -4131,6 +4906,33 @@
 
               window.addEventListener('resize', resizeCanvas);
 
+              // --- iOS AUDIO RECOVERY (CrazyGames technical requirement) ---
+              // On iOS the AudioContext drops to 'interrupted'/'suspended' whenever the page is
+              // backgrounded, a call arrives, or the device locks. It does NOT come back on its
+              // own — and Tone.start() was only ever called once, from the Play button, so after
+              // a single interruption the game stayed silent for the rest of the session with no
+              // way for the player to recover it.
+              //
+              // Any subsequent user gesture is a legal moment to resume, so every pointer/touch
+              // release retries. Cheap, idempotent, and silent when the context is already fine.
+              const resumeAudioContext = () => {
+                  if (!window.Tone) return;
+                  try {
+                      const c = window.Tone.getContext();
+                      if (c && c.state !== 'running' && audioManager.isInitialized) {
+                          // rawContext.resume() rather than Tone.start(): we only need to revive
+                          // an existing graph, not re-run first-time startup.
+                          const raw = c.rawContext || c._context;
+                          if (raw && typeof raw.resume === 'function') raw.resume().catch(() => {});
+                      }
+                  } catch (e) { /* never let audio recovery break input handling */ }
+              };
+              document.addEventListener('touchend', resumeAudioContext, { passive: true });
+              document.addEventListener('pointerup', resumeAudioContext, { passive: true });
+              document.addEventListener('visibilitychange', () => {
+                  if (!document.hidden) resumeAudioContext();
+              });
+
               const handlePlayClick = async (isTutorial) => {
                   // console.log(`[DEBUG] handlePlayClick: Tutorial = ${isTutorial}`);
                   // --- AUDIO FIX ---
@@ -4189,6 +4991,34 @@
               // pass false, which returned them to the menu — so "skip" cost an extra click
               // before you could actually play, which is the opposite of what the button is for.
               if (skipTutorialButton) skipTutorialButton.addEventListener('click', () => { /* console.log('[DEBUG] CLICK: Skip Tutorial Button'); */ audioManager.playClickSound(); tutorialManager.end(true); });
+
+              // --- DAILY CHALLENGE ---
+              if (dailyButton) {
+                  dailyButton.addEventListener('click', async () => {
+                      audioManager.playClickSound();
+                      // Same audio-unlock dance as Play: the daily is also a first gesture.
+                      try {
+                          if (window.Tone && window.Tone.context.state !== 'running') {
+                              await Promise.race([window.Tone.start(), new Promise(r => setTimeout(r, 2000))]);
+                          }
+                          if (!audioManager.isInitialized) audioManager.init();
+                      } catch (e) { /* audio is optional; the run is not */ }
+                      startDailyRun();
+                  });
+              }
+
+              // --- AUDIO TOGGLE ---
+              // Distinct from the platform mute: this is the player's own preference and it
+              // persists in the save, so it survives reloads and follows a cloud save.
+              if (audioToggleButton) {
+                  audioToggleButton.addEventListener('click', () => {
+                      playerData.audioMuted = !playerData.audioMuted;
+                      savePlayerData();
+                      applyMute();
+                      refreshAudioToggle();
+                      if (!playerData.audioMuted) audioManager.playClickSound();
+                  });
+              }
 
 
               // --- OBSERVATORY CLICK FIX (Consolidated Listener) ---
@@ -4287,6 +5117,9 @@
           // Functions for cosmetics
           function buyCosmetic(cosmeticId) {
               const item = cosmeticItems[cosmeticId];
+              // Daily-exclusives have cost: null. Without this guard `starFragments >= null`
+              // coerces to `>= 0` and every one of them would be free for the taking.
+              if (item && (item.dailyOnly || typeof item.cost !== 'number')) return;
               if (item && !playerData.cosmetics.unlocked.includes(cosmeticId) && playerData.starFragments >= item.cost) {
                   playerData.starFragments -= item.cost;
                   playerData.cosmetics.unlocked.push(cosmeticId);
@@ -4338,6 +5171,10 @@
               // a sound. Fires once immediately with the current setting, then on change.
               // No-ops off-portal, where nothing external can force-mute us.
               portalSDK.onPlatformMuteChange(muted => { platformMuted = muted; applyMute(); });
+              // Re-apply the player's own saved preference too; the platform listener only
+              // knows about the site-level switch.
+              applyMute();
+              refreshAudioToggle();
 
               // The game is interactive as soon as the menu is up. Everything heavy
               // (Tone's audio graph) is built lazily on the first user gesture, so the
@@ -4385,7 +5222,7 @@
                   if (best) nextGap = { x: wallX, top: Math.round(best[0]), bottom: Math.round(best[1]), centre: Math.round((best[0] + best[1]) / 2) };
               }
               return {
-                  zone: getZoneForScore(score),
+                  zone: getRunZone(),
                   score: Math.floor(score),
                   speed: playerComet ? +playerComet.baseSpeed.toFixed(2) : 0,
                   cometX: playerComet ? Math.round(playerComet.x) : 0,
@@ -4394,14 +5231,28 @@
                   columnBlockedPct: Math.round(blockedRows / SAMPLES * 100),
                   gatePieces: onScreen.filter(o => o.y <= 0 || o.y + o.height >= VIRTUAL_HEIGHT - 1).length,
                   fragments: starFragments.length,
-                  gateGapNow: getGateGap(getZoneForScore(score)),
+                  gateGapNow: getGateGap(getRunZone()),
                   nextGap,
                   headstarting: isHeadstarting,
                   headstartTimer,
+                  nearMisses: nearMissCount,
+                  comboMultiplier: +(1 + comboBonus()).toFixed(2),
+                  dailyActive: dailyRun.active,
+                  dailySeed: dailyRun.seed,
+                  dailyKey: dailyRun.dayKey,
+                  // Running hash of the SPAWN SEQUENCE (see worldGenHash). Sampling a live
+                  // snapshot would be useless for comparing two runs: they progress at
+                  // different wall-clock rates, so snapshot N of one run is not the same
+                  // world position as snapshot N of the other. Hashing the generation stream
+                  // instead makes the comparison independent of when you look.
+                  worldGenHash,
+                  formationsSpawned,
                   rift: {
                       x: Math.round(riftX),
                       lag: playerComet ? Math.round(playerComet.x - riftX) : null,
-                      framesSinceFragment,
+                      distanceSinceFragment: Math.round(distanceSinceFragment),
+                      missedClusters: +(distanceSinceFragment / FRAGMENT_CLUSTER_SPACING).toFixed(2),
+                      missTolerance: +riftMissTolerance(getRunZone()).toFixed(2),
                       pressure: +riftPressure().toFixed(2)
                   },
                   activePowerUp: activePowerUp.type,

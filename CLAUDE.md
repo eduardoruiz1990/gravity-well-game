@@ -156,16 +156,60 @@ without collecting a fragment (`framesSinceFragment`), and is shoved back by
 `RIFT_FRAGMENT_PUSHBACK` on every pickup. Sustained idling kills in ~10s. This makes
 fragments load-bearing for *survival*, not just currency.
 
-Two constraints these constants must respect — the first attempt violated both and the
-mechanic did nothing at all:
+**Tolerance is denominated in MISSED FRAGMENT CLUSTERS, not seconds.** This is the third
+version of these constants; the first two were wrong in opposite directions and both because
+the budget was expressed in frames:
 
 - **`RIFT_MAX_LAG` must keep the wall on screen.** The comet sits 1/3 into the view (screen
   x ≈ 427), so a lag of 900 rendered at x = −473: invisible, therefore not a threat.
 - **The ramp must cross factor 1.0 quickly, then keep going.** At factor < 1 the rift falls
   *further* behind and can never close, no matter how long the player idles.
+- **A frame-based grace is the wrong unit.** 120 frames ≈ 410px at zone-0 speed, but clusters
+  are ~800px apart — so the rift started gaining before the player could reach the next group
+  at all, and dropping one fragment meant you could not recover. It also got silently
+  stricter every zone, because a faster comet crosses the gap in fewer frames.
+
+`riftMissTolerance(zone)` now expresses the budget as cluster intervals (2.3 early → 1.5
+deep), `RIFT_FREE_CLUSTERS` guarantees one whole missed group is always survivable, and the
+ramp's peak is **solved** from the integral rather than hand-picked, so the death point
+matches the design target at every zone instead of drifting.
+
+Near misses (`NEAR_MISS_RIFT_PUSHBACK`) are the second pressure valve: without them the only
+way to hold the rift off was fragments, which punished a skilled player who took a
+fragment-poor line.
 
 `revivePlayer()` must reset `riftX` — otherwise being caught re-triggers on the very next
 frame and burns the revive for nothing.
+
+### Daily challenge: seeded, and why upgrades are switched off
+
+One shared field per UTC day (`getDailyKey` → `seedFromKey` → mulberry32 `worldRandom`).
+
+**`worldRandom()` is used in the spawners ONLY.** Particles, twinkle and other cosmetic
+randomness must keep using `Math.random()` — if they drew from the same stream, two players
+whose particle counts differed (skins emit at different rates) would desync the world.
+
+**`activeUpgrades()` returns zeroes during a daily run.** That is not just a fairness
+nicety, it is what makes the seed work at all: the score upgrade changes how fast score
+accrues → score drives the zone → the zone drives generation, so two players with different
+upgrades would get different worlds from the same seed. For the same reason `getRunZone()`
+keys off *distance* in daily mode rather than score, since combo/near-miss/boost all inflate
+score by skill. Cosmetics are untouched — they have no mechanical effect.
+
+Verified by extracting the real generator and running it twice: 500 formations / 741
+obstacles byte-identical, and a different day key produces a different field.
+
+### Daily-exclusive cosmetics, and the rank problem
+
+`DAILY_UNLOCKS` gates cosmetics on days played and score thresholds. Items carry
+`cost: null` + `dailyOnly: true`; `buyCosmetic()` refuses them explicitly, because
+`starFragments >= null` coerces to `>= 0` and would otherwise make them free.
+
+**Rank-based unlocks ("top 100 of the day") are not implementable client-side.** The
+CrazyGames leaderboard has no read API, so the game cannot learn where a player placed.
+Doing it properly needs a backend that reads their Leaderboard API with the server-side API
+key and hands the client a signed entitlement. Everything in `DAILY_UNLOCKS` is deliberately
+something the client can verify by itself.
 
 ### Headstart handover
 
@@ -271,6 +315,30 @@ Wiring points in `index.html`:
 | Load window | `loadingStart()` at top of `init()`, `loadingStop()` at the end |
 | Mute | `platformMuted` + `mutedByAd` feed one `applyMute()`; never unmute unconditionally |
 | Ad | `showGameOverAd()` on the `game-over` transition |
+
+### Leaderboard: submit-only, and it shapes the UI
+
+`CrazyGames.SDK.user.submitScore({ encryptedScore, score })` (see `PortalSDK.submitScore`)
+needs a per-game **Encryption Key** from the developer portal, pasted into
+`CRAZYGAMES_LEADERBOARD_KEY` in `index.html`. Empty key = silent no-op, everything else works.
+
+**There is no read API.** A game cannot fetch rankings — CrazyGames renders the board on the
+game's own page, outside the iframe. So the in-game "Your Best Runs" board is the player's
+*local* history (`playerData.records`), not a global one. Don't go looking for a
+`getLeaderboard()`; it doesn't exist.
+
+Each record snapshots the cosmetics equipped when it was set (`comet`/`obstacle`/`background`
+ids, copied not referenced) and renders them via `renderCosmeticPreview` — the same function
+the shop uses. That's deliberate: it gives cosmetics a reason to exist beyond a recolour.
+
+### Mobile / iOS requirements (from docs.crazygames.com/requirements/technical/)
+
+- `touch-action: none` on `body` and `canvas`. Without it the browser claims touches for
+  scroll/pinch and steals them mid-drag, which breaks the game's only input.
+- **The AudioContext must be resumed on a later user gesture.** iOS drops it to
+  `interrupted`/`suspended` on backgrounding and never restores it. `Tone.start()` fires once
+  from the Play button, so without the `touchend`/`pointerup`/`visibilitychange` handlers the
+  game goes permanently silent after the first interruption.
 
 **Build requirements:**
 - `vite.config.js` sets `base: './'`. CrazyGames serves from a subdirectory; absolute

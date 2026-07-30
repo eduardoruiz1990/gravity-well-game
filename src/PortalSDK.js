@@ -55,6 +55,8 @@ class PortalSDK {
         this.adPlaying = false;
         /** True between loadingStart() and loadingStop(). */
         this.loadingActive = false;
+        /** Leaderboard Encryption Key; null until configureLeaderboard() supplies one. */
+        this.leaderboardKey = null;
     }
 
     /**
@@ -166,6 +168,76 @@ class PortalSDK {
     // domain at all. Logging IN fires the auth listener; logging OUT does not,
     // because the platform reloads the whole page.
     // ---------------------------------------------------------------------
+
+    // ---------------------------------------------------------------------
+    // Leaderboard
+    //
+    // Verified against docs.crazygames.com/sdk/leaderboards-client/:
+    //   CrazyGames.SDK.user.submitScore({ encryptedScore, score })
+    // where encryptedScore is AES-GCM(score) base64'd as iv||ciphertext, using a
+    // per-game Encryption Key issued in the CrazyGames developer portal.
+    //
+    // TWO THINGS THIS API DOES NOT DO, both of which shape the game's UI:
+    //   1. There is NO read/query method. A game cannot fetch rankings or entries —
+    //      CrazyGames renders the leaderboard on the game's page, outside the frame.
+    //      Anything shown in-game has to be the player's own local history.
+    //   2. It is submit-only and client-side, so the platform treats scores as
+    //      untrusted. Nothing here can change that; it is inherent to the design.
+    // ---------------------------------------------------------------------
+
+    /**
+     * Configure leaderboard submission. Call once at boot with the game's
+     * Encryption Key from the developer portal. Without a key, submitScore() is a
+     * silent no-op, which is the correct behaviour for local dev and for any build
+     * published before the leaderboard is set up.
+     */
+    configureLeaderboard(encryptionKey) {
+        this.leaderboardKey = (typeof encryptionKey === 'string' && encryptionKey.length) ? encryptionKey : null;
+    }
+
+    /** AES-GCM per the CrazyGames docs: returns base64(iv || ciphertext). */
+    async _encryptScore(score, encryptionKey) {
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const algorithm = { name: 'AES-GCM', iv };
+        const keyBytes = new Uint8Array(atob(encryptionKey).split('').map(c => c.charCodeAt(0)));
+        const cryptoKey = await window.crypto.subtle.importKey('raw', keyBytes, algorithm, false, ['encrypt']);
+        const dataBuffer = new TextEncoder().encode(score.toString());
+        const encryptedBuffer = await window.crypto.subtle.encrypt(algorithm, cryptoKey, dataBuffer);
+        const combined = new Uint8Array(iv.length + encryptedBuffer.byteLength);
+        combined.set(iv);
+        combined.set(new Uint8Array(encryptedBuffer), iv.length);
+        return btoa(String.fromCharCode(...combined));
+    }
+
+    /**
+     * Submit a run's score. Never throws and never blocks the caller — a failed or
+     * unconfigured submission must not interfere with the game-over flow.
+     * @returns {Promise<boolean>} whether the score actually reached the portal.
+     */
+    async submitScore(score) {
+        if (!this.available || !this.leaderboardKey) return false;
+        const value = Math.max(0, Math.floor(Number(score) || 0));
+        try {
+            const userApi = window.CrazyGames.SDK.user;
+            if (!userApi || typeof userApi.submitScore !== 'function') return false;
+            // crypto.subtle is unavailable on insecure origins; guard rather than throw.
+            if (!window.crypto || !window.crypto.subtle) return false;
+            const encryptedScore = await this._encryptScore(value, this.leaderboardKey);
+            await userApi.submitScore({ encryptedScore, score: value });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    /**
+     * Ask the portal to celebrate (confetti on the game page). Documented for
+     * "beating a boss, reaching a highscore" — a personal best is exactly that.
+     */
+    happytime() {
+        if (!this.available) return;
+        try { window.CrazyGames.SDK.game.happytime(); } catch (e) {}
+    }
 
     /**
      * Resolves to `{ username, profilePictureUrl }` for the signed-in player, or
