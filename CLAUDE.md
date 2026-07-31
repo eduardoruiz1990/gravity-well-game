@@ -468,6 +468,33 @@ Wiring points in `index.html`:
 | Mute | `platformMuted` + `mutedByAd` feed one `applyMute()`; never unmute unconditionally |
 | Ad | `showGameOverAd()` on the `game-over` transition |
 
+### Portal identity: null is the normal case
+
+`portalSDK.onUserChange(applyPortalUser)` (wired in `init()`) drives two badges —
+`#menuPlayerBadge` under the menu title and `#hudPlayerBadge` in the HUD's **right**
+column, away from the score and from the edge the rift arrives at.
+
+`onUserChange` delivers the current player immediately *and* again on sign-in, because
+the SDK fires its auth listener when a guest logs in mid-session. Signing **out** does
+not fire it — the platform reloads the page instead.
+
+Three things that decide how this has to be written:
+
+- **`getUser()` resolves to `null` far more often than not** — guests, localhost, a
+  blocked CDN, or a domain with no account system. That is the ordinary path, not an
+  error, so both badges default to `hidden` and every layout must read correctly
+  without them. Do not add a placeholder or a "Sign in" prompt in their place.
+- **`.player-badge[hidden] { display: none }` is load-bearing.** The base rule sets
+  `display: flex`, which otherwise beats the `hidden` attribute and shows every guest an
+  empty badge.
+- **The avatar is the one runtime request beyond the SDK itself.** It is treated as
+  strictly optional: the badge paints the player's initial immediately and the `<img>`
+  is revealed only in its `onload`, so a slow or blocked portal CDN leaves a complete
+  badge rather than a broken-image icon. Keep it that way.
+
+The username is rendered with `textContent`, never `innerHTML` — it is text controlled
+by someone other than us.
+
 ### Leaderboard: submit-only, and it shapes the UI
 
 `CrazyGames.SDK.user.submitScore({ encryptedScore, score })` (see `PortalSDK.submitScore`)

@@ -322,6 +322,75 @@
         }
         .cosmetic-daily { border-color: rgba(124, 58, 237, 0.55); }
         .daily-locked { font-size: 0.66rem !important; line-height: 1.15; white-space: normal !important; }
+        /* --- PORTAL IDENTITY BADGE ---
+           One rule set drives both the menu and the HUD instance; only size and chrome
+           differ. `hidden` is honoured explicitly because the base rule sets display:flex,
+           which would otherwise beat the attribute and show an empty badge to guests. */
+        .player-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: fit-content;
+        }
+        .player-badge[hidden] { display: none; }
+        .player-avatar {
+            position: relative;
+            flex-shrink: 0;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            overflow: hidden;
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.5);
+        }
+        .player-avatar img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: none;          /* revealed only once it actually loads */
+            grid-area: 1 / 1;
+        }
+        .player-initial {
+            grid-area: 1 / 1;
+            font-weight: 800;
+            color: #ede9fe;
+            line-height: 1;
+            text-shadow: none;
+        }
+        .player-name {
+            font-weight: 700;
+            color: #e9d5ff;
+            max-width: 12ch;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* Menu: a full greeting block under the title. */
+        .player-badge-menu {
+            margin: 0 auto 0.9rem;
+            padding: 0.35rem 0.9rem 0.35rem 0.35rem;
+            border-radius: 999px;
+            background: rgba(76, 29, 149, 0.35);
+            border: 1px solid rgba(167, 139, 250, 0.35);
+        }
+        .player-badge-menu .player-avatar { width: 34px; height: 34px; }
+        .player-badge-menu .player-initial { font-size: 1rem; }
+        .player-meta { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+        .player-greeting {
+            font-size: 0.55rem; font-weight: 800; letter-spacing: 0.14em;
+            color: #a78bfa;
+        }
+        .player-badge-menu .player-name { font-size: 0.95rem; max-width: 16ch; }
+        /* HUD: compact, and deliberately quiet — it is identity, not information the
+           player has to act on, so it must never compete with the score. */
+        .player-badge-hud { opacity: 0.85; }
+        .player-badge-hud .player-avatar { width: 24px; height: 24px; }
+        .player-badge-hud .player-initial { font-size: 0.75rem; }
+        .player-badge-hud .player-name { font-size: 0.8rem; }
+        @media (max-width: 640px) {
+            /* The HUD row gets tight on phones; the avatar still identifies the player. */
+            .player-badge-hud .player-name { display: none; }
+        }
+
         .daily-run-badge {
             display: none;
             margin-top: 0.4rem;
@@ -1027,6 +1096,16 @@
         </div>
         
         <div class="right-ui">
+            <!-- Same identity, compact. Sits in the RIGHT column on purpose: the left one
+                 carries the score and combo, which change constantly, and the rift arrives
+                 from the left edge. -->
+            <div id="hudPlayerBadge" class="player-badge player-badge-hud" hidden>
+              <span class="player-avatar">
+                <img id="hudPlayerAvatar" alt="" referrerpolicy="no-referrer">
+                <span id="hudPlayerInitial" class="player-initial"></span>
+              </span>
+              <span id="hudPlayerName" class="player-name"></span>
+            </div>
             <div id="activeUpgradesContainer">
                 <span id="magnetIndicator" class="upgrade-icon" title="Fragment Magnet Active">🧲</span>
                 <span id="scoreIndicator" class="upgrade-icon" title="Score Bonus Active">✨</span>
@@ -1042,6 +1121,19 @@
       <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
         <div class="modal-content">
           <h1>Gravity Well</h1>
+          <!-- Portal identity. Hidden unless the player is signed in to CrazyGames —
+               guests and every off-portal build never see it, so the menu must (and does)
+               read correctly without it. Populated by applyPortalUser(). -->
+          <div id="menuPlayerBadge" class="player-badge player-badge-menu" hidden>
+            <span class="player-avatar">
+              <img id="menuPlayerAvatar" alt="" referrerpolicy="no-referrer">
+              <span id="menuPlayerInitial" class="player-initial"></span>
+            </span>
+            <span class="player-meta">
+              <span class="player-greeting">SIGNED IN AS</span>
+              <span id="menuPlayerName" class="player-name"></span>
+            </span>
+          </div>
           <p>Click and hold to guide the comet. Survive as long as you can.</p>
           <div class="stats-display">
             <div>
@@ -5487,6 +5579,45 @@
 
 
           // --- Initialization ---
+          // --- PORTAL IDENTITY ---
+          //
+          // Renders the signed-in CrazyGames player into both badges. `user` is null for
+          // guests, for localhost, and for any build where the SDK never loaded — and that
+          // is the COMMON case, not an error path, so null simply hides both badges.
+          //
+          // The avatar lives on the portal's CDN, which is the one place the game touches
+          // the network at runtime beyond the SDK itself. It is therefore treated as
+          // strictly optional: the badge renders the player's initial immediately and the
+          // <img> is only revealed if it actually loads, so a blocked or slow CDN leaves a
+          // complete badge rather than a broken-image icon.
+          let portalUser = null;
+          function applyPortalUser(user) {
+              portalUser = user && user.username ? user : null;
+              for (const key of ['menu', 'hud']) {
+                  const badge = document.getElementById(key + 'PlayerBadge');
+                  if (!badge) continue;
+                  if (!portalUser) { badge.hidden = true; continue; }
+                  const img = document.getElementById(key + 'PlayerAvatar');
+                  const initial = document.getElementById(key + 'PlayerInitial');
+                  const name = document.getElementById(key + 'PlayerName');
+                  // textContent, never innerHTML — the username is user-controlled text.
+                  name.textContent = portalUser.username;
+                  initial.textContent = portalUser.username.trim().charAt(0).toUpperCase() || '?';
+                  // Start on the initial, and SWAP rather than stack: both share one grid
+                  // cell, so leaving the initial visible paints it on top of the photo.
+                  img.style.display = 'none';
+                  initial.style.display = '';
+                  if (portalUser.profilePictureUrl) {
+                      img.onload = () => { img.style.display = 'block'; initial.style.display = 'none'; };
+                      img.onerror = () => { img.style.display = 'none'; initial.style.display = ''; };
+                      img.src = portalUser.profilePictureUrl;
+                  } else {
+                      img.removeAttribute('src');
+                  }
+                  badge.hidden = false;
+              }
+          }
+
           function init() {
               // console.log('[DEBUG] init: Initializing game...');
               portalSDK.loadingStart();
@@ -5505,6 +5636,12 @@
               // a sound. Fires once immediately with the current setting, then on change.
               // No-ops off-portal, where nothing external can force-mute us.
               portalSDK.onPlatformMuteChange(muted => { platformMuted = muted; applyMute(); });
+
+              // Portal identity in the menu and the HUD. onUserChange() delivers the
+              // current player immediately and again on sign-in, and no-ops entirely
+              // without a live portal — so localhost and guests simply keep the
+              // anonymous presentation rather than getting an empty badge.
+              portalSDK.onUserChange(applyPortalUser);
               // Re-apply the player's own saved preference too; the platform listener only
               // knows about the site-level switch.
               applyMute();
@@ -5599,6 +5736,13 @@
                   },
                   pickupRadius: playerComet ? playerComet.pickupRadius : null,
                   hitboxRadius: playerComet ? playerComet.radius : null,
+                  // Portal identity, plus whether each badge is actually on screen — the
+                  // two can disagree if the sweep in setGameState ever starts touching them.
+                  portalUser: portalUser ? portalUser.username : null,
+                  playerBadgeVisible: {
+                      menu: !!(document.getElementById('menuPlayerBadge') && !document.getElementById('menuPlayerBadge').hidden),
+                      hud: !!(document.getElementById('hudPlayerBadge') && !document.getElementById('hudPlayerBadge').hidden)
+                  },
                   activePowerUp: activePowerUp.type,
                   activePowerUpTimer: activePowerUp.timer,
                   safeLaneY: Math.round(safeLaneY),
