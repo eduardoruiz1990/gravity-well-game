@@ -1191,7 +1191,7 @@
           #mainMenu #playButton { grid-column: 2; grid-row: 1; }
           #mainMenu #dailyButton { grid-column: 2; grid-row: 2; }
           #mainMenu .button-grid { grid-column: 2; grid-row: 3; }
-          #mainMenu #audioToggleButton { grid-column: 2; grid-row: 4; justify-self: center; }
+          #mainMenu .menu-toggles { grid-column: 2; grid-row: 4; margin-top: 0.2rem; }
           .btn { padding: 0.55rem 1rem; margin-bottom: 0.5rem; font-size: 0.95rem; }
           #playButton, #restartButton, #resumeButton { font-size: 1rem; }
           .btn-secondary { padding: 0.5rem 0.75rem; font-size: 0.82rem; }
@@ -1219,6 +1219,9 @@
           background: rgba(9, 10, 26, 0.7); border: 1px solid var(--line);
         }
         .tutorial-skip:hover { color: #fff; background: rgba(167, 139, 250, 0.2); }
+        .menu-toggles { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-top: 0.9rem; }
+        .menu-toggles .audio-toggle { margin-top: 0; }
+        .audio-toggle[hidden] { display: none; }
         /* The shop has its own inner scroller; same touch rule as the panels. */
         .tab-content { touch-action: pan-y; overscroll-behavior: contain; }
         .shop-modal { background: linear-gradient(180deg, rgba(24, 20, 58, 0.94), rgba(8, 9, 24, 0.96)); }
@@ -1347,7 +1350,11 @@
             <button id="replayTutorialButton" class="btn btn-secondary">How to Play</button>
             <button id="observatoryButton" class="btn btn-secondary">Observatory</button>
           </div>
-          <button id="audioToggleButton" class="audio-toggle" aria-label="Toggle sound">🔊 Sound: On</button>
+          <div class="menu-toggles">
+            <button id="audioToggleButton" class="audio-toggle" aria-label="Toggle sound">🔊 Sound: On</button>
+            <button id="aimToggleButton" class="audio-toggle" aria-label="Toggle aim line">Aim line: On</button>
+            <button id="touchToggleButton" class="audio-toggle" aria-label="Touch control style" hidden>Touch: Thumb-stick</button>
+          </div>
         </div>
       </div>
 
@@ -2765,7 +2772,8 @@
               renderText() {
                   const step = this.currentStepConfig;
                   if (!step) return;
-                  const body = (this.retryTimer > 0 && this.retryMessage) ? this.retryMessage : step.text;
+                  const own = (typeof step.text === 'function') ? step.text() : step.text;
+                  const body = (this.retryTimer > 0 && this.retryMessage) ? this.retryMessage : own;
                   tutorialText.innerHTML = body.replace(/\n/g, '<br>');
               },
 
@@ -2853,7 +2861,8 @@
               // out the one verb. From step 3 it flies, at TUTORIAL_SLOW of real speed.
               steps: [
                   {
-                      text: IS_TOUCH ? "Touch and hold on the star." : "Click and hold on the star.",
+                      text: () => (IS_TOUCH && stickMode()) ? "Touch anywhere and drag toward the star."
+                               : IS_TOUCH ? "Touch and hold on the star." : "Click and hold on the star.",
                       onStart: () => {
                           obstacles = [];
                           tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
@@ -2877,7 +2886,8 @@
                   {
                       // The obstacle is a GATE, matching what the real game opens with.
                       // Collisions are live here — clearing it means clearing it.
-                      text: "Now it flies on its own.\nHold ahead of it to steer. Let go to fly straight.",
+                      text: () => (IS_TOUCH && stickMode()) ? "Now it flies on its own.\nSlide your thumb up or down to steer."
+                               : "Now it flies on its own.\nHold ahead of it to steer. Let go to fly straight.",
                       onCrashText: "Clipped it.\nHold toward the gap a little earlier.",
                       allowForwardSpeed: true,
                       speedFactor: TUTORIAL_SLOW,
@@ -3674,7 +3684,7 @@
           function loadPlayerData() {
               try {
                   const savedData = portalSDK.getItem('gravityWellSaveData');
-                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, assistRuns: 0, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
+                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
                   if (savedData) {
                       const loaded = JSON.parse(savedData);
                        const mergedCosmetics = {
@@ -3693,7 +3703,7 @@
                   }
               } catch (e) { 
                   console.error("Could not load player data, resetting.", e); 
-                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, assistRuns: 0, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
               }
           }
           // Draws one shop tile's artwork on a real canvas using the SAME code paths the
@@ -4294,6 +4304,7 @@
           let mutedByAd = false;
           function applyMute() { audioManager.setMuted(platformMuted || mutedByAd || !!playerData.audioMuted); }
 
+          let refreshControlToggles = () => {};   // assigned in setupEventListeners()
           function refreshAudioToggle() {
               if (!audioToggleButton) return;
               const off = !!playerData.audioMuted;
@@ -4320,9 +4331,6 @@
               worldGenHash = 2166136261 >>> 0; formationsSpawned = 0;
               runReady = true;   // from here the world is coherent and safe to simulate
               riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0; riftPulseCountdown = 0;
-              // Aim assist for a new player's first few real runs (see drawAimAssist).
-              runAimAssist = !isTutorial && (playerData.assistRuns || 0) < AIM_ASSIST_RUNS;
-              if (runAimAssist) { playerData.assistRuns = (playerData.assistRuns || 0) + 1; savePlayerData(); }
               audioManager.resetRiftTension();
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = []; floatingTexts = [];
               nearMissFxCooldown = 0; nearMissCount = 0; nearMissFlashFrames = 0;
@@ -4407,6 +4415,7 @@
                   if (headstartTimer >= HEADSTART_DURATION) endHeadstart();
               }
               updateKeyboardWell();
+              updateTouchStick();
               audioManager.tickFragmentCombo();
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 3);
               playerComet.update();
@@ -4501,6 +4510,7 @@
               if (gravityWell && !isHeadstarting) gravityWell.draw();
               drawAimAssist();
               drawTutorialCue();
+              drawTouchStick();
               drawRift();
               drawRiftWarning();
 
@@ -4522,19 +4532,21 @@
           // actually take. It runs the same steering maths as PlayerComet.update() (minus
           // the idle wave, which is too small to matter over this horizon), so the line
           // cannot promise a turn the comet will not make. Shown throughout the guided
-          // first run and for a new player's first AIM_ASSIST_RUNS real runs, then gone:
-          // it is training wheels, not a permanent overlay.
+          // first run and for a new player's first run and, by default, in normal play (see aimAssistOn).
           //
           // It also makes the well's one hidden rule visible. A well only pulls a comet
           // inside its circle; held further away it does nothing, which looked like the
           // game ignoring input. Out of reach, the assist draws a red dashed tether and
           // "TOO FAR" instead of a path.
-          const AIM_ASSIST_RUNS = 3;
           const AIM_STEPS = 84;
           const _aimPath = new Float32Array(AIM_STEPS * 2);
-          let runAimAssist = false;
+          // ON BY DEFAULT, and a setting ("Aim line" in the main menu). It began as
+          // training wheels for the first three runs; in play it turned out to be part of
+          // what makes the well readable at all, so it stays unless the player turns it
+          // off. The guided first run always shows it regardless of the setting.
           function aimAssistOn() {
-              return (gameState === 'tutorial' && tutorialManager.isActive) || (gameState === 'playing' && runAimAssist);
+              if (gameState === 'tutorial' && tutorialManager.isActive) return true;
+              return gameState === 'playing' && playerData.aimLine !== false;
           }
           function drawAimAssist() {
               if (!gravityWell || !playerComet || isHeadstarting || !aimAssistOn()) return;
@@ -4595,7 +4607,7 @@
               ctx.beginPath(); ctx.arc(sx, p.y, 26, 0, Math.PI * 2); ctx.stroke();
               ctx.font = '900 15px Inter, sans-serif'; ctx.textAlign = 'center';
               ctx.fillStyle = '#fde68a';
-              ctx.fillText('HOLD', sx, p.y + 52);
+              ctx.fillText((IS_TOUCH && stickMode()) ? 'AIM HERE' : 'HOLD', sx, p.y + 52);
               ctx.restore();
           }
 
@@ -4631,6 +4643,7 @@
               if (!playerComet || !tutorialManager.isActive) return;
               
               updateKeyboardWell();
+              updateTouchStick();
 
               // Set camera for tutorial
               cameraX = playerComet.x - (VIRTUAL_WIDTH / 4);
@@ -5012,6 +5025,93 @@
           // not impact.
           // Re-anchors the keyboard well to the comet every frame, so it keeps pulling in a
           // consistent direction as the comet moves instead of being left behind.
+          // --- THUMB-STICK TOUCH CONTROL ---
+          //
+          // Direct touch ("hold where you want the well") has two problems on a phone that
+          // a mouse does not: the well only works within ~206px of the comet, so every
+          // useful press lands on or beside the comet and the thumb COVERS it; and the
+          // player has to keep reaching for a moving point on the playfield.
+          //
+          // In stick mode a touch ANYWHERE (including the letterbox bars) is the centre of
+          // a floating stick, and the well is placed relative to the COMET (see
+          // updateTouchStick for the two mappings). Nothing needs to be reached for
+          // and nothing is under the thumb. It is the same idea as the keyboard control
+          // below (a well in a direction from the comet), with an analogue distance.
+          //
+          // Default for touch; "Touch: Direct" in the menu restores hold-where-you-press.
+          // Mouse input is always direct.
+          const touchStick = { active: false, ox: 0, oy: 0, dx: 0, dy: 0 };
+          let stickWellActive = false;
+          const STICK_FULL_PX = 62;        // CSS px of thumb travel for full reach
+          const STICK_DEADZONE_PX = 7;
+          const STICK_REACH = GRAVITY_WELL_RADIUS * 0.86;   // must stay inside the radius
+          // In flight: well this far ahead, up to this far above/below. The corner
+          // (LEAD, RISE) must stay inside GRAVITY_WELL_RADIUS or full deflection is inert.
+          const STICK_LEAD = GRAVITY_WELL_RADIUS * 0.58;
+          const STICK_RISE = GRAVITY_WELL_RADIUS * 0.74;
+          function stickMode() { return playerData.touchMode !== 'direct'; }
+          function updateTouchStick() {
+              if (!touchStick.active || !playerComet || isHeadstarting) {
+                  if (stickWellActive) { gravityWell = null; stickWellActive = false; }
+                  return;
+              }
+              const len = Math.hypot(touchStick.dx, touchStick.dy);
+              if (len < STICK_DEADZONE_PX) {
+                  if (stickWellActive) { gravityWell = null; stickWellActive = false; }
+                  return;
+              }
+              let wx, wy;
+              const backward = touchStick.dx < -0.6 * len;
+              if (playerComet.baseSpeed > 0 && !backward) {
+                  // IN FLIGHT the stick is a vertical slider, not a free direction. The
+                  // well sits a fixed distance AHEAD of the comet and the thumb only
+                  // moves it up and down. Two reasons, both found by flying it with a
+                  // scripted thumb:
+                  //   - A free direction is heading control: aim up, the comet climbs
+                  //     forever, and levelling out is a second, opposite input. Players of
+                  //     the direct control never needed that, because a well fixed in the
+                  //     world pulls level by itself as the comet reaches its height.
+                  //   - A well straight above a comet that it follows turns the comet
+                  //     vertical and stalls it in front of the collapse.
+                  // With the well ahead, thumb at centre height actively LEVELS the comet,
+                  // so "ease off to fly straight" is true and gates can be lined up.
+                  const v = Math.max(-1, Math.min(1, touchStick.dy / STICK_FULL_PX));
+                  wx = playerComet.x + STICK_LEAD;
+                  wy = playerComet.y + v * STICK_RISE;
+              } else {
+                  // Still comet (tutorial), or thumb pulled clearly backward (the "reel it
+                  // back" move): free direction from the comet, further out the further
+                  // the drag.
+                  const m = (0.4 + 0.6 * Math.min(1, len / STICK_FULL_PX)) * STICK_REACH;
+                  wx = playerComet.x + touchStick.dx / len * m;
+                  wy = playerComet.y + touchStick.dy / len * m;
+              }
+              if (gravityWell && stickWellActive) { gravityWell.x = wx; gravityWell.y = wy; }
+              else gravityWell = new GravityWell(wx, wy);
+              stickWellActive = true; keyboardWellActive = false;
+              // Still comet (the first two tutorial stars): a well that stays AHEAD of a
+              // lightly damped comet makes it circle the target instead of arriving. A
+              // cue-following test player orbited the second star at ~60px indefinitely.
+              // Extra damping here turns the stick into "move that way" while the comet
+              // has no speed of its own. It never applies in flight (baseSpeed > 0).
+              if (playerComet.baseSpeed === 0) { playerComet.vx *= 0.86; playerComet.vy *= 0.86; }
+          }
+          // The stick itself, drawn where the thumb went down (if that is on the picture).
+          function drawTouchStick() {
+              if (!touchStick.active || (gameState !== 'playing' && gameState !== 'tutorial')) return;
+              const rect = canvas.getBoundingClientRect();
+              const ox = (touchStick.ox - rect.left) / scale, oy = (touchStick.oy - rect.top) / scale;
+              const k = Math.min(1, Math.hypot(touchStick.dx, touchStick.dy) / STICK_FULL_PX);
+              const len = Math.hypot(touchStick.dx, touchStick.dy) || 1;
+              const R = STICK_FULL_PX / scale;
+              ctx.save();
+              ctx.strokeStyle = 'rgba(196, 181, 253, 0.35)'; ctx.lineWidth = 2;
+              ctx.beginPath(); ctx.arc(ox, oy, R, 0, Math.PI * 2); ctx.stroke();
+              ctx.fillStyle = 'rgba(221, 214, 254, 0.45)';
+              ctx.beginPath(); ctx.arc(ox + touchStick.dx / len * k * R, oy + touchStick.dy / len * k * R, R * 0.36, 0, Math.PI * 2); ctx.fill();
+              ctx.restore();
+          }
+
           function updateKeyboardWell() {
               if (!playerComet || isHeadstarting) return;
 
@@ -5698,6 +5798,16 @@
               };
 
               const startWell = (e) => { 
+                  // Thumb-stick mode: a touch is the stick's centre, not a well position.
+                  if (e.touches && stickMode()) {
+                      if ((gameState !== 'playing' && gameState !== 'tutorial') || isHeadstarting) return;
+                      e.preventDefault();
+                      const t = e.touches[0];
+                      touchStick.active = true; touchStick.ox = t.clientX; touchStick.oy = t.clientY;
+                      touchStick.dx = 0; touchStick.dy = 0;
+                      return;
+                  }
+                  if (e.target !== canvas) return;   // direct mode only makes sense on the picture
                   const pos = getPos(e); // 'pos' is now in SCREEN space
                   // TUTORIAL CHECK: Block input if manager says so
                   if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
@@ -5711,6 +5821,13 @@
               };
               
               const moveWell = (e) => { 
+                  if (touchStick.active && e.touches) {
+                      e.preventDefault();
+                      const t = e.touches[0];
+                      touchStick.dx = t.clientX - touchStick.ox; touchStick.dy = t.clientY - touchStick.oy;
+                      return;
+                  }
+                  if (e.target !== canvas) return;
                   const pos = getPos(e); // 'pos' is now in SCREEN space
                   // TUTORIAL CHECK: Block input if manager says so
                   if (gameState === 'tutorial' && tutorialManager.isInputBlocked(pos)) return;
@@ -5752,6 +5869,7 @@
                   if ((gameState === 'playing' || gameState === 'tutorial') && e.target === canvas) {
                       e.preventDefault(); 
                   }
+                  touchStick.active = false; stickWellActive = false;
                   gravityWell = null;
                   keyboardWellActive = false;
               };
@@ -5761,6 +5879,16 @@
               canvas.addEventListener('mousemove', moveWell);
               canvas.addEventListener('touchstart', startWell, { passive: false });
               canvas.addEventListener('touchmove', moveWell, { passive: false });
+              // Stick mode also accepts a touch that starts OFF the picture (the letterbox
+              // bars on a phone held upright are the natural place for a thumb). Buttons
+              // and menus are excluded so their taps still click.
+              const offCanvasTouch = (handler) => (e) => {
+                  if (e.target === canvas || !stickMode()) return;
+                  if (e.target.closest && e.target.closest('button, .modal-content')) return;
+                  handler(e);
+              };
+              appContainer.addEventListener('touchstart', offCanvasTouch(startWell), { passive: false });
+              appContainer.addEventListener('touchmove', offCanvasTouch(moveWell), { passive: false });
 
               // Global listeners for ending interaction reliably
               document.addEventListener('mouseup', endWell);
@@ -5929,6 +6057,26 @@
                   });
               }
 
+
+              // --- AIM LINE + TOUCH STYLE ---
+              // Player preferences, saved like the sound toggle. The touch toggle only
+              // exists on a touch device; with a mouse there is nothing to choose.
+              const aimToggleButton = document.getElementById('aimToggleButton');
+              const touchToggleButton = document.getElementById('touchToggleButton');
+              refreshControlToggles = () => {
+                  aimToggleButton.textContent = playerData.aimLine === false ? 'Aim line: Off' : 'Aim line: On';
+                  touchToggleButton.hidden = !IS_TOUCH;
+                  touchToggleButton.textContent = stickMode() ? 'Touch: Thumb-stick' : 'Touch: Direct';
+              };
+              aimToggleButton.addEventListener('click', () => {
+                  playerData.aimLine = (playerData.aimLine === false);
+                  savePlayerData(); refreshControlToggles(); audioManager.playClickSound();
+              });
+              touchToggleButton.addEventListener('click', () => {
+                  playerData.touchMode = stickMode() ? 'direct' : 'stick';
+                  savePlayerData(); refreshControlToggles(); audioManager.playClickSound();
+              });
+              // First paint happens in init(), after loadPlayerData() (this runs before it).
 
               // --- OBSERVATORY CLICK FIX (Consolidated Listener) ---
               // We now use ONE listener on the modal content to handle tabs,
@@ -6129,6 +6277,7 @@
               // knows about the site-level switch.
               applyMute();
               refreshAudioToggle();
+              refreshControlToggles();
 
               // The game is interactive as soon as the menu is up. Everything heavy
               // (Tone's audio graph) is built lazily on the first user gesture, so the

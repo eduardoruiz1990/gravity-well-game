@@ -428,10 +428,28 @@ a spotlight unrelated to the comet. Rules it is held to:
 - `window.gwStats().tutorialCue` / `.tutorialStep` let a probe follow the cues. A probe that
   does so must finish all five steps at 1280x720, 844x390 and 390x844.
 
-**Aim assist** (`drawAimAssist`): while a well is held, a dotted line shows the comet's real
+**Aim line** (`drawAimAssist`): while a well is held, a dotted line shows the comet's real
 predicted path (same maths as `PlayerComet.update`, minus the idle wave), or a red tether and
-"TOO FAR" when the well cannot reach. On for the tutorial and a player's first
-`AIM_ASSIST_RUNS` (3) real runs, counted in `playerData.assistRuns`.
+"TOO FAR" when the well cannot reach. Always on in the tutorial; in play it is a setting,
+**on by default** (`playerData.aimLine !== false`, "Aim line" toggle in the main menu).
+
+### Touch: thumb-stick by default (`updateTouchStick`)
+
+Direct touch puts the thumb on top of the comet (a well only works within ~206px of it) and
+makes the player chase a point on the playfield. On touch devices the default is a floating
+stick: a touch anywhere, including the letterbox bars, is its centre, and the well is placed
+relative to the comet. `playerData.touchMode === 'direct'` ("Touch: Direct" in the menu)
+restores hold-where-you-press. Mouse is always direct.
+
+- **In flight it is a vertical slider**: well `STICK_LEAD` ahead, up to `STICK_RISE` above or
+  below. A free direction is heading control (the comet climbs until you counter-steer) and a
+  well straight above a comet it follows stalls it; with the well ahead, a centred thumb
+  levels the comet. A thumb pulled clearly backward still gives the "reel back" move.
+- **With a still comet (tutorial steps 1-2) it is a free direction**, with extra damping so
+  the comet arrives instead of circling the target.
+- `(STICK_LEAD, STICK_RISE)` must stay inside `GRAVITY_WELL_RADIUS`.
+- `startWell`/`moveWell` branch on `e.touches && stickMode()`; off-canvas touches reach them
+  through `offCanvasTouch` on `#app`, which skips buttons and menus.
 
 ### Save data: merge `upgrades` key-by-key
 
