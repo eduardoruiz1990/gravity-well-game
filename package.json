@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "package": "npm run build && cd dist && rm -f ../gravity-well-crazygames.zip && zip -rq ../gravity-well-crazygames.zip . && cd .. && echo '-> gravity-well-crazygames.zip'"
+    "package": "npm run build && cd dist && rm -f ../gravity-well-crazygames.zip && zip -rq ../gravity-well-crazygames.zip . && cd .. && echo '-> gravity-well-crazygames.zip'",
+    "build:itch": "PORTAL=itch vite build --outDir dist-itch",
+    "package:itch": "npm run build:itch && cd dist-itch && rm -f ../gravity-well-itch.zip && zip -rq ../gravity-well-itch.zip . && cd .. && echo '-> gravity-well-itch.zip'"
   },
   "devDependencies": {
     "vite": "npm:rolldown-vite@7.1.14"

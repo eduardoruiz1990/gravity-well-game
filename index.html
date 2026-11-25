@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Gravity Well</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0a1d'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23a78bfa' stroke-width='2' opacity='.6'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23fbbf24'/%3E%3C/svg%3E" />
     <meta name="description" content="One mechanic: hold to bend gravity. Steer a comet through collapsing space, grab star fragments, and go as deep as you dare." />
 
     <!-- Portal SDK. This is the ONLY external request the game makes. Hosts where it
@@ -1062,6 +1063,179 @@
             opacity: 1;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth transition */
         }
+
+        /* =====================================================================
+           ITCH RELEASE: REPAINT + PHONE LAYOUT
+           One override block rather than edits scattered through the rules above,
+           so the whole visual pass can be read (or reverted) in one place.
+           ===================================================================== */
+        :root {
+          --ink: #04050d;
+          --line: rgba(167, 139, 250, 0.24);
+          --amber: #fbbf24;
+          --violet: #a78bfa;
+          background-color: var(--ink);
+        }
+        body {
+          height: 100dvh;
+          background: radial-gradient(120% 90% at 50% 38%, #171243 0%, #080920 52%, #03040b 100%);
+        }
+        /* Size and position come from resizeCanvas() (letterboxed 16:9). The old
+           width/height: 100% is what stretched the picture on every non-16:9 screen. */
+        #gameCanvas { width: auto; height: auto; left: 0; top: 0; }
+        /* HUD sits on the picture, not in the letterbox bars. */
+        .ui-container {
+          left: var(--stage-left, 0); top: var(--stage-top, 0); width: var(--stage-width, 100%);
+          padding: clamp(0.5rem, 2.2vmin, 1rem) clamp(0.75rem, 3vmin, 1.5rem);
+        }
+        .left-ui .score-display { font-size: clamp(1.25rem, 5vmin, 2rem); line-height: 1.05; font-variant-numeric: tabular-nums; }
+        .score-label {
+          display: block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.24em;
+          text-transform: uppercase; color: #a5b4fc; margin-bottom: 0.15rem;
+        }
+        .left-ui #runFragmentsContainer { font-size: clamp(0.9rem, 3.4vmin, 1.15rem); font-variant-numeric: tabular-nums; }
+        .left-ui .star-icon { font-size: 1.1em; }
+        .pause-btn {
+          width: clamp(2.5rem, 9vmin, 3.25rem); height: clamp(2.5rem, 9vmin, 3.25rem);
+          font-size: 1rem; letter-spacing: 0.1em; font-weight: 900;
+          background-color: rgba(9, 10, 26, 0.55); border: 1px solid var(--line); border-radius: 999px;
+        }
+
+        .modal { background-color: rgba(3, 4, 12, 0.5); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); }
+        .modal-content {
+          background: linear-gradient(180deg, rgba(24, 20, 58, 0.88), rgba(8, 9, 24, 0.93));
+          border: 1px solid var(--line);
+          border-radius: 1.25rem;
+          box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+          max-height: 94dvh;
+          /* body sets touch-action: none for the game; a panel taller than the screen
+             must still be scrollable by touch or its buttons are unreachable. */
+          touch-action: pan-y;
+          overscroll-behavior: contain;
+        }
+        #mainMenu .modal-content { padding: 2rem 2.5rem 1.5rem; }
+        h1 {
+          font-size: clamp(2rem, 8vmin, 3.6rem); line-height: 1.02; letter-spacing: 0.05em;
+          text-transform: uppercase; margin: 0 0 0.5rem;
+          background-image: linear-gradient(100deg, #fde68a 0%, #fbbf24 30%, #f97316 70%, #fb7185 100%);
+          filter: drop-shadow(0 0 22px rgba(249, 115, 22, 0.38));
+        }
+        .menu-tagline { font-size: 1rem; color: #c4b5fd; letter-spacing: 0.03em; margin: 0 0 0.25rem; }
+        .stats-display { margin: 1rem 0; display: flex; justify-content: center; gap: 2.5rem; }
+        .stats-display span:first-child { font-size: 0.68rem; letter-spacing: 0.18em; font-weight: 700; color: #a5b4fc; }
+        .stats-display span:last-child { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+        .gameover-title {
+          text-transform: uppercase; letter-spacing: 0.14em; font-weight: 900;
+          font-size: clamp(1.5rem, 6vmin, 2.3rem); color: #fda4af; margin: 0 0 0.75rem;
+          text-shadow: 0 0 26px rgba(244, 63, 94, 0.5);
+        }
+        #pauseMenu h2 { text-transform: uppercase; letter-spacing: 0.14em; font-weight: 900; font-size: 1.8rem; margin-bottom: 1.25rem; }
+
+        .btn {
+          background-color: rgba(167, 139, 250, 0.10); border: 1px solid var(--line);
+          backdrop-filter: none; -webkit-backdrop-filter: none;
+          border-radius: 0.9rem; padding: 0.85rem 1.25rem; font-size: 1.05rem; margin-bottom: 0.75rem;
+          letter-spacing: 0.04em;
+        }
+        .btn:hover { background-color: rgba(167, 139, 250, 0.2); }
+        .btn:active { background-color: rgba(167, 139, 250, 0.16); }
+        /* One unmistakable primary action per screen. */
+        #playButton, #restartButton, #resumeButton {
+          background: linear-gradient(135deg, #fcd34d, #f97316); color: #1c1003; border: none;
+          text-transform: uppercase; letter-spacing: 0.14em; font-weight: 900; font-size: 1.15rem;
+          box-shadow: 0 10px 30px rgba(249, 115, 22, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+          text-shadow: none;
+        }
+        #playButton:hover, #restartButton:hover, #resumeButton:hover {
+          background: linear-gradient(135deg, #fde68a, #fb923c);
+          box-shadow: 0 14px 36px rgba(249, 115, 22, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        }
+        .btn-daily { background: linear-gradient(135deg, rgba(124, 58, 237, 0.85), rgba(79, 70, 229, 0.85)); border-color: rgba(196, 181, 253, 0.4); }
+        .btn-daily:hover { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+        .btn-secondary { padding: 0.65rem 1rem; font-size: 0.92rem; }
+        .tutorial-text-box { background-color: rgba(12, 11, 32, 0.88); border: 1px solid var(--line); }
+
+        /* Only ever shown on a touch device held upright, where the 16:9 picture is a
+           narrow band. A hint, never a gate: the game is fully playable in portrait. */
+        .rotate-hint { display: none; }
+        @media (orientation: portrait) and (pointer: coarse) {
+          .rotate-hint {
+            display: block; margin: 0 0 0.75rem; padding: 0.35rem 0.75rem; border-radius: 999px;
+            background: rgba(167, 139, 250, 0.14); border: 1px solid var(--line);
+            color: #ddd6fe; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+          }
+        }
+
+        /* Narrow phones, upright. */
+        @media (max-width: 520px) {
+          .modal-content { padding: 1.25rem 1.1rem; min-width: 0; width: calc(100vw - 1.5rem); box-sizing: border-box; }
+          #mainMenu .modal-content { padding: 1.25rem 1.1rem 1rem; }
+          h2 { font-size: 1.6rem; margin-bottom: 1rem; }
+        }
+
+        /* Short viewports: phones held sideways, and small itch embeds. The stacked menu
+           is ~720px tall, so here it becomes two columns: identity and records on the
+           left, every action on the right, nothing below the fold. */
+        @media (max-height: 560px) and (min-width: 560px) {
+          .modal-content { padding: 0.9rem 1.25rem; }
+          #mainMenu .modal-content {
+            max-width: min(46rem, 96vw); width: min(46rem, 96vw); box-sizing: border-box;
+            padding: 0.9rem 1.25rem;
+            display: grid; grid-template-columns: 1fr 1fr; column-gap: 1.5rem; align-items: center;
+          }
+          #mainMenu h1 { grid-column: 1; grid-row: 1; font-size: clamp(1.6rem, 9vh, 2.6rem); margin: 0 0 0.2rem; }
+          #mainMenu .menu-tagline { grid-column: 1; grid-row: 2; font-size: 0.85rem; }
+          #mainMenu .stats-display { grid-column: 1; grid-row: 3; margin: 0.4rem 0; }
+          #mainMenu .records-block { grid-column: 1; grid-row: 4; }
+          #mainMenu #menuPlayerBadge { grid-column: 1; grid-row: 5; }
+          #mainMenu #playButton { grid-column: 2; grid-row: 1; }
+          #mainMenu #dailyButton { grid-column: 2; grid-row: 2; }
+          #mainMenu .button-grid { grid-column: 2; grid-row: 3; }
+          #mainMenu #audioToggleButton { grid-column: 2; grid-row: 4; justify-self: center; }
+          .btn { padding: 0.55rem 1rem; margin-bottom: 0.5rem; font-size: 0.95rem; }
+          #playButton, #restartButton, #resumeButton { font-size: 1rem; }
+          .btn-secondary { padding: 0.5rem 0.75rem; font-size: 0.82rem; }
+          .gameover-title { margin-bottom: 0.3rem; }
+          .stats-display { margin: 0.4rem 0; }
+          #gameOverModal .stats-display span:last-child { font-size: 1.4rem; }
+          h2 { font-size: 1.5rem; margin-bottom: 0.75rem; }
+        }
+        /* The shop has its own inner scroller; same touch rule as the panels. */
+        .tab-content { touch-action: pan-y; overscroll-behavior: contain; }
+        .shop-modal { background: linear-gradient(180deg, rgba(24, 20, 58, 0.94), rgba(8, 9, 24, 0.96)); }
+        .shop-header, .shop-tabs { border-bottom-color: var(--line); }
+        .shop-header h2 { text-transform: uppercase; letter-spacing: 0.1em; font-size: clamp(1.1rem, 4.5vmin, 1.6rem); font-weight: 900; }
+        .shop-currency { font-size: clamp(1.1rem, 4.5vmin, 1.6rem); font-variant-numeric: tabular-nums; }
+        .shop-currency .star-icon { font-size: 1.15em; }
+        .tab-button { backdrop-filter: none; -webkit-backdrop-filter: none; background-color: rgba(167, 139, 250, 0.10); border-color: var(--line); }
+        .tab-button.active { background: linear-gradient(135deg, rgba(251, 191, 36, 0.28), rgba(249, 115, 22, 0.28)); border-color: rgba(251, 191, 36, 0.6); }
+        .upgrade-item { background-color: rgba(167, 139, 250, 0.07); border-color: var(--line); }
+        @media (max-width: 520px) {
+          .shop-modal { height: 92dvh; max-height: none; width: calc(100vw - 1rem); padding: 0; }
+          .shop-header { padding: 0.9rem 1rem; }
+          .tab-content { padding: 0.9rem; }
+          .tab-button { padding: 0.6rem 0.4rem; font-size: 0.9rem; }
+        }
+        @media (max-height: 560px) and (min-width: 560px) {
+          .shop-modal { height: 96dvh; max-height: none; width: min(52rem, 96vw); padding: 0; }
+          .shop-header { padding: 0.45rem 1rem; }
+          .shop-tabs { padding: 0.3rem 0.5rem; }
+          .tab-button { padding: 0.4rem 0.5rem; font-size: 0.85rem; }
+          .tab-content { padding: 0.6rem 0.9rem; }
+          .shop-section { margin-bottom: 0.9rem; }
+          .upgrade-item { padding: 0.55rem 0.75rem; margin-bottom: 0.5rem; flex-direction: row; align-items: center; }
+          .upgrade-info { margin-bottom: 0; margin-right: 0.75rem; }
+          .upgrade-action { width: auto; }
+          .shop-footer { padding: 0.4rem; border-top-color: var(--line); }
+          /* Tutorial coaching must not sit on top of the comet on a 390px-tall screen. */
+          #tutorialOverlay.modal-visible .modal-content { bottom: 2%; width: 70%; max-width: 30rem; }
+          .tutorial-text-box { padding: 0.5rem 0.9rem; }
+          .tutorial-text-box p { font-size: 0.85rem; margin-bottom: 0.4rem; line-height: 1.35; }
+          .tutorial-text-box button { padding: 0.3rem 0.75rem; font-size: 0.75rem; width: auto; margin: 0 auto; }
+        }
+        @media (max-height: 400px) and (min-width: 560px) {
+          #mainMenu .records-block, #gameOverModal .records-block { display: none; }
+        }
     </style>
   </head>
   <body>
@@ -1084,7 +1258,7 @@
       <div class="ui-container" data-ui-screen="inGame">
         <div class="left-ui">
           <div class="score-display">
-            <span>Score: </span>
+            <span class="score-label">Score</span>
             <span id="score">0</span>
           </div>
           <div id="runFragmentsContainer" class="">
@@ -1120,6 +1294,7 @@
       <!-- Main Menu (Re-styled) -->
       <div id="mainMenu" class="modal modal-hidden" data-ui-screen="menu">
         <div class="modal-content">
+          <div class="rotate-hint">Turn your phone sideways for a bigger view</div>
           <h1>Gravity Well</h1>
           <!-- Portal identity. Hidden unless the player is signed in to CrazyGames —
                guests and every off-portal build never see it, so the menu must (and does)
@@ -1134,7 +1309,7 @@
               <span id="menuPlayerName" class="player-name"></span>
             </span>
           </div>
-          <p>Click and hold to guide the comet. Survive as long as you can.</p>
+          <p id="menuTagline" class="menu-tagline">Hold to bend gravity. Outrun the collapse.</p>
           <div class="stats-display">
             <div>
               <span>HIGH SCORE</span>
@@ -1165,7 +1340,7 @@
       <!-- Game Over Modal (Re-styled) -->
       <div id="gameOverModal" class="modal modal-hidden" data-ui-screen="gameOver">
         <div class="modal-content">
-          <h2 class="text-red-500">Game Over</h2>
+          <h2 class="gameover-title">Comet Lost</h2>
           <div id="newRecordBadge" class="new-record-badge">NEW RECORD</div>
           <div id="dailyResult" class="daily-result"></div>
           <div class="stats-display">
@@ -1714,7 +1889,42 @@
                       ctx.stroke();
                   }
               },
-              obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect' },
+              obstacle_default: { id: 'obstacle_default', name: 'Default Pillar', type: 'obstacle', cost: 0, previewClass: 'obstacle-preview', previewStyle: 'background-color: hsl(260, 80%, 60%); border: 2px solid hsl(260, 80%, 70%);', fillStyle: 'hsl(260, 80%, 60%)', strokeStyle: 'hsl(260, 80%, 70%)', collisionShape: 'rect',
+                  // The default pillar was a flat filled rectangle, which is most of why the
+                  // game read as a prototype. It is now a dark monolith with a lit edge in the
+                  // zone colour, so zone progression still recolours it. Living on the skin
+                  // (not in Obstacle.draw) means the shop preview and the records board get
+                  // the same picture for free. The hitbox is untouched: still the w x h rect.
+                  draw: (c, x, y, w, h, skin, obs) => {
+                      const edge = currentZoneColors.stroke || skin.strokeStyle;
+                      const body = currentZoneColors.obstacle || skin.fillStyle;
+                      c.save();
+                      // Phasing pillar about to re-materialise: keep the red warning blink the
+                      // flat renderer had. A custom draw that ignored it would hide a hazard.
+                      if (obs && obs.type === 'phasing' && obs.isActive === false) {
+                          const a = Math.abs(Math.sin((obs.phaseTimer || 0) * 0.2));
+                          c.fillStyle = `rgba(239, 68, 68, ${0.12 + a * 0.5})`;
+                          c.fillRect(x, y, w, h);
+                          c.strokeStyle = 'rgba(255, 150, 150, 0.7)'; c.lineWidth = 2;
+                          c.setLineDash([8, 6]); c.strokeRect(x + 1, y + 1, w - 2, h - 2); c.setLineDash([]);
+                          c.restore();
+                          return;
+                      }
+                      c.fillStyle = '#0c0a1d'; c.fillRect(x, y, w, h);
+                      c.globalAlpha = 0.34; c.fillStyle = body; c.fillRect(x, y, w, h);
+                      c.fillStyle = edge;
+                      c.globalAlpha = 0.20;
+                      for (let by = y + 14; by < y + h - 8; by += 26) c.fillRect(x + 6, by, w - 12, 3);
+                      c.globalAlpha = 0.45;
+                      c.fillRect(x + w / 2 - 1, y + 8, 2, Math.max(0, h - 16));
+                      c.globalCompositeOperation = 'lighter';
+                      c.strokeStyle = edge;
+                      c.globalAlpha = 0.14; c.lineWidth = 12; c.strokeRect(x, y, w, h);
+                      c.globalAlpha = 0.28; c.lineWidth = 5; c.strokeRect(x, y, w, h);
+                      c.globalCompositeOperation = 'source-over';
+                      c.globalAlpha = 1; c.lineWidth = 2; c.strokeRect(x + 1, y + 1, w - 2, h - 2);
+                      c.restore();
+                  } },
               obstacle_rock: { 
                   id: 'obstacle_rock', name: 'Asteroid', type: 'obstacle', cost: 2000, previewClass: 'obstacle-preview', 
                   previewStyle: 'background: linear-gradient(135deg, #a1a1aa, #71717a, #52525b); border: 2px solid #a1a1aa; border-radius: 50%; animation: pulse-glow 3s infinite ease-in-out; --glow-color: #a1a1aa;',
@@ -1943,6 +2153,33 @@
           let _wellGrad = null;
           let _riftReachGrad = null;
           let _vignetteSprite = null;
+
+          // Soft radial glow, pre-rendered ONCE per colour into an offscreen canvas and then
+          // stamped with drawImage. This is how the comet and the fragments get a halo
+          // without breaking the "never construct a gradient in a draw call" rule and
+          // without shadowBlur, which is far too slow per-entity on phones.
+          const _glowSprites = new Map();
+          function getGlowSprite(rgb) {
+              let sp = _glowSprites.get(rgb);
+              if (!sp) {
+                  sp = document.createElement('canvas'); sp.width = sp.height = 96;
+                  const g = sp.getContext('2d');
+                  const grad = g.createRadialGradient(48, 48, 0, 48, 48, 48);
+                  grad.addColorStop(0, `rgba(${rgb}, 0.9)`);
+                  grad.addColorStop(0.25, `rgba(${rgb}, 0.38)`);
+                  grad.addColorStop(0.6, `rgba(${rgb}, 0.10)`);
+                  grad.addColorStop(1, `rgba(${rgb}, 0)`);
+                  g.fillStyle = grad; g.fillRect(0, 0, 96, 96);
+                  _glowSprites.set(rgb, sp);
+              }
+              return sp;
+          }
+          function drawGlow(c, rgb, x, y, r, alpha) {
+              const prevOp = c.globalCompositeOperation, prevA = c.globalAlpha;
+              c.globalCompositeOperation = 'lighter'; c.globalAlpha = alpha;
+              c.drawImage(getGlowSprite(rgb), x - r, y - r, r * 2, r * 2);
+              c.globalCompositeOperation = prevOp; c.globalAlpha = prevA;
+          }
 
           function drawWellFalloff(x, y, r) {
               if (!_wellGrad) {
@@ -2186,7 +2423,12 @@
 
           const VIRTUAL_WIDTH = 1280;
           const VIRTUAL_HEIGHT = 720;
-          let scale = 1;
+          // Coarse primary pointer = phone/tablet. Used for wording only, never for input
+          // handling: both mouse and touch listeners are always attached.
+          const IS_TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+          let scale = 1;          // CSS px per virtual px (input, DOM overlays)
+          let renderScale = 1;    // scale * devicePixelRatio (canvas transform only)
+          let stageLeft = 0, stageTop = 0;   // where the letterboxed canvas sits in #app
 
           const GRAVITY_WELL_RADIUS = VIRTUAL_HEIGHT / 3.5;
           // MUST stay inside the well's own influence radius. PlayerComet.update() only
@@ -2526,7 +2768,14 @@
               steps: [
                   {
                       // Absorbs the old "Welcome" + "This is your comet" beats.
-                      text: "Your comet is dead still.\nCLICK and HOLD anywhere to create a Gravity Well.\n(or hold the ARROW KEYS)",
+                      // Touch devices have no cursor and no arrow keys; telling a phone
+                      // player to "click" (or reach for keys) is the first thing they read.
+                      // It also said "anywhere", which was false: isInputBlocked() ignores a
+                      // press outside the spotlight, so a player who took the text at its
+                      // word pressed elsewhere and nothing happened.
+                      text: IS_TOUCH
+                          ? "Your comet is dead still.\nTOUCH and HOLD inside the bright circle to create a Gravity Well."
+                          : "Your comet is dead still.\nCLICK and HOLD inside the bright circle to create a Gravity Well.\n(or hold the ARROW KEYS)",
                       blockInput: false, // Allow input
                       spotlight: () => ({ x: playerComet.x + 150, y: playerComet.y - 150, width: 150, height: 150, shape: 'circle' }),
                       isDone: () => gravityWell !== null
@@ -2722,8 +2971,8 @@
                       const height = bounds.height * scale;
 
                       tutorialSpotlight.className = 'tutorial-spotlight';
-                      tutorialSpotlight.style.left = `${screenX - width / 2}px`;
-                      tutorialSpotlight.style.top = `${screenY - height / 2}px`;
+                      tutorialSpotlight.style.left = `${stageLeft + screenX - width / 2}px`;
+                      tutorialSpotlight.style.top = `${stageTop + screenY - height / 2}px`;
                       tutorialSpotlight.style.width = `${width}px`;
                       tutorialSpotlight.style.height = `${height}px`;
                       tutorialSpotlight.style.borderRadius = (bounds.shape === 'circle') ? '50%' : '10px';
@@ -2916,6 +3165,10 @@
                   const equippedSkinId = playerData.cosmetics.equipped.comet;
                   const skin = cosmeticItems[equippedSkinId] || cosmeticItems['comet_default'];
                   const primaryColor = this.getPrimarySkinColor(skin.fillStyle); // Get primary color for trail
+
+                  // Halo behind everything, so the comet reads as a light source rather
+                  // than a disc. Scales with the hitbox, so `shrink` visibly shrinks it too.
+                  drawGlow(ctx, '196, 181, 253', screenX, this.y, this.radius * 4.6, 0.55);
 
                   // Draw Trail using primary skin color
                   this.trail.forEach((t, i) => {
@@ -3243,6 +3496,7 @@
                   // NOTE: 'pulse', not the module-level 'scale' — this is the idle
                   // breathing animation. drawGame() has already applied the canvas scale.
                   this.animation += 0.07; const pulse = 1 + Math.sin(this.animation) * 0.1; const screenX = this.x - cameraX;
+                  drawGlow(ctx, '250, 204, 21', screenX, this.y, this.radius * 3.4, 0.5);
                   ctx.save(); ctx.translate(screenX, this.y); ctx.rotate(this.animation * 0.5); ctx.scale(pulse, pulse); ctx.fillStyle = '#facc15'; ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
                   ctx.beginPath();
                   for (let i = 0; i < 5; i++) { let angle = (i / 5) * 2 * Math.PI; ctx.lineTo(Math.cos(angle) * this.radius, Math.sin(angle) * this.radius); angle += (1 / 5) * Math.PI; ctx.lineTo(Math.cos(angle) * (this.radius / 2), Math.sin(angle) * (this.radius / 2)); }
@@ -4129,7 +4383,7 @@
 
           function drawGame() {
               ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.save(); ctx.scale(scale, scale);
+              ctx.save(); ctx.scale(renderScale, renderScale);
               
               drawBackground(); // Use the dedicated background drawing function
 
@@ -4236,7 +4490,7 @@
           }
           function drawMenu() {
               ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
-              ctx.save(); ctx.scale(scale, scale); 
+              ctx.save(); ctx.scale(renderScale, renderScale); 
               
               drawBackground(); // Use the dedicated background drawing function
 
@@ -4250,7 +4504,38 @@
               ctx.restore();
           }
 
-          function resizeCanvas() { const { clientWidth, clientHeight } = appContainer; scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT); canvas.width = VIRTUAL_WIDTH * scale; canvas.height = VIRTUAL_HEIGHT * scale; }
+          // LETTERBOX + HI-DPI.
+          //
+          // The canvas used to be CSS-stretched to 100% x 100% of the page while its
+          // backing store was sized to the uniform-scale 16:9 fit. On any viewport that is
+          // not exactly 16:9 (every phone, a 16:10 laptop in fullscreen) that drew the game
+          // non-uniformly stretched AND put the pointer mapping out of step with the
+          // picture. Now the element is sized to the fit and centred, so one `scale`
+          // (CSS px per virtual px) is true for both drawing and input.
+          //
+          // `renderScale` is `scale` times the device pixel ratio (capped at 2 — a 3x phone
+          // would push 9x the pixels for no visible gain), so text and edges are sharp on
+          // phones. Use `scale` for anything in CSS pixels (input, DOM overlays) and
+          // `renderScale` only for the canvas transform.
+          //
+          // The stage rectangle is published as --stage-* custom properties so the HUD can
+          // sit on the picture rather than in the letterbox bars.
+          function resizeCanvas() {
+              const { clientWidth, clientHeight } = appContainer;
+              scale = Math.min(clientWidth / VIRTUAL_WIDTH, clientHeight / VIRTUAL_HEIGHT);
+              const dpr = Math.min(window.devicePixelRatio || 1, 2);
+              renderScale = scale * dpr;
+              const cssW = Math.round(VIRTUAL_WIDTH * scale), cssH = Math.round(VIRTUAL_HEIGHT * scale);
+              stageLeft = Math.round((clientWidth - cssW) / 2);
+              stageTop = Math.round((clientHeight - cssH) / 2);
+              canvas.width = Math.round(VIRTUAL_WIDTH * renderScale);
+              canvas.height = Math.round(VIRTUAL_HEIGHT * renderScale);
+              canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+              canvas.style.left = stageLeft + 'px'; canvas.style.top = stageTop + 'px';
+              const rs = appContainer.style;
+              rs.setProperty('--stage-left', stageLeft + 'px'); rs.setProperty('--stage-top', stageTop + 'px');
+              rs.setProperty('--stage-width', cssW + 'px'); rs.setProperty('--stage-height', cssH + 'px');
+          }
           function getObstacleTypeForZone() { const zoneIndex = getRunZone(); const rand = worldRandom(); if (zoneIndex < 1) return 'static'; if (zoneIndex < 3) return rand < 0.6 ? 'static' : 'vertical'; return rand < 0.4 ? 'static' : (rand < 0.8 ? 'vertical' : 'phasing'); }
 
           // --- OBSTACLE FORMATIONS ---
@@ -5266,7 +5551,15 @@
                   // THE FIX:
                   // Only prevent default if the mouseup was ending a game action,
                   // but *always* clear the gravityWell variable.
-                  if ((gameState === 'playing' || gameState === 'tutorial')) {
+                  //
+                  // ...and ONLY when the gesture ended on the canvas. This listener is on
+                  // `document`, so it also sees the touchend of a tap on the pause button or
+                  // on "Skip Tutorial". Calling preventDefault() on a touchend cancels the
+                  // click the browser would synthesise from it, so on a phone both buttons
+                  // were dead during play: you could not pause and could not skip. Mouse
+                  // was unaffected (preventDefault on mouseup does not cancel click), which
+                  // is why it never showed up on desktop.
+                  if ((gameState === 'playing' || gameState === 'tutorial') && e.target === canvas) {
                       e.preventDefault(); 
                   }
                   gravityWell = null;
@@ -5702,6 +5995,14 @@
                   columnBlockedPct: Math.round(blockedRows / SAMPLES * 100),
                   gatePieces: onScreen.filter(o => o.y <= 0 || o.y + o.height >= VIRTUAL_HEIGHT - 1).length,
                   fragments: starFragments.length,
+                  // Nearest fragment still ahead of the comet, so an automated playtest can
+                  // collect (and therefore hold the rift off) instead of only dodging.
+                  nextFragment: (() => {
+                      if (!playerComet) return null;
+                      let best = null;
+                      for (const f of starFragments) if (f.x > playerComet.x + 20 && (!best || f.x < best.x)) best = f;
+                      return best ? { x: Math.round(best.x), y: Math.round(best.y) } : null;
+                  })(),
                   gateGapNow: getGateGap(getRunZone()),
                   nextGap,
                   headstarting: isHeadstarting,

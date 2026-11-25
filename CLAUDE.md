@@ -8,7 +8,8 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 pulled toward it. Vanilla JS, HTML5 Canvas 2D, Tone.js for audio, built with Vite. No
 framework, no TypeScript.
 
-**Web only.** The single ship target is a self-contained HTML bundle for CrazyGames.
+**Web only.** Two ship targets from the one `index.html`: the standalone build for itch.io
+(`npm run package:itch`, no portal script at all) and the CrazyGames bundle (`npm run package`).
 There is no native/mobile wrapper — see "Scope" below.
 
 ## Commands
@@ -18,6 +19,8 @@ npm run dev       # Vite dev server
 npm run build     # production build -> dist/
 npm run preview   # serve the production build
 npm run package   # build + zip dist/ contents -> gravity-well-crazygames.zip
+npm run build:itch    # standalone build -> dist-itch/ (CrazyGames SDK <script> stripped)
+npm run package:itch  # build:itch + zip -> gravity-well-itch.zip (index.html at the zip root)
 ```
 
 There is no test runner. Verification is manual, plus the browser probes described below.
@@ -72,8 +75,19 @@ off it for exactly that reason.
 ### Rendering is virtual-resolution + letterboxed
 
 All drawing happens in a fixed `VIRTUAL_WIDTH` x `VIRTUAL_HEIGHT` (1280x720) space.
-`resizeCanvas()` computes a uniform `scale`, and `drawGame()` applies it once via
-`ctx.scale(scale, scale)`. Input is converted back with `/ scale`.
+`resizeCanvas()` fits that 16:9 stage into `#app`, **sizes and centres the canvas element
+itself** (inline `width/height/left/top`), and publishes the rectangle as `--stage-left/top/
+width/height` so the HUD sits on the picture instead of in the letterbox bars.
+
+Two scales, and they are not interchangeable:
+
+- `scale` — CSS px per virtual px. Use it for input (`getPos`) and for DOM overlays
+  (the tutorial spotlight, which must also add `stageLeft`/`stageTop`).
+- `renderScale` — `scale` x devicePixelRatio (capped at 2). Use it **only** for
+  `ctx.scale()` in `drawGame()`/`drawMenu()`.
+
+Never put `width: 100%; height: 100%` back on `#gameCanvas`. That is what stretched the
+picture (and skewed the pointer mapping) on every viewport that was not exactly 16:9.
 
 Careful: `StarFragment.draw()` declares a **local** `const pulse` that used to be named
 `scale` and shadowed the module-level one. It is an idle animation, not the canvas scale.
@@ -527,6 +541,23 @@ the shop uses. That's deliberate: it gives cosmetics a reason to exist beyond a 
   classes) and Google Fonts were both removed; Tone.js is bundled from npm. Don't
   reintroduce a CDN.
 - Submission = zip the **contents** of `dist/`, with `index.html` at the zip root.
+
+## Phone and touch rules (itch release)
+
+- **Menus must fit without scrolling at 844x390 and 390x844.** The visual pass and every
+  responsive rule live in one block at the end of `<style>` ("ITCH RELEASE"). Short
+  viewports get a two-column main menu; add new menu items to that grid too.
+- **Anything scrollable needs `touch-action: pan-y`.** `body` is `touch-action: none` for
+  the game, so a panel taller than the screen is otherwise unreachable by touch.
+- **`endWell` may only `preventDefault()` when `e.target === canvas`.** It is a `document`
+  listener; cancelling the touchend of a tap on a button cancels its click, which made
+  Pause and Skip Tutorial dead on phones while leaving mouse unaffected.
+- **Wording follows `IS_TOUCH`** (`pointer: coarse`). It is for copy only; mouse and touch
+  listeners are both always attached.
+- The tutorial ignores presses outside the spotlight (`isInputBlocked`), so step text must
+  say "inside the bright circle", never "anywhere".
+- The default pillar is drawn by `cosmeticItems.obstacle_default.draw`; halos use
+  `drawGlow()` (pre-rendered sprite), never `shadowBlur` or a per-frame gradient.
 
 ## Verifying changes
 

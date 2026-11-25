@@ -25,3 +25,5 @@ gravity-well-crazygames.zip
 *.njsproj
 *.sln
 *.sw?
+dist-itch
+*.zip
