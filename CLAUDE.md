@@ -403,21 +403,35 @@ measurement showed it passing through 20 obstacles mid-flight, so it could land 
 - Don't allocate to read a constant: `POWERUP_COLORS` is module-level because code was
   constructing throwaway `PowerUp` instances just to read one hex string.
 
-### Tutorial: real collisions with a soft rewind
+### Tutorial: a guided first run
 
-Collisions are **live** during the tutorial. They previously were not — `checkCollisions()`
-returned early for `gameState === 'tutorial'` and the obstacle step completed on the comet's
-x passing the obstacle's right edge, so a player could fly straight through and be
-congratulated for dodging. (An automated walkthrough passed it by coasting with no input.)
+`tutorialManager.steps` is five beats: two stars with the comet held still (one above, one
+below), a practice gate while flying at `TUTORIAL_SLOW`, the collapse with three stars that
+push it back, then a one-line send-off into a normal run. It was rewritten because the old
+one told the player what to do in a text box at the bottom and only accepted presses inside
+a spotlight unrelated to the comet. Rules it is held to:
 
-Now `updateTutorial()` catches `collisionResult.obstacle` and calls
-`tutorialManager.handleCrash()`, which rewinds to `checkpoint`, shows the step's
-`onCrashText` for ~2.5s and lets the player retry. It stays unloseable while a mistake
-finally means something. `renderText()` is the single owner of the banner so step text and
-retry coaching cannot fight over the element.
+- **The cue is drawn on the playfield** (`step.cue()` -> `drawTutorialCue()`), and the caption
+  rides beside the comet (`positionCaption()`, DOM so it stays readable when letterboxed).
+- **Input is never gated by position.** `isInputBlocked` only honours `blockInput`.
+- **Steps end on outcomes** (`isDone`), never on a press or a timer (bar the send-off).
+- **A cue must be reachable.** A well only pulls a comet inside its circle (radius ~206), so
+  the still-comet stars spawn in range and flying steps use `leadCue()`: just ahead of the
+  comet on the target's side, the target itself once in reach, nothing when lined up.
+- **Never park a cue in a gap.** A flying comet ORBITS a held well; a cue in the gate's
+  opening had a cue-following player circling it forever. `leadCue(..., false)` for gates.
+- The collapse here is **scripted** (`step.tick`, `riftScripted`), not `updateRift()`: it
+  stops 125px behind the comet and cannot kill. `onFragment()` does the pushback.
+- Out of range for 25 frames shows "Too far. Hold closer to the comet."
+- Collisions are **live** and rewind to `checkpoint` (`handleCrash`). From the second crash
+  the practice gate widens (`onRetry`). Flying past all three stars re-lays them (`missed`).
+- `window.gwStats().tutorialCue` / `.tutorialStep` let a probe follow the cues. A probe that
+  does so must finish all five steps at 1280x720, 844x390 and 390x844.
 
-The tutorial gate's gap is deliberately offset ~150px from the comet's line — centring it
-would let the player coast through and re-create the fake success.
+**Aim assist** (`drawAimAssist`): while a well is held, a dotted line shows the comet's real
+predicted path (same maths as `PlayerComet.update`, minus the idle wave), or a red tether and
+"TOO FAR" when the well cannot reach. On for the tutorial and a player's first
+`AIM_ASSIST_RUNS` (3) real runs, counted in `playerData.assistRuns`.
 
 ### Save data: merge `upgrades` key-by-key
 
@@ -554,8 +568,6 @@ the shop uses. That's deliberate: it gives cosmetics a reason to exist beyond a 
   Pause and Skip Tutorial dead on phones while leaving mouse unaffected.
 - **Wording follows `IS_TOUCH`** (`pointer: coarse`). It is for copy only; mouse and touch
   listeners are both always attached.
-- The tutorial ignores presses outside the spotlight (`isInputBlocked`), so step text must
-  say "inside the bright circle", never "anywhere".
 - The default pillar is drawn by `cosmeticItems.obstacle_default.draw`; halos use
   `drawGlow()` (pre-rendered sprite), never `shadowBlur` or a per-frame gradient.
 

@@ -1200,6 +1200,25 @@
           #gameOverModal .stats-display span:last-child { font-size: 1.4rem; }
           h2 { font-size: 1.5rem; margin-bottom: 0.75rem; }
         }
+        /* Guided first run: a caption that rides beside the comet (positioned by
+           tutorialManager.positionCaption) and a small Skip in the stage's corner. */
+        #tutorialOverlay { display: block; }
+        .tutorial-caption {
+          position: absolute; margin: 0; max-width: min(21rem, calc(100vw - 16px)); width: max-content;
+          padding: 0.4rem 0.8rem; border-radius: 0.7rem;
+          background: rgba(8, 8, 24, 0.82); border: 1px solid rgba(253, 230, 138, 0.45);
+          color: #fff; font-size: clamp(0.85rem, 2.7vmin, 1.1rem); font-weight: 700; line-height: 1.3;
+          text-align: center; pointer-events: none; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+        .tutorial-caption:empty { display: none; }
+        .tutorial-skip {
+          position: absolute; pointer-events: all; cursor: pointer;
+          right: calc(var(--stage-left, 0px) + 12px); bottom: calc(var(--stage-top, 0px) + 12px);
+          padding: 0.4rem 0.85rem; border-radius: 999px; font: 700 0.8rem 'Inter', sans-serif;
+          letter-spacing: 0.06em; color: #c4b5fd;
+          background: rgba(9, 10, 26, 0.7); border: 1px solid var(--line);
+        }
+        .tutorial-skip:hover { color: #fff; background: rgba(167, 139, 250, 0.2); }
         /* The shop has its own inner scroller; same touch rule as the panels. */
         .tab-content { touch-action: pan-y; overscroll-behavior: contain; }
         .shop-modal { background: linear-gradient(180deg, rgba(24, 20, 58, 0.94), rgba(8, 9, 24, 0.96)); }
@@ -1227,11 +1246,6 @@
           .upgrade-info { margin-bottom: 0; margin-right: 0.75rem; }
           .upgrade-action { width: auto; }
           .shop-footer { padding: 0.4rem; border-top-color: var(--line); }
-          /* Tutorial coaching must not sit on top of the comet on a 390px-tall screen. */
-          #tutorialOverlay.modal-visible .modal-content { bottom: 2%; width: 70%; max-width: 30rem; }
-          .tutorial-text-box { padding: 0.5rem 0.9rem; }
-          .tutorial-text-box p { font-size: 0.85rem; margin-bottom: 0.4rem; line-height: 1.35; }
-          .tutorial-text-box button { padding: 0.3rem 0.75rem; font-size: 0.75rem; width: auto; margin: 0 auto; }
         }
         @media (max-height: 400px) and (min-width: 560px) {
           #mainMenu .records-block, #gameOverModal .records-block { display: none; }
@@ -1500,12 +1514,8 @@
       
       <!-- Tutorial UI (Re-styled) -->
       <div id="tutorialOverlay" class="modal modal-hidden" data-ui-screen="tutorial">
-          <div class="modal-content">
-              <div class="tutorial-text-box">
-                  <p id="tutorialText"></p>
-                  <button id="skipTutorialButton" class="btn btn-secondary">Skip Tutorial</button>
-              </div>
-          </div>
+          <p id="tutorialText" class="tutorial-caption"></p>
+          <button id="skipTutorialButton" class="tutorial-skip">Skip &rsaquo;</button>
       </div>
       
       <!-- Tutorial Spotlight (Unchanged) -->
@@ -2382,6 +2392,8 @@
           }
 
           const INERTIAL_DAMPING = 0.98;
+          // Fraction of real opening speed the comet flies at during the guided first run.
+          const TUTORIAL_SLOW = 0.6;
           const SCORE_DIVISOR = 7;
           const WAVE_AMPLITUDE = 0.5;
           const WAVE_FREQUENCY = 0.03;
@@ -2704,7 +2716,12 @@
               currentStep: 0,
               isPausedForInstruction: false,
               currentStepConfig: null,
-              spotlightBounds: null, // Stores { x, y, width, height, shape }
+              spotlightBounds: null, // legacy; the DOM spotlight is no longer used
+              gate: null,            // { x, centre } of the practice gate
+              riftScripted: false,   // true while the tutorial drives riftX itself
+              starsCollected: 0,
+              tooFarFrames: 0,
+              cuePos: null,          // world { x, y } the on-canvas cue is drawn at
 
               // --- SOFT REWIND ---
               // The tutorial is still unloseable, but a crash is no longer a no-op. On a
@@ -2737,6 +2754,7 @@
                   heldDirections.clear();
 
                   const step = this.currentStepConfig;
+                  if (step && step.onRetry) step.onRetry();
                   this.retryMessage = (step && step.onCrashText) || "Not quite — try again.";
                   this.retryTimer = 150;   // ~2.5s
                   this.renderText();
@@ -2749,6 +2767,53 @@
                   if (!step) return;
                   const body = (this.retryTimer > 0 && this.retryMessage) ? this.retryMessage : step.text;
                   tutorialText.innerHTML = body.replace(/\n/g, '<br>');
+              },
+
+              // The caption rides next to the comet instead of sitting in a box at the
+              // bottom of the screen: the instruction has to be where the player is
+              // already looking. It is DOM, not canvas text, so it stays a readable size
+              // when the 16:9 picture is letterboxed small on a phone held upright.
+              // It goes on the opposite side of the comet from the cue so it never
+              // covers the thing it is pointing the player at.
+              positionCaption() {
+                  if (!playerComet) return;
+                  const below = this.cuePos ? (this.cuePos.y <= playerComet.y) : (playerComet.y < VIRTUAL_HEIGHT / 2);
+                  const cx = stageLeft + (playerComet.x - cameraX) * scale;
+                  const cy = stageTop + (playerComet.y + (below ? 64 : -64)) * scale;
+                  const w = appContainer.clientWidth;
+                  const half = Math.min(170, w / 2 - 8);
+                  tutorialText.style.left = Math.max(half + 8, Math.min(w - half - 8, cx)) + 'px';
+                  tutorialText.style.top = cy + 'px';
+                  tutorialText.style.transform = below ? 'translate(-50%, 0)' : 'translate(-50%, -100%)';
+              },
+
+              // Where to hold to reach a target while FLYING. A cue drawn on a target the
+              // well cannot reach from there would teach the player to press out of range
+              // (and earn a "Too far"). So: on the target once it is within reach, otherwise
+              // just ahead of the comet on the side the target is on, and nothing at all
+              // when the comet is already lined up — letting go is the right move then.
+              _lead: { x: 0, y: 0 },
+              //
+              // `collectable` is false for the gate: a FLYING comet orbits a held well, so
+              // a cue parked in the gate's opening had the player circling the gap forever
+              // instead of going through it. A star ends the hold by being collected; a
+              // gap does not, so for a gap the cue only ever says "line up", then goes away.
+              leadCue(tx, ty, collectable = true) {
+                  const dx = tx - playerComet.x, dy = ty - playerComet.y;
+                  this._lead.x = tx; this._lead.y = ty;
+                  if (collectable && dx * dx + dy * dy < 185 * 185) return this._lead;
+                  if (Math.abs(dy) < (collectable ? 18 : 30)) return null;
+                  this._lead.x = playerComet.x + 140;
+                  this._lead.y = playerComet.y + Math.max(-120, Math.min(120, dy));
+                  return this._lead;
+              },
+
+              // Called by updateTutorial() for every star taken.
+              onFragment(item) {
+                  if (!this.riftScripted) return;
+                  this.starsCollected++;
+                  riftX -= RIFT_FRAGMENT_PUSHBACK;
+                  spawnFloatingText('COLLAPSE PUSHED BACK', item.x, item.y - 30, '#38bdf8', 18);
               },
 
               // --- TUTORIAL STEPS ---
@@ -2765,109 +2830,146 @@
               //
               // advance() calls end(true) when it runs past the last step, so no explicit
               // terminator step is needed.
+              // --- GUIDED FIRST RUN (third rewrite of this list) ---
+              //
+              // The previous tutorial told the player what to do in a text box at the
+              // bottom of the screen and only accepted presses inside a spotlight whose
+              // position had nothing to do with the comet. Players could not tell WHERE to
+              // press or WHY, and it never showed the collapse at all — the thing that
+              // actually ends a new player's run.
+              //
+              // Rules this list is held to:
+              //   - The cue is drawn ON the thing to press (`cue()`), in the playfield.
+              //   - Input is never gated. A press anywhere does what it does in the game.
+              //   - Every step ends on an OUTCOME (a star collected, a gate cleared), not
+              //     on a press, so nobody is congratulated for doing the wrong thing.
+              //   - The rule is stated AFTER the player has felt it, in one short line.
+              //   - It teaches the hidden rule: a well only pulls a comet that is inside
+              //     its circle. The first two stars are placed in range on purpose, and
+              //     a press that is out of range says so ("Too far").
+              //   - It ends by showing the collapse and what holds it back.
+              //
+              // Steps 1-2 hold the comet still so there is no clock while the player works
+              // out the one verb. From step 3 it flies, at TUTORIAL_SLOW of real speed.
               steps: [
                   {
-                      // Absorbs the old "Welcome" + "This is your comet" beats.
-                      // Touch devices have no cursor and no arrow keys; telling a phone
-                      // player to "click" (or reach for keys) is the first thing they read.
-                      // It also said "anywhere", which was false: isInputBlocked() ignores a
-                      // press outside the spotlight, so a player who took the text at its
-                      // word pressed elsewhere and nothing happened.
-                      text: IS_TOUCH
-                          ? "Your comet is dead still.\nTOUCH and HOLD inside the bright circle to create a Gravity Well."
-                          : "Your comet is dead still.\nCLICK and HOLD inside the bright circle to create a Gravity Well.\n(or hold the ARROW KEYS)",
-                      blockInput: false, // Allow input
-                      spotlight: () => ({ x: playerComet.x + 150, y: playerComet.y - 150, width: 150, height: 150, shape: 'circle' }),
-                      isDone: () => gravityWell !== null
-                  },
-                  {
-                      text: "The comet is pulled towards your well. Let go to release it.",
-                      blockInput: false,
-                      spotlight: () => (gravityWell ? { x: gravityWell.x, y: gravityWell.y, width: 150, height: 150, shape: 'circle' } : null),
-                      isDone: () => gravityWell === null
-                  },
-                  {
-                      // The obstacle is a GATE, matching what the real game now opens with,
-                      // so the tutorial teaches the thing the player will actually meet.
-                      // Collisions are live here — clearing it means clearing it.
-                      text: "Now you're moving.\nSteer through the gap!",
-                      onCrashText: "You clipped it.\nHold a well on the side you want to go — the comet follows it.",
-                      isPausedForInstruction: false,
-                      allowForwardSpeed: true, // <-- Comet starts moving here
+                      text: IS_TOUCH ? "Touch and hold on the star." : "Click and hold on the star.",
                       onStart: () => {
-                          // --- SCRIPTED ACTION FIX ---
-                          // Reset the comet's velocity to a clean forward state,
-                          // overriding any "freefall" from the previous step.
+                          obstacles = [];
+                          tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
+                          // Inside the well's reach of the comet (radius ~206), so a press
+                          // on the star always pulls.
+                          starFragments = [new StarFragment(playerComet.x + 150, playerComet.y - 115)];
+                      },
+                      cue: () => starFragments[0] || null,
+                      isDone: () => starFragments.length === 0
+                  },
+                  {
+                      text: "The comet falls toward your touch.\nNow the one below.",
+                      onStart: () => {
+                          tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
+                          const y = Math.max(110, Math.min(VIRTUAL_HEIGHT - 110, playerComet.y + 120));
+                          starFragments = [new StarFragment(playerComet.x + 120, y)];
+                      },
+                      cue: () => starFragments[0] || null,
+                      isDone: () => starFragments.length === 0
+                  },
+                  {
+                      // The obstacle is a GATE, matching what the real game opens with.
+                      // Collisions are live here — clearing it means clearing it.
+                      text: "Now it flies on its own.\nHold ahead of it to steer. Let go to fly straight.",
+                      onCrashText: "Clipped it.\nHold toward the gap a little earlier.",
+                      allowForwardSpeed: true,
+                      speedFactor: TUTORIAL_SLOW,
+                      onStart: () => {
                           playerComet.vx = calculateCurrentSpeed();
                           playerComet.vy = 0;
-                          tutorialManager.setCheckpoint(playerComet.x, VIRTUAL_HEIGHT / 2);
+                          playerComet.y = Math.max(200, Math.min(VIRTUAL_HEIGHT - 200, playerComet.y));
+                          tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
+                          starFragments = [];
 
-                          // Spawned RELATIVE to the comet and close. It used to sit at a
-                          // fixed VIRTUAL_WIDTH * 0.8 while the comet started at x=150,
-                          // which meant ~900px of travel at 2px/frame — about 7.5 seconds
-                          // of dead coasting with nothing to do before the lesson began.
-                          const gateX = playerComet.x + 520;
+                          const gateX = playerComet.x + 560;
                           const gap = 260;
-                          // DELIBERATELY OFF-CENTRE from the comet's current line. Centring
-                          // the gap would let the player coast straight through it and
-                          // "pass" without ever steering — the exact fake-success this step
-                          // was rewritten to eliminate. Offsetting by ~150px means the gate
-                          // can only be cleared by actually using a well. Clamped so both
-                          // walls stay substantial rather than degenerating into a sliver.
-                          const desiredCentre = playerComet.y + 150;
+                          // DELIBERATELY OFF-CENTRE from the comet's line. Centring the gap
+                          // would let the player coast through and "pass" without steering.
+                          // Offset toward whichever side has more room.
+                          const side = playerComet.y < VIRTUAL_HEIGHT / 2 ? 1 : -1;
+                          const desiredCentre = playerComet.y + side * 150;
                           const gapTop = Math.max(70, Math.min(VIRTUAL_HEIGHT - gap - 70, desiredCentre - gap / 2));
                           obstacles = [
                               new Obstacle(gateX, 0, 40, gapTop, 'static'),
                               new Obstacle(gateX, gapTop + gap, 40, VIRTUAL_HEIGHT - (gapTop + gap), 'static')
                           ];
+                          tutorialManager.gate = { x: gateX, centre: gapTop + gap / 2, crashes: 0 };
                       },
-                      spotlight: () => {
-                          const obs = obstacles[0];
-                          if (!obs) return null;
-                          return { x: obs.x + obs.width / 2, y: VIRTUAL_HEIGHT / 2, width: obs.width + 260, height: 300, shape: 'rect' }
+                      // Second crash onward: open the gap up. The step is here to teach
+                      // steering, not to be a wall a struggling player bounces off forever.
+                      onRetry: () => {
+                          const g = tutorialManager.gate;
+                          if (!g || ++g.crashes < 2 || obstacles.length < 2) return;
+                          const gap = 380;
+                          const gapTop = Math.max(50, Math.min(VIRTUAL_HEIGHT - gap - 50, g.centre - gap / 2));
+                          obstacles[0].height = gapTop;
+                          obstacles[1].y = obstacles[1].initialY = gapTop + gap;
+                          obstacles[1].height = VIRTUAL_HEIGHT - (gapTop + gap);
+                          g.centre = gapTop + gap / 2;
                       },
-                      isDone: () => obstacles.length > 0 && playerComet.x > obstacles[0].x + obstacles[0].width + 30
+                      cue: () => (tutorialManager.gate ? tutorialManager.leadCue(tutorialManager.gate.x, tutorialManager.gate.centre, false) : null),
+                      isDone: () => tutorialManager.gate && playerComet.x > tutorialManager.gate.x + 80
                   },
                   {
-                      // Absorbs the old "pro move" setup step's onStart.
-                      text: "Pro move: place a well BEHIND the comet to pull it backward.",
-                      isPausedForInstruction: false,
-                      // Comet's baseSpeed is 0. It will *only* move via the gravity well.
-                      allowForwardSpeed: false,
+                      text: "The collapse follows you.\nStars push it back.",
+                      allowForwardSpeed: true,
+                      speedFactor: TUTORIAL_SLOW,
+                      spawnStars: () => {
+                          const cy = Math.max(160, Math.min(VIRTUAL_HEIGHT - 160, playerComet.y));
+                          starFragments = [
+                              new StarFragment(playerComet.x + 340, cy - 40),
+                              new StarFragment(playerComet.x + 480, cy + 40),
+                              new StarFragment(playerComet.x + 620, cy)
+                          ];
+                      },
                       onStart: () => {
-                          obstacles = []; // Clear obstacles
+                          obstacles = [];
+                          tutorialManager.gate = null;
                           tutorialManager.setCheckpoint(playerComet.x, playerComet.y);
-                          // Spawn a fragment *behind* the (now stationary) comet
-                          starFragments = [new StarFragment(playerComet.x - 150, playerComet.y)];
+                          tutorialManager.riftScripted = true;
+                          tutorialManager.starsCollected = 0;
+                          riftX = playerComet.x - 340;
+                          tutorialManager.currentStepConfig.spawnStars();
                       },
-                      spotlight: () => ({
-                          x: playerComet.x - 150,
-                          y: playerComet.y,
-                          width: 150,
-                          height: 150,
-                          shape: 'circle'
-                      }),
-                      isDone: () => gravityWell !== null && gravityWell.x < playerComet.x // Done when well is behind
+                      // SCRIPTED, not updateRift(): it creeps up to a fixed distance behind
+                      // the comet and stops. It is here to be seen and pushed, never to kill.
+                      tick: () => {
+                          const hold = playerComet.x - 125;
+                          riftX = Math.min(hold, riftX + Math.max(0, playerComet.vx) + 1.1);
+                      },
+                      cue: () => {
+                          let best = null;
+                          for (const f of starFragments) if (f.x > playerComet.x - 10 && (!best || f.x < best.x)) best = f;
+                          return best ? tutorialManager.leadCue(best.x, best.y) : null;
+                      },
+                      // Flew past every star: lay a fresh line ahead rather than leaving
+                      // the player with nothing to do and no way to finish the step.
+                      missed: () => starFragments.length > 0 && starFragments.every(f => f.x < playerComet.x - 60),
+                      onMissed: () => tutorialManager.currentStepConfig.spawnStars(),
+                      missedText: "Missed them.\nHold near each star as you reach it.",
+                      isDone: () => tutorialManager.starsCollected >= 3
                   },
                   {
-                      text: "Now reel it in and grab the fragment.",
-                      isPausedForInstruction: false,
-                      // Comet's baseSpeed is still 0.
-                      allowForwardSpeed: false,
-                      spotlight: () => ({ // Spotlight the action area
-                          x: playerComet.x,
-                          y: playerComet.y,
-                          width: 300,
-                          height: 300,
-                          shape: 'circle'
-                      }),
-                      isDone: () => starFragments.length === 0 // Done when fragment is collected
+                      text: "That's it. Go as deep as you can.",
+                      allowForwardSpeed: true,
+                      speedFactor: TUTORIAL_SLOW,
+                      onStart: () => { starFragments = []; },
+                      autoAdvance: 1600
                   }
               ],
-              // --- END TUTORIAL STEPS ---
 
               start() {
                   this.isActive = true; 
+                  this.gate = null; this.riftScripted = false; this.starsCollected = 0;
+                  this.tooFarFrames = 0; this.cuePos = null;
+                  this.updateSpotlight(null);
                   this.currentStep = 0;
                   this.runStep();
               },
@@ -2927,14 +3029,31 @@
                       if (this.retryTimer === 0) this.renderText();
                   }
 
-                  // Update spotlight position
-                  if (step.spotlight) {
-                      this.spotlightBounds = step.spotlight();
-                      this.updateSpotlight(this.spotlightBounds);
+                  if (step.tick) step.tick();
+                  this.cuePos = step.cue ? step.cue() : null;
+
+                  // A well only pulls a comet inside its circle. That rule is invisible
+                  // until it bites, so say it the moment it does.
+                  if (gravityWell && playerComet) {
+                      const dx = gravityWell.x - playerComet.x, dy = gravityWell.y - playerComet.y;
+                      if (dx * dx + dy * dy > gravityWell.radius * gravityWell.radius) this.tooFarFrames++;
+                      else this.tooFarFrames = 0;
+                      if (this.tooFarFrames === 25) {
+                          this.retryMessage = "Too far.\nHold closer to the comet.";
+                          this.retryTimer = 110;
+                          this.renderText();
+                      }
                   } else {
-                      this.spotlightBounds = null;
-                      this.updateSpotlight(null);
+                      this.tooFarFrames = 0;
                   }
+
+                  if (step.missed && step.missed()) {
+                      if (step.onMissed) step.onMissed();
+                      this.retryMessage = step.missedText || "Missed. Try again.";
+                      this.retryTimer = 150;
+                      this.renderText();
+                  }
+                  this.positionCaption();
 
                   // Check if the step is complete
                   if (step.isDone && !step.autoAdvance) {
@@ -2947,6 +3066,7 @@
               end(startNewGame = false) {
                   if (!this.isActive) return;
                   this.isActive = false; 
+                  this.riftScripted = false; this.gate = null; this.cuePos = null;
                   
                   // Explicitly hide all tutorial UI components
                   this.updateSpotlight(null); // Hide spotlight
@@ -2992,28 +3112,9 @@
                       return true; // Step explicitly blocks all input
                   }
                   
-                  // If a position is provided (from mousedown/touchstart)
-                  if (pos && this.spotlightBounds) {
-                      const bounds = this.spotlightBounds;
-                      // (This is a simple box check, good enough for this)
-                      const halfWidth = bounds.width / 2;
-                      const halfHeight = bounds.height / 2;
-                      
-                      // --- COORDINATE FIX ---
-                      // 'pos' is in SCREEN coordinates from getPos()
-                      // 'this.spotlightBounds' is in WORLD coordinates
-                      // We must convert 'pos' to WORLD coordinates to compare
-                      const worldX = pos.x + cameraX;
-                      const worldY = pos.y; // Y has no camera offset
-                      
-                      // Now check the click (worldX, worldY) against the
-                      // spotlight bounds (bounds.x, bounds.y)
-                      const inX = worldX > (bounds.x - halfWidth) && worldX < (bounds.x + halfWidth);
-                      const inY = worldY > (bounds.y - halfHeight) && worldY < (bounds.y + halfHeight);
-
-                      return !inX || !inY; // Block if *outside* the bounds
-                  }
-                  
+                  // Position no longer matters: a press anywhere does what it does in
+                  // the real game. Gating on a spotlight made correct-looking presses
+                  // silently do nothing.
                   // If no position (like mouseup) or no spotlight,
                   // allow it unless blockInput was true.
                   return false;
@@ -3573,7 +3674,7 @@
           function loadPlayerData() {
               try {
                   const savedData = portalSDK.getItem('gravityWellSaveData');
-                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
+                  const defaultPlayerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, assistRuns: 0, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } };
                   if (savedData) {
                       const loaded = JSON.parse(savedData);
                        const mergedCosmetics = {
@@ -3592,7 +3693,7 @@
                   }
               } catch (e) { 
                   console.error("Could not load player data, resetting.", e); 
-                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
+                  playerData = { highScore: 0, starFragments: 0, hasPlayedBefore: false, assistRuns: 0, upgrades: { shield: 0, magnet: 0, score: 0, wellStrength: 0, headstart: false, revive: false }, records: [], audioMuted: false, daily: { days: [], bestByDay: {}, runs: 0 }, cosmetics: { unlocked: ['comet_default', 'obstacle_default', 'background_default'], equipped: { comet: 'comet_default', obstacle: 'obstacle_default', background: 'background_default' } } }; 
               }
           }
           // Draws one shop tile's artwork on a real canvas using the SAME code paths the
@@ -4219,6 +4320,9 @@
               worldGenHash = 2166136261 >>> 0; formationsSpawned = 0;
               runReady = true;   // from here the world is coherent and safe to simulate
               riftX = 150 - RIFT_MAX_LAG; distanceSinceFragment = 0; riftPulseCountdown = 0;
+              // Aim assist for a new player's first few real runs (see drawAimAssist).
+              runAimAssist = !isTutorial && (playerData.assistRuns || 0) < AIM_ASSIST_RUNS;
+              if (runAimAssist) { playerData.assistRuns = (playerData.assistRuns || 0) + 1; savePlayerData(); }
               audioManager.resetRiftTension();
               obstacles = []; powerUps = []; starFragments = []; particles = []; shockRings = []; floatingTexts = [];
               nearMissFxCooldown = 0; nearMissCount = 0; nearMissFlashFrames = 0;
@@ -4395,6 +4499,8 @@
               particles.forEach(p => p.draw());
               shockRings.forEach(r => r.draw());
               if (gravityWell && !isHeadstarting) gravityWell.draw();
+              drawAimAssist();
+              drawTutorialCue();
               drawRift();
               drawRiftWarning();
 
@@ -4410,6 +4516,89 @@
 
           // Zone-change punctuation: a full-screen additive wash that decays fast, plus a
           // short banner naming the zone the player just reached.
+          // --- AIM ASSIST + TUTORIAL CUE ---
+          //
+          // AIM ASSIST: while a well is held, a dotted line shows the path the comet will
+          // actually take. It runs the same steering maths as PlayerComet.update() (minus
+          // the idle wave, which is too small to matter over this horizon), so the line
+          // cannot promise a turn the comet will not make. Shown throughout the guided
+          // first run and for a new player's first AIM_ASSIST_RUNS real runs, then gone:
+          // it is training wheels, not a permanent overlay.
+          //
+          // It also makes the well's one hidden rule visible. A well only pulls a comet
+          // inside its circle; held further away it does nothing, which looked like the
+          // game ignoring input. Out of reach, the assist draws a red dashed tether and
+          // "TOO FAR" instead of a path.
+          const AIM_ASSIST_RUNS = 3;
+          const AIM_STEPS = 84;
+          const _aimPath = new Float32Array(AIM_STEPS * 2);
+          let runAimAssist = false;
+          function aimAssistOn() {
+              return (gameState === 'tutorial' && tutorialManager.isActive) || (gameState === 'playing' && runAimAssist);
+          }
+          function drawAimAssist() {
+              if (!gravityWell || !playerComet || isHeadstarting || !aimAssistOn()) return;
+              const c = playerComet, w = gravityWell;
+              const ddx = w.x - c.x, ddy = w.y - c.y;
+              const dist0 = Math.sqrt(ddx * ddx + ddy * ddy);
+              ctx.save();
+              if (dist0 > w.radius) {
+                  ctx.strokeStyle = 'rgba(251, 113, 133, 0.85)'; ctx.lineWidth = 2;
+                  ctx.setLineDash([6, 8]);
+                  ctx.beginPath(); ctx.moveTo(c.x - cameraX, c.y); ctx.lineTo(w.x - cameraX, w.y); ctx.stroke();
+                  ctx.setLineDash([]);
+                  ctx.font = '800 15px Inter, sans-serif'; ctx.textAlign = 'center';
+                  ctx.fillStyle = 'rgba(253, 164, 175, 0.95)';
+                  ctx.fillText('TOO FAR', w.x - cameraX, w.y - 20);
+                  ctx.restore();
+                  return;
+              }
+              let x = c.x, y = c.y, vx = c.vx, vy = c.vy;
+              const bs = c.baseSpeed, inf0 = getGravityInfluence(bs);
+              for (let i = 0; i < AIM_STEPS; i++) {
+                  const dx = w.x - x, dy = w.y - y;
+                  const d = Math.sqrt(dx * dx + dy * dy);
+                  if (d > 0.01 && d < w.radius) {
+                      const f = WELL_FALLOFF_MIN + (1 - WELL_FALLOFF_MIN) * (1 - d / w.radius);
+                      vx += (dx / d) * inf0 * f; vy += (dy / d) * inf0 * f;
+                  }
+                  if (bs > 0) {
+                      const sp = Math.sqrt(vx * vx + vy * vy);
+                      if (sp > 0) { vx = vx / sp * bs; vy = vy / sp * bs; }
+                  } else { vx *= INERTIAL_DAMPING; vy *= INERTIAL_DAMPING; }
+                  x += vx; y += vy;
+                  _aimPath[i * 2] = x; _aimPath[i * 2 + 1] = y;
+              }
+              ctx.fillStyle = '#e9d5ff';
+              for (let i = 5; i < AIM_STEPS; i += 6) {
+                  ctx.globalAlpha = 0.75 * (1 - i / AIM_STEPS) + 0.1;
+                  ctx.beginPath(); ctx.arc(_aimPath[i * 2] - cameraX, _aimPath[i * 2 + 1], 3, 0, Math.PI * 2); ctx.fill();
+              }
+              ctx.restore();
+          }
+
+          // The "press here" marker: rings pulsing INWARD onto the spot, plus a HOLD tag.
+          // It disappears while a well is held so it never competes with the aim line.
+          function drawTutorialCue() {
+              if (gameState !== 'tutorial' || !tutorialManager.isActive || gravityWell) return;
+              const p = tutorialManager.cuePos;
+              if (!p) return;
+              const sx = p.x - cameraX, t = frameTime * 0.001;
+              ctx.save();
+              ctx.strokeStyle = '#fde68a'; ctx.lineWidth = 3;
+              for (let i = 0; i < 2; i++) {
+                  const ph = (t * 0.9 + i * 0.5) % 1;
+                  ctx.globalAlpha = 0.85 * ph;
+                  ctx.beginPath(); ctx.arc(sx, p.y, 26 + (1 - ph) * 46, 0, Math.PI * 2); ctx.stroke();
+              }
+              ctx.globalAlpha = 1;
+              ctx.beginPath(); ctx.arc(sx, p.y, 26, 0, Math.PI * 2); ctx.stroke();
+              ctx.font = '900 15px Inter, sans-serif'; ctx.textAlign = 'center';
+              ctx.fillStyle = '#fde68a';
+              ctx.fillText('HOLD', sx, p.y + 52);
+              ctx.restore();
+          }
+
           function drawZoneAdvanceFx() {
               if (zoneFlashFrames > 0) {
                   const t = zoneFlashFrames / 26;
@@ -4476,6 +4665,7 @@
                   // Full flourish: this is the player's first fragment ever, so it should
                   // land hard. No run accounting here — the tutorial awards nothing.
                   fragmentPickupFx(collisionResult.item, true);
+                  tutorialManager.onFragment(collisionResult.item);
                   // The tutorialManager.update() will detect this and advance the step.
               }
           }
@@ -5413,7 +5603,7 @@
                   // If the tutorial is active, check if the current step *allows* forward speed.
                   if (tutorialManager.isActive && tutorialManager.currentStepConfig) {
                       if (tutorialManager.currentStepConfig.allowForwardSpeed) {
-                          return INITIAL_SPEED * 0.8; 
+                          return INITIAL_SPEED * (tutorialManager.currentStepConfig.speedFactor || 0.8); 
                       }
                   }
                   return 0; // By default, no forward speed in tutorial
@@ -5995,6 +6185,9 @@
                   columnBlockedPct: Math.round(blockedRows / SAMPLES * 100),
                   gatePieces: onScreen.filter(o => o.y <= 0 || o.y + o.height >= VIRTUAL_HEIGHT - 1).length,
                   fragments: starFragments.length,
+                  // Where the guided first run is currently telling the player to hold.
+                  tutorialCue: (tutorialManager.isActive && tutorialManager.cuePos) ? { x: Math.round(tutorialManager.cuePos.x), y: Math.round(tutorialManager.cuePos.y) } : null,
+                  tutorialStep: tutorialManager.isActive ? tutorialManager.currentStep : -1,
                   // Nearest fragment still ahead of the comet, so an automated playtest can
                   // collect (and therefore hold the rift off) instead of only dodging.
                   nextFragment: (() => {
